@@ -99,6 +99,40 @@ wraps all three providers. Sign in with Apple is offered on iOS only.
 See `docs/firebase.md` for an outline of how the Firebase project is
 structured and the console steps needed to rebuild it.
 
+## Website member sign-in (Ghost)
+
+Signed-in users can open pizzapredator.com as a logged-in Ghost member from
+Settings → Account, without a magic-link email. Ghost cannot verify Firebase
+users itself, so a Cloud Function bridges the two:
+
+1. The app calls the `ghostSignInUrl` callable function
+   (`lib/ghost/ghost_session_service.dart`).
+2. The function checks the Firebase user has a verified email, then uses the
+   Ghost Admin API to find or create the member with that email and asks
+   Ghost for a one-time sign-in URL (`functions/index.js`, `functions/ghost.js`).
+3. The app opens that URL in an in-app browser; Ghost sets its member cookie.
+
+Password accounts must verify their email first (Settings shows a
+"Verify your email" tile); Google and Apple accounts are verified already.
+Newsletter subscription for members created this way follows the Ghost
+site's defaults, the same as signing up on the website.
+
+Setup, once per Firebase project:
+
+```sh
+cd functions && npm install && cd ..
+cp functions/.env.example functions/.env   # set GHOST_ADMIN_API_URL
+firebase functions:secrets:set GHOST_ADMIN_API_KEY   # paste the Admin API key
+firebase deploy --only functions
+```
+
+The Ghost Admin API key and URL come from a custom integration in Ghost
+Admin (Settings → Integrations). The key is a secret and lives only in
+Secret Manager; the same integration's Content API key goes in
+`config/local.json` for the app.
+
+Run the function's unit tests with `npm test` inside `functions/`.
+
 ## Project layout
 
 ```

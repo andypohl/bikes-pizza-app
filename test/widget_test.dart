@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pizza_predator/app_settings.dart';
 import 'package:pizza_predator/auth/auth_service.dart';
 import 'package:pizza_predator/data/post_repository.dart';
+import 'package:pizza_predator/ghost/ghost_session_service.dart';
 import 'package:pizza_predator/main.dart';
 import 'package:pizza_predator/models/post.dart';
 import 'package:pizza_predator/models/post_feed.dart';
@@ -64,6 +65,27 @@ class FakeAuthService implements AuthService {
   @override
   Future<void> sendPasswordReset(String email) async {}
 
+  int verificationEmails = 0;
+
+  @override
+  Future<void> sendEmailVerification() async => verificationEmails++;
+
+  /// Simulates the user having clicked the verification link.
+  @override
+  Future<void> reloadUser() async {
+    final user = _user;
+    if (user != null) {
+      _set(
+        AppUser(
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          emailVerified: true,
+        ),
+      );
+    }
+  }
+
   int googleCalls = 0;
   int appleCalls = 0;
   bool cancelProviders = false;
@@ -72,18 +94,45 @@ class FakeAuthService implements AuthService {
   Future<void> signInWithGoogle() async {
     googleCalls++;
     if (cancelProviders) throw AuthException.cancelled();
-    _set(const AppUser(uid: 'g1', email: 'g@example.com', displayName: 'G'));
+    _set(
+      const AppUser(
+        uid: 'g1',
+        email: 'g@example.com',
+        displayName: 'G',
+        emailVerified: true,
+      ),
+    );
   }
 
   @override
   Future<void> signInWithApple() async {
     appleCalls++;
     if (cancelProviders) throw AuthException.cancelled();
-    _set(const AppUser(uid: 'a1', email: 'a@example.com', displayName: 'A'));
+    _set(
+      const AppUser(
+        uid: 'a1',
+        email: 'a@example.com',
+        displayName: 'A',
+        emailVerified: true,
+      ),
+    );
   }
 
   @override
   Future<void> signOut() async => _set(null);
+}
+
+/// Records sign-in URL requests and returns a fixed URL.
+class FakeGhostSessionService implements GhostSessionService {
+  int calls = 0;
+  bool fail = false;
+
+  @override
+  Future<Uri> signInUrl({String? redirectTo}) async {
+    calls++;
+    if (fail) throw GhostSessionException('Could not sign you in.');
+    return Uri.parse('https://example.com/members/?token=t&action=signin');
+  }
 }
 
 /// In-memory store with two products; records checkout requests.
@@ -162,6 +211,12 @@ void main() {
 
   late FakeAuthService auth;
   FakeStoreRepository? store;
+  FakeGhostSessionService? ghost;
+
+  setUp(() {
+    store = null;
+    ghost = null;
+  });
 
   Future<FakePostRepository> pumpApp(WidgetTester tester) async {
     auth = FakeAuthService();
@@ -179,6 +234,7 @@ void main() {
         repository: repo,
         auth: auth,
         store: store,
+        ghost: ghost,
       ),
     );
     await tester.pumpAndSettle();
@@ -406,6 +462,69 @@ void main() {
     expect(auth.appleCalls, 1);
     expect(find.text('a@example.com'), findsOneWidget);
     debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('verified users can open the website as a member', (
+    tester,
+  ) async {
+    ghost = FakeGhostSessionService();
+    await openSignIn(tester);
+    await tester.tap(find.byKey(const Key('google-sign-in')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('verify-email')), findsNothing);
+    await tester.tap(find.byKey(const Key('member-site')));
+    // launchUrl never resolves under test, so a single frame is enough.
+    await tester.pump();
+
+    expect(ghost!.calls, 1);
+  });
+
+  testWidgets('member-site errors surface as a snackbar', (tester) async {
+    ghost = FakeGhostSessionService()..fail = true;
+    await openSignIn(tester);
+    await tester.tap(find.byKey(const Key('google-sign-in')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('member-site')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Could not sign you in.'), findsOneWidget);
+  });
+
+  testWidgets('unverified password accounts are asked to verify first', (
+    tester,
+  ) async {
+    ghost = FakeGhostSessionService();
+    await openSignIn(tester);
+    await tester.enterText(find.byType(TextField).at(0), 'me@example.com');
+    await tester.enterText(find.byType(TextField).at(1), 'correct-horse');
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('member-site')), findsNothing);
+    expect(find.byKey(const Key('verify-email')), findsOneWidget);
+
+    await tester.tap(find.text('Send email'));
+    await tester.pumpAndSettle();
+    expect(auth.verificationEmails, 1);
+    expect(find.text('Verification email sent.'), findsOneWidget);
+
+    // Tapping the tile reloads the user; the fake marks them verified.
+    await tester.tap(find.byKey(const Key('verify-email')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('member-site')), findsOneWidget);
+  });
+
+  testWidgets('member tiles are hidden when website sign-in is unavailable', (
+    tester,
+  ) async {
+    await openSignIn(tester);
+    await tester.tap(find.byKey(const Key('google-sign-in')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('member-site')), findsNothing);
+    expect(find.byKey(const Key('verify-email')), findsNothing);
   });
 
   testWidgets('Settings tab switches theme mode', (tester) async {

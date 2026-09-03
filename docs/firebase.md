@@ -138,7 +138,23 @@ Rules and indexes should be kept in the repo (`firestore.rules`,
   approval gating happens in Firestore, tightening later if needed.
 - Rules live in `storage.rules` via `firebase init storage`.
 
-## Cloud Functions (planned)
+## Cloud Functions
+
+Source lives in `functions/` (Node 22, plain JavaScript, 2nd-gen functions,
+region us-central1). Deploy with `firebase deploy --only functions`.
+
+Current:
+
+- `ghostSignInUrl` (callable, requires a signed-in user with a verified
+  email). Finds or creates the Ghost member with the user's email through
+  the Ghost Admin API, then returns a one-time sign-in URL for the website.
+  Configuration: a Secret Manager secret holding the Ghost Admin API key
+  (name in `functions/index.js`) and a plain parameter with the Ghost API
+  URL, kept in the git-ignored `functions/.env` (template:
+  `functions/.env.example`). The Admin API key comes from a custom
+  integration in Ghost Admin.
+
+Planned:
 
 - Moderation trigger on Storage upload: runs a SafeSearch check, creates or
   updates the matching `bikePhotos` document, and leaves it `pending` for
@@ -159,7 +175,9 @@ Rules and indexes should be kept in the repo (`firestore.rules`,
 Keep this list current. It is the checklist for rebuilding the project.
 
 1. Create the Firebase project under the Pizza Predator Google account.
-2. Upgrade billing when Storage is needed.
+2. Upgrade to the Blaze (pay-as-you-go) plan. Cloud Functions require it;
+   Storage will too. Usage at this project's scale stays inside the free
+   allowances.
 3. Authentication: press "Get started", then enable Email/Password, Google
    (choose a support email), and Apple. Register signing-key fingerprints on
    the Android app, then re-run `flutterfire configure`.
@@ -169,7 +187,9 @@ Keep this list current. It is the checklist for rebuilding the project.
    Ghost site's timezone is America/Chicago) and the default Storage bucket.
 6. Deploy rules, indexes, and functions from the repo with `firebase deploy`.
 7. Install the Resize Images extension and point it at the bucket.
-8. Set any Functions secrets with the CLI.
+8. Set Functions secrets with the CLI (`firebase functions:secrets:set`),
+   currently the Ghost Admin API key, and create `functions/.env` from the
+   example file.
 
 ## Rebuilding the app config
 
