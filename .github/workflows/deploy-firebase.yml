@@ -60,6 +60,10 @@ jobs:
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          # Minting a token here verifies impersonation up front, so a
+          # permissions problem fails this step with a clear message instead
+          # of a generic "Failed to authenticate" from the Firebase CLI.
+          token_format: access_token
 
       - name: Deploy
         # --force skips the interactive confirmation for deleting functions
