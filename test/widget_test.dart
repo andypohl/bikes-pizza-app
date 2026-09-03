@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pizza_predator/app_settings.dart';
@@ -63,6 +64,24 @@ class FakeAuthService implements AuthService {
 
   @override
   Future<void> sendPasswordReset(String email) async {}
+
+  int googleCalls = 0;
+  int appleCalls = 0;
+  bool cancelProviders = false;
+
+  @override
+  Future<void> signInWithGoogle() async {
+    googleCalls++;
+    if (cancelProviders) throw AuthException.cancelled();
+    _set(const AppUser(uid: 'g1', email: 'g@example.com', displayName: 'G'));
+  }
+
+  @override
+  Future<void> signInWithApple() async {
+    appleCalls++;
+    if (cancelProviders) throw AuthException.cancelled();
+    _set(const AppUser(uid: 'a1', email: 'a@example.com', displayName: 'A'));
+  }
 
   @override
   Future<void> signOut() async => _set(null);
@@ -313,6 +332,60 @@ void main() {
 
     expect(find.text('Enter a valid email address'), findsOneWidget);
     expect(find.text('Password must be at least 6 characters'), findsOneWidget);
+  });
+
+  Future<void> openSignIn(WidgetTester tester) async {
+    await pumpApp(tester);
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign in'));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('Google button signs in and returns to Settings',
+      (tester) async {
+    await openSignIn(tester);
+
+    await tester.tap(find.byKey(const Key('google-sign-in')));
+    await tester.pumpAndSettle();
+
+    expect(auth.googleCalls, 1);
+    expect(find.text('G'), findsOneWidget);
+    expect(find.text('g@example.com'), findsOneWidget);
+  });
+
+  testWidgets('cancelling a provider shows no error', (tester) async {
+    await openSignIn(tester);
+    auth.cancelProviders = true;
+
+    await tester.tap(find.byKey(const Key('google-sign-in')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('google-sign-in')), findsOneWidget);
+    expect(find.textContaining('cancel'), findsNothing);
+  });
+
+  testWidgets('Apple button is hidden on Android', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    await openSignIn(tester);
+
+    expect(find.byKey(const Key('apple-sign-in')), findsNothing);
+    // Must be reset inside the test body; flutter_test checks it before
+    // tearDown callbacks run.
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('Apple button is shown on iOS and signs in', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    await openSignIn(tester);
+
+    await tester.ensureVisible(find.byKey(const Key('apple-sign-in')));
+    await tester.tap(find.byKey(const Key('apple-sign-in')));
+    await tester.pumpAndSettle();
+
+    expect(auth.appleCalls, 1);
+    expect(find.text('a@example.com'), findsOneWidget);
+    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('Settings tab switches theme mode', (tester) async {

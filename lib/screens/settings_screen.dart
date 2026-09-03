@@ -118,8 +118,12 @@ class _AccountTile extends StatelessWidget {
         }
         return ListTile(
           leading: const Icon(Icons.person),
-          title: Text(user.email ?? 'Signed in'),
-          subtitle: const Text('Signed in'),
+          title: Text(user.displayName ?? user.email ?? 'Signed in'),
+          subtitle: Text(
+            user.displayName != null && user.email != null
+                ? user.email!
+                : 'Signed in',
+          ),
           trailing: TextButton(
             onPressed: auth.signOut,
             child: const Text('Sign out'),

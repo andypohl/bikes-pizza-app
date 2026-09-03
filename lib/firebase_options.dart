@@ -56,13 +56,14 @@ class DefaultFirebaseOptions {
     projectId: 'pizzapredator-a445e',
     storageBucket: 'pizzapredator-a445e.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyABByxTqUZOzw5AaBXgxn0LHust24F2gBg',
     appId: '1:79972934725:ios:aee806e199b03345122f2c',
     messagingSenderId: '79972934725',
     projectId: 'pizzapredator-a445e',
     storageBucket: 'pizzapredator-a445e.firebasestorage.app',
+    androidClientId: '79972934725-imtfd259pkft9n1ro6b2063qkjo8ttjf.apps.googleusercontent.com',
+    iosClientId: '79972934725-homgdv3a0uf97m156pkuq8ucqki8au7r.apps.googleusercontent.com',
     iosBundleId: 'com.pizzapredator.pizzaPredator',
   );
 }
