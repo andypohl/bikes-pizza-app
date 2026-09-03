@@ -13,7 +13,7 @@ Five bottom-bar tabs:
 | Pizza    | Posts tagged `pizza`                                           |
 | Bikes    | Posts tagged `biking` or `off-road-biking`                     |
 | Store    | Placeholder ("Coming Soon!") for a future merch store          |
-| Settings | Light/dark theme, data-source info, link to the website        |
+| Settings | Account (email, Google, Apple sign-in), theme, data source      |
 
 Tapping a post opens it in-app with the hero image and full HTML body. A
 toolbar button opens the post in the browser.
@@ -57,9 +57,10 @@ flutterfire configure --platforms=ios,android
 ```
 
 In the Firebase console, **Authentication → Sign-in method** must have
-*Email/Password* enabled. Google and Apple sign-in can be added there later;
-the app's `AuthService` facade in `lib/auth/auth_service.dart` is where the
-corresponding methods go.
+*Email/Password*, *Google*, and *Apple* enabled. Google sign-in on Android
+also needs the signing key's SHA fingerprints registered on the Firebase
+Android app. The `AuthService` facade in `lib/auth/auth_service.dart`
+wraps all three providers. Sign in with Apple is offered on iOS only.
 
 See `docs/firebase.md` for an outline of how the Firebase project is
 structured and the console steps needed to rebuild it.
