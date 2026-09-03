@@ -34,28 +34,54 @@ the intended shape and have not been created yet.
 
 ## Authentication (current)
 
-- Enabled provider: Email/Password. This was turned on by hand in the
-  console under Authentication, Sign-in method, after pressing "Get started"
-  on the Authentication page. The Identity Toolkit API cannot create that
-  initial configuration on its own.
-- The app exposes sign-in, account creation, password reset, and sign-out
-  from Settings, through the `AuthService` facade in `lib/auth/`.
+- Enabled providers: Email/Password, Google, and Apple.
+  - Email/Password was turned on by hand in the console under
+    Authentication, Sign-in method, after pressing "Get started" on the
+    Authentication page. The Identity Toolkit API cannot create that initial
+    configuration on its own.
+  - Google was enabled in the console. Doing so auto-creates the OAuth
+    clients in the underlying Google Cloud project; the app config files
+    must be regenerated afterwards (see below) so they contain those
+    client IDs.
+  - Apple was enabled through the Identity Toolkit API with the iOS bundle
+    ID as the client ID and no Services ID, which is enough for the native
+    iOS flow.
+- The app exposes email sign-in, account creation, password reset,
+  Google sign-in, Apple sign-in (iOS only), and sign-out from Settings,
+  through the `AuthService` facade in `lib/auth/`.
 - No custom claims or roles yet. Admin-only actions (approving photos, for
   example) will use a custom claim set from a Cloud Function or the Admin
   SDK, not a hardcoded list of emails.
 
-### Planned providers
+### Google sign-in details
 
-- Google sign-in: needs the debug keystore and Play App Signing SHA-1 and
-  SHA-256 fingerprints added to the Android app in the console, then a
-  refreshed `google-services.json`. On iOS it needs the reversed client ID
-  added as a URL scheme in the Xcode project.
-- Sign in with Apple: needs the capability on the App ID in the Apple
-  Developer account and in Xcode, and the Apple provider enabled in Firebase.
-  For Android, register a Services ID and key with Apple so Firebase can
-  complete the flow there.
+- Android needs the SHA-1 and SHA-256 fingerprints of every signing key
+  registered on the Android app in Firebase. The local debug keystore's
+  fingerprints were added with `firebase apps:android:sha:create`. The Play
+  App Signing key's fingerprints (from Play Console, Setup, App signing)
+  still need adding before a Play release; add them the same way.
+- After enabling Google or adding fingerprints, re-run
+  `flutterfire configure` so `google-services.json` and
+  `GoogleService-Info.plist` pick up the OAuth client IDs.
+- iOS needs the plist's reversed client ID registered as a URL scheme in
+  `ios/Runner/Info.plist` so the Google sheet can return to the app.
+- The `google_sign_in` plugin reads client IDs from those config files; no
+  IDs are hardcoded in Dart.
+
+### Apple sign-in details
+
+- `ios/Runner/Runner.entitlements` carries the Sign in with Apple
+  entitlement and is referenced from the Runner target's build settings.
+- The App ID in the Apple Developer account must have the Sign in with
+  Apple capability. With automatic signing and a team selected in Xcode,
+  Xcode adds it on first archive; otherwise enable it in the developer
+  portal by hand.
+- Android is not wired up. It would need Apple's web flow: a Services ID
+  and a private key registered with Apple, both entered into the Apple
+  provider in Firebase, plus a return URL. The button is hidden on Android
+  until then.
 - Apple requires offering Sign in with Apple wherever Google sign-in is
-  offered on iOS.
+  offered on iOS; that is why both ship together.
 
 ## Cloud Firestore (planned)
 
@@ -111,8 +137,9 @@ Keep this list current. It is the checklist for rebuilding the project.
 
 1. Create the Firebase project under the Pizza Predator Google account.
 2. Upgrade billing when Storage is needed.
-3. Authentication: press "Get started", enable Email/Password. Later enable
-   Google and Apple and complete the fingerprint and Apple ID steps above.
+3. Authentication: press "Get started", then enable Email/Password, Google
+   (choose a support email), and Apple. Register signing-key fingerprints on
+   the Android app, then re-run `flutterfire configure`.
 4. Register the iOS and Android apps by running `flutterfire configure`
    from the repo root with the FlutterFire CLI installed.
 5. Create the Firestore database (choose a region close to Chicago; the

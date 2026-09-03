@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 
 import 'auth_service.dart';
@@ -50,6 +51,29 @@ class _SignInScreenState extends State<SignInScreen> {
       if (mounted) Navigator.of(context).pop();
     } on AuthException catch (e) {
       setState(() => _error = e.message);
+    } on Object {
+      setState(() => _error = 'Something went wrong. Please try again.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Sign in with Apple is only wired up natively on Apple platforms.
+  /// Android would need Apple's web flow plus a Services ID; see docs.
+  bool get _appleAvailable =>
+      defaultTargetPlatform == TargetPlatform.iOS ||
+      defaultTargetPlatform == TargetPlatform.macOS;
+
+  Future<void> _withProvider(Future<void> Function() signIn) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await signIn();
+      if (mounted) Navigator.of(context).pop();
+    } on AuthException catch (e) {
+      if (!e.cancelled) setState(() => _error = e.message);
     } on Object {
       setState(() => _error = 'Something went wrong. Please try again.');
     } finally {
@@ -182,6 +206,41 @@ class _SignInScreenState extends State<SignInScreen> {
                     onPressed: _busy ? null : _resetPassword,
                     child: const Text('Forgot password?'),
                   ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Expanded(child: Divider()),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text('or', style: theme.textTheme.bodySmall),
+                    ),
+                    const Expanded(child: Divider()),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  key: const Key('google-sign-in'),
+                  onPressed: _busy
+                      ? null
+                      : () => _withProvider(widget.auth.signInWithGoogle),
+                  icon: const Icon(Icons.g_mobiledata, size: 28),
+                  label: const Text('Continue with Google'),
+                ),
+                if (_appleAvailable) ...[
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    key: const Key('apple-sign-in'),
+                    onPressed: _busy
+                        ? null
+                        : () => _withProvider(widget.auth.signInWithApple),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: theme.colorScheme.onSurface,
+                      foregroundColor: theme.colorScheme.surface,
+                    ),
+                    icon: const Icon(Icons.apple),
+                    label: const Text('Continue with Apple'),
+                  ),
+                ],
               ],
             ),
           ),
