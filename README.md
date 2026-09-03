@@ -134,10 +134,12 @@ Secret Manager; the same integration's Content API key goes in
 Run the function's unit tests with `npm test` inside `functions/`.
 
 Deploys also happen automatically when a GitHub release is published (or by
-running the "Deploy functions" workflow by hand). That workflow needs a
-repository secret `FIREBASE_SERVICE_ACCOUNT` holding a deploy-only service
-account key, a `production` environment, and a repository variable
-`GHOST_ADMIN_API_URL`. See `docs/firebase.md` for the service account roles.
+running the "Deploy functions" workflow by hand). The workflow authenticates
+without any stored key: GitHub's OIDC token is exchanged for a deploy-only
+service account via Workload Identity Federation. It needs a `production`
+environment and three repository variables (`GCP_WORKLOAD_IDENTITY_PROVIDER`,
+`GCP_DEPLOY_SERVICE_ACCOUNT`, `GHOST_ADMIN_API_URL`). See `docs/firebase.md`
+for the cloud-side setup.
 
 ## Project layout
 

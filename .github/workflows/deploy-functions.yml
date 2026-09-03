@@ -2,10 +2,14 @@
 # published (pre-releases are skipped). Can also be run by hand from the
 # Actions tab.
 #
-# Required repository configuration:
-#   secret   FIREBASE_SERVICE_ACCOUNT  JSON key for a deploy-only service
-#                                      account (see docs/firebase.md)
-#   variable GHOST_ADMIN_API_URL       Ghost API URL for functions/.env
+# Authentication is keyless: GitHub's OIDC token is exchanged for the deploy
+# service account through Workload Identity Federation (see docs/firebase.md).
+#
+# Required repository variables (none are secrets):
+#   GCP_WORKLOAD_IDENTITY_PROVIDER  projects/<number>/locations/global/
+#                                   workloadIdentityPools/<pool>/providers/<id>
+#   GCP_DEPLOY_SERVICE_ACCOUNT      deploy service account email
+#   GHOST_ADMIN_API_URL             Ghost API URL for functions/.env
 name: Deploy functions
 
 on:
@@ -19,6 +23,7 @@ concurrency:
 
 permissions:
   contents: read
+  id-token: write # needed to mint the OIDC token for Google Cloud
 
 jobs:
   deploy:
@@ -53,7 +58,8 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
 
       - name: Deploy
         # --force skips the interactive confirmation for deleting functions

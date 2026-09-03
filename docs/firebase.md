@@ -194,10 +194,20 @@ Keep this list current. It is the checklist for rebuilding the project.
    Cloud console (IAM & Admin → Service Accounts) used only for deploys, with
    these roles: Cloud Functions Admin, Cloud Run Admin, Cloud Build Editor,
    Artifact Registry Administrator, Service Account User, Secret Manager
-   Viewer, Service Usage Consumer. Create a JSON key, store it as the GitHub
-   repository secret `FIREBASE_SERVICE_ACCOUNT`, and delete the local copy.
-   Also create a `production` GitHub environment (optionally with required
-   reviewers) and the repository variable `GHOST_ADMIN_API_URL`.
+   Viewer, Service Usage Consumer. Do not create a key for it.
+10. Set up keyless access for GitHub Actions (Workload Identity Federation):
+    enable the IAM Credentials and STS APIs; create a workload identity pool
+    with an OIDC provider whose issuer is
+    `https://token.actions.githubusercontent.com`, mapping
+    `google.subject` to `assertion.sub` and `attribute.repository` to
+    `assertion.repository`, with the attribute condition restricting
+    `assertion.repository` to this repository; then grant the repository's
+    principal set the Workload Identity User role on the deploy service
+    account. Record the provider resource name and the service account email
+    as GitHub repository variables `GCP_WORKLOAD_IDENTITY_PROVIDER` and
+    `GCP_DEPLOY_SERVICE_ACCOUNT`. Also create a `production` GitHub
+    environment (optionally with required reviewers) and the repository
+    variable `GHOST_ADMIN_API_URL`.
 
 ## Rebuilding the app config
 
