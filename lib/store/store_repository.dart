@@ -6,7 +6,11 @@ import '../config.dart';
 import 'product.dart';
 
 class ProductPage {
-  const ProductPage({required this.products, this.endCursor, this.hasMore = false});
+  const ProductPage({
+    required this.products,
+    this.endCursor,
+    this.hasMore = false,
+  });
 
   final List<Product> products;
   final String? endCursor;
@@ -59,8 +63,7 @@ class ShopifyStorefrontRepository implements StoreRepository {
   final String apiVersion;
   final http.Client _client;
 
-  Uri get endpoint =>
-      Uri.https(storeDomain, '/api/$apiVersion/graphql.json');
+  Uri get endpoint => Uri.https(storeDomain, '/api/$apiVersion/graphql.json');
 
   static const _productsQuery = r'''
 query Products($first: Int!, $after: String) {
@@ -140,7 +143,9 @@ mutation CartCreate($input: CartInput!) {
     }
     final url = ((result?['cart'] as Map?)?['checkoutUrl']) as String?;
     final uri = url == null ? null : Uri.tryParse(url);
-    if (uri == null) throw StoreException('Shopify did not return a checkout URL.');
+    if (uri == null) {
+      throw StoreException('Shopify did not return a checkout URL.');
+    }
     return uri;
   }
 

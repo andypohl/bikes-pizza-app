@@ -59,8 +59,7 @@ class FakeAuthService implements AuthService {
   Future<void> createAccount({
     required String email,
     required String password,
-  }) async =>
-      _set(AppUser(uid: 'u2', email: email));
+  }) async => _set(AppUser(uid: 'u2', email: email));
 
   @override
   Future<void> sendPasswordReset(String email) async {}
@@ -96,38 +95,47 @@ class FakeStoreRepository implements StoreRepository {
 
   @override
   Future<ProductPage> fetchProducts({String? after}) async => const ProductPage(
-        products: [
-          Product(
-            id: 'p1',
-            title: 'Pizza Predator Tee',
-            handle: 'tee',
-            description: 'Soft cotton.',
+    products: [
+      Product(
+        id: 'p1',
+        title: 'Pizza Predator Tee',
+        handle: 'tee',
+        description: 'Soft cotton.',
+        price: _usd,
+        availableForSale: true,
+        variants: [
+          ProductVariant(
+            id: 'v-s',
+            title: 'S',
             price: _usd,
             availableForSale: true,
-            variants: [
-              ProductVariant(
-                  id: 'v-s', title: 'S', price: _usd, availableForSale: true),
-              ProductVariant(
-                  id: 'v-m', title: 'M', price: _usd, availableForSale: true),
-            ],
           ),
-          Product(
-            id: 'p2',
-            title: 'Sticker Pack',
-            handle: 'stickers',
-            description: '',
-            price: Money(amount: 5, currencyCode: 'USD'),
-            availableForSale: false,
-            variants: [
-              ProductVariant(
-                  id: 'v-st',
-                  title: 'Default Title',
-                  price: Money(amount: 5, currencyCode: 'USD'),
-                  availableForSale: false),
-            ],
+          ProductVariant(
+            id: 'v-m',
+            title: 'M',
+            price: _usd,
+            availableForSale: true,
           ),
         ],
-      );
+      ),
+      Product(
+        id: 'p2',
+        title: 'Sticker Pack',
+        handle: 'stickers',
+        description: '',
+        price: Money(amount: 5, currencyCode: 'USD'),
+        availableForSale: false,
+        variants: [
+          ProductVariant(
+            id: 'v-st',
+            title: 'Default Title',
+            price: Money(amount: 5, currencyCode: 'USD'),
+            availableForSale: false,
+          ),
+        ],
+      ),
+    ],
+  );
 
   @override
   Future<Uri> createCheckout({
@@ -142,12 +150,12 @@ class FakeStoreRepository implements StoreRepository {
 }
 
 Post _post(String title, DateTime date) => Post(
-      id: title,
-      title: title,
-      url: 'https://example.com/$title/',
-      publishedAt: date,
-      html: '<p>$title body</p>',
-    );
+  id: title,
+  title: title,
+  url: 'https://example.com/$title/',
+  publishedAt: date,
+  html: '<p>$title body</p>',
+);
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -183,7 +191,10 @@ void main() {
     expect(find.byType(NavigationBar), findsOneWidget);
     for (final label in ['Blog', 'Pizza', 'Bikes', 'Store', 'Settings']) {
       expect(
-        find.descendant(of: find.byType(NavigationBar), matching: find.text(label)),
+        find.descendant(
+          of: find.byType(NavigationBar),
+          matching: find.text(label),
+        ),
         findsOneWidget,
       );
     }
@@ -226,8 +237,9 @@ void main() {
     expect(repo.requestedFeeds, containsAll(PostFeed.values));
   });
 
-  testWidgets('Store tab shows the coming-soon placeholder when unconfigured',
-      (tester) async {
+  testWidgets('Store tab shows the coming-soon placeholder when unconfigured', (
+    tester,
+  ) async {
     store = null;
     await pumpApp(tester);
 
@@ -237,8 +249,9 @@ void main() {
     expect(find.text('Coming Soon!'), findsOneWidget);
   });
 
-  testWidgets('Store tab lists products with prices and sold-out state',
-      (tester) async {
+  testWidgets('Store tab lists products with prices and sold-out state', (
+    tester,
+  ) async {
     store = FakeStoreRepository();
     await pumpApp(tester);
 
@@ -251,8 +264,9 @@ void main() {
     expect(find.text('Sold out'), findsOneWidget);
   });
 
-  testWidgets('buying a variant creates a checkout with the signed-in email',
-      (tester) async {
+  testWidgets('buying a variant creates a checkout with the signed-in email', (
+    tester,
+  ) async {
     store = FakeStoreRepository();
     await pumpApp(tester);
     await auth.signIn(email: 'andy@example.com', password: 'correct-horse');
@@ -285,12 +299,15 @@ void main() {
     await tester.tap(find.text('Sticker Pack'));
     await tester.pumpAndSettle();
 
-    final button = tester.widget<FilledButton>(find.byKey(const Key('buy-now')));
+    final button = tester.widget<FilledButton>(
+      find.byKey(const Key('buy-now')),
+    );
     expect(button.onPressed, isNull);
   });
 
-  testWidgets('user can sign in from Settings and sign out again',
-      (tester) async {
+  testWidgets('user can sign in from Settings and sign out again', (
+    tester,
+  ) async {
     await pumpApp(tester);
 
     await tester.tap(find.text('Settings'));
@@ -300,7 +317,10 @@ void main() {
     await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextFormField).at(0), 'andy@example.com');
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'andy@example.com',
+    );
     await tester.enterText(find.byType(TextFormField).at(1), 'wrong-password');
     await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
     await tester.pumpAndSettle();
@@ -319,8 +339,9 @@ void main() {
     expect(find.text('Sign in'), findsOneWidget);
   });
 
-  testWidgets('sign-in screen validates input before submitting',
-      (tester) async {
+  testWidgets('sign-in screen validates input before submitting', (
+    tester,
+  ) async {
     await pumpApp(tester);
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
@@ -342,8 +363,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('Google button signs in and returns to Settings',
-      (tester) async {
+  testWidgets('Google button signs in and returns to Settings', (tester) async {
     await openSignIn(tester);
 
     await tester.tap(find.byKey(const Key('google-sign-in')));

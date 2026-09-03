@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// User-adjustable preferences, persisted with shared_preferences.
 class AppSettings extends ChangeNotifier {
   AppSettings({ThemeMode themeMode = ThemeMode.system})
-      : _themeMode = themeMode; // ignore: prefer_initializing_formals
+    : _themeMode = themeMode; // ignore: prefer_initializing_formals
 
   static const _themeKey = 'theme_mode';
 
@@ -50,8 +50,8 @@ class AppSettingsScope extends InheritedNotifier<AppSettings> {
   }) : super(notifier: settings);
 
   static AppSettings of(BuildContext context) {
-    final scope =
-        context.dependOnInheritedWidgetOfExactType<AppSettingsScope>();
+    final scope = context
+        .dependOnInheritedWidgetOfExactType<AppSettingsScope>();
     assert(scope != null, 'No AppSettingsScope found in context');
     return scope!.notifier!;
   }

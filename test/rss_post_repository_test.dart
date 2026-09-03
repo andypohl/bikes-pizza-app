@@ -53,7 +53,10 @@ void main() {
     test('keeps a leading image that is not the feature image', () {
       const html = '<img src="https://x/other.jpg"><p>Hi</p>';
       expect(
-        RssPostRepository.stripLeadingFeatureImage(html, 'https://x/feature.jpg'),
+        RssPostRepository.stripLeadingFeatureImage(
+          html,
+          'https://x/feature.jpg',
+        ),
         html,
       );
       expect(RssPostRepository.stripLeadingFeatureImage(html, null), html);
@@ -87,9 +90,15 @@ void main() {
 
       final page = await repo.fetchPosts(PostFeed.bikes);
 
-      expect(requested, containsAll(['/tag/biking/rss/', '/tag/off-road-biking/rss/']));
+      expect(
+        requested,
+        containsAll(['/tag/biking/rss/', '/tag/off-road-biking/rss/']),
+      );
       expect(page.hasMore, isFalse);
-      expect(page.posts.map((p) => p.id), ['69098a6247eb5b00010785c9', 'older']);
+      expect(page.posts.map((p) => p.id), [
+        '69098a6247eb5b00010785c9',
+        'older',
+      ]);
     });
 
     test('treats a 404 tag feed as empty', () async {

@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 
 import 'auth_service.dart';
@@ -45,8 +46,10 @@ class _SignInScreenState extends State<SignInScreen> {
       if (_isSignIn) {
         await widget.auth.signIn(email: _email.text, password: _password.text);
       } else {
-        await widget.auth
-            .createAccount(email: _email.text, password: _password.text);
+        await widget.auth.createAccount(
+          email: _email.text,
+          password: _password.text,
+        );
       }
       if (mounted) Navigator.of(context).pop();
     } on AuthException catch (e) {
@@ -190,11 +193,11 @@ class _SignInScreenState extends State<SignInScreen> {
                   onPressed: _busy
                       ? null
                       : () => setState(() {
-                            _mode = _isSignIn
-                                ? _Mode.createAccount
-                                : _Mode.signIn;
-                            _error = null;
-                          }),
+                          _mode = _isSignIn
+                              ? _Mode.createAccount
+                              : _Mode.signIn;
+                          _error = null;
+                        }),
                   child: Text(
                     _isSignIn
                         ? 'New here? Create an account'
