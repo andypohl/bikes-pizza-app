@@ -133,6 +133,12 @@ Secret Manager; the same integration's Content API key goes in
 
 Run the function's unit tests with `npm test` inside `functions/`.
 
+Deploys also happen automatically when a GitHub release is published (or by
+running the "Deploy functions" workflow by hand). That workflow needs a
+repository secret `FIREBASE_SERVICE_ACCOUNT` holding a deploy-only service
+account key, a `production` environment, and a repository variable
+`GHOST_ADMIN_API_URL`. See `docs/firebase.md` for the service account roles.
+
 ## Project layout
 
 ```
@@ -169,9 +175,11 @@ flutter test
 flutter run            # pick a connected device / simulator
 ```
 
-Formatting, `flutter analyze`, and `flutter test` also run on GitHub Actions
-for every pull request targeting `main` (see `.github/workflows/pr-checks.yml`). Release
-workflows will be added separately once the app is ready to ship.
+Formatting, `flutter analyze`, `flutter test`, and the Cloud Functions unit
+tests run on GitHub Actions for every pull request targeting `main`
+(`.github/workflows/pr-checks.yml`). Publishing a GitHub release deploys the
+Cloud Functions (`.github/workflows/deploy-functions.yml`); app store
+release workflows will be added later.
 
 Adding or renaming tabs: edit `PostFeed` in `lib/models/post_feed.dart` and
 the `NavigationDestination` list in `lib/main.dart`.

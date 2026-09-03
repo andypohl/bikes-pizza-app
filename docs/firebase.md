@@ -190,6 +190,14 @@ Keep this list current. It is the checklist for rebuilding the project.
 8. Set Functions secrets with the CLI (`firebase functions:secrets:set`),
    currently the Ghost Admin API key, and create `functions/.env` from the
    example file.
+9. For deploys from GitHub Actions, create a service account in the Google
+   Cloud console (IAM & Admin → Service Accounts) used only for deploys, with
+   these roles: Cloud Functions Admin, Cloud Run Admin, Cloud Build Editor,
+   Artifact Registry Administrator, Service Account User, Secret Manager
+   Viewer, Service Usage Consumer. Create a JSON key, store it as the GitHub
+   repository secret `FIREBASE_SERVICE_ACCOUNT`, and delete the local copy.
+   Also create a `production` GitHub environment (optionally with required
+   reviewers) and the repository variable `GHOST_ADMIN_API_URL`.
 
 ## Rebuilding the app config
 
