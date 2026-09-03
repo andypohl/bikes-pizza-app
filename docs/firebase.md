@@ -176,6 +176,15 @@ header code injection points at this site's URL (a custom domain such as an
 `account.` subdomain can be attached later in the Hosting console; add it to
 Authentication → Settings → Authorized domains too).
 
+Sign in with Apple on the web needs, in the Apple Developer portal, a
+Services ID with Sign in with Apple enabled whose website configuration
+lists the project's `firebaseapp.com` auth domain and the return URL
+`https://<auth domain>/__/auth/handler`, using the iOS app's App ID as the
+primary App ID. That Services ID (and optionally the Team ID, a Sign in with
+Apple key ID and its private key, for the OAuth code flow) goes into the Apple
+provider's settings under Authentication → Sign-in method. The app's native
+Apple sign-in does not need any of this.
+
 ## Extensions (planned)
 
 - Resize Images, configured for the Storage layout above.

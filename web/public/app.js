@@ -11,6 +11,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 import {
   GoogleAuthProvider,
+  OAuthProvider,
   createUserWithEmailAndPassword,
   getAuth,
   onAuthStateChanged,
@@ -107,6 +108,10 @@ function describe(error) {
     case "auth/popup-closed-by-user":
     case "auth/cancelled-popup-request":
       return null; // the person backed out; not an error
+    case "auth/operation-not-allowed":
+      return "That sign-in method isn't enabled yet.";
+    case "auth/account-exists-with-different-credential":
+      return "That email is already used with another sign-in method. Sign in that way instead.";
     case "auth/popup-blocked":
       return "Your browser blocked the sign-in window. Allow pop-ups and try again.";
     case "functions/failed-precondition":
@@ -184,16 +189,27 @@ $("#forgot").addEventListener("click", async () => {
   }
 });
 
-$("#google").addEventListener("click", async () => {
+async function signInWith(provider) {
   busy(true);
   try {
-    await signInWithPopup(auth, new GoogleAuthProvider());
+    await signInWithPopup(auth, provider);
   } catch (error) {
     const text = describe(error);
     if (text) say(text);
   } finally {
     busy(false);
   }
+}
+
+$("#google").addEventListener("click", () => signInWith(new GoogleAuthProvider()));
+
+$("#apple").addEventListener("click", () => {
+  // Requires the Apple provider in Firebase to have a Services ID configured
+  // (see docs/firebase.md); without it Apple returns an invalid_client error.
+  const apple = new OAuthProvider("apple.com");
+  apple.addScope("email");
+  apple.addScope("name");
+  return signInWith(apple);
 });
 
 $("#verified").addEventListener("click", async () => {

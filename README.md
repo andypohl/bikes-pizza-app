@@ -137,7 +137,8 @@ Run the function's unit tests with `npm test` inside `functions/`.
 
 Ghost Pro cannot run code, so website sign-ups are routed through a small
 account page hosted on Firebase Hosting (`web/public/`). It signs people in
-with Firebase Auth (email/password or Google), then calls the same
+with Firebase Auth (email/password, Google, or Apple once a Services ID is
+configured; see `docs/firebase.md`), then calls the same
 `ghostSignInUrl` function and sends the browser to the resulting URL, so
 they land on pizzapredator.com as a member. New email accounts must verify
 their address before that hand-off happens.

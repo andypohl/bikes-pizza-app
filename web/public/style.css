@@ -147,6 +147,13 @@ button.secondary {
   border: 1px solid var(--line);
 }
 
+button.apple {
+  margin-top: 0.6rem;
+  background: var(--ink);
+  color: var(--card);
+  border-color: var(--ink);
+}
+
 button.link {
   display: block;
   width: 100%;
