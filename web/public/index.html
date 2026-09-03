@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Pizza Predator account</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main class="card" id="app" data-state="loading">
+      <a class="brand" id="site-link" href="https://www.pizzapredator.com/">Pizza Predator</a>
+
+      <section data-view="loading">
+        <p class="muted">Loading…</p>
+      </section>
+
+      <section data-view="auth" hidden>
+        <nav class="tabs" role="tablist">
+          <button type="button" role="tab" data-tab="signin" aria-selected="true">Sign in</button>
+          <button type="button" role="tab" data-tab="signup" aria-selected="false">Create account</button>
+        </nav>
+
+        <form id="auth-form" novalidate>
+          <label>
+            Email
+            <input type="email" name="email" autocomplete="email" required />
+          </label>
+          <label>
+            Password
+            <input type="password" name="password" autocomplete="current-password" minlength="6" required />
+          </label>
+          <button type="submit" class="primary" id="submit">Sign in</button>
+        </form>
+
+        <button type="button" class="link" id="forgot">Forgot password?</button>
+
+        <div class="divider"><span>or</span></div>
+
+        <button type="button" class="secondary" id="google">
+          <span class="g">G</span> Continue with Google
+        </button>
+        <button type="button" class="secondary apple" id="apple">
+          <span class="g">&#63743;</span> Continue with Apple
+        </button>
+      </section>
+
+      <section data-view="verify" hidden>
+        <h1>Check your inbox</h1>
+        <p>
+          We sent a verification link to <strong id="verify-email"></strong>. Open it, then come
+          back here.
+        </p>
+        <button type="button" class="primary" id="verified">I've verified my email</button>
+        <button type="button" class="link" id="resend">Resend the email</button>
+        <button type="button" class="link" id="signout-verify">Use a different account</button>
+      </section>
+
+      <section data-view="connecting" hidden>
+        <h1>Signing you in…</h1>
+        <p class="muted">Taking you to the site as a member.</p>
+      </section>
+
+      <section data-view="error" hidden>
+        <h1>Something went wrong</h1>
+        <p id="error-detail"></p>
+        <button type="button" class="primary" id="retry">Try again</button>
+        <button type="button" class="link" id="signout-error">Sign out</button>
+      </section>
+
+      <p class="message" id="message" role="status" hidden></p>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

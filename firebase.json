@@ -39,5 +39,37 @@
         "*.test.js"
       ]
     }
-  ]
+  ],
+  "hosting": {
+    "public": "web/public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "X-Frame-Options",
+            "value": "DENY"
+          },
+          {
+            "key": "Referrer-Policy",
+            "value": "strict-origin-when-cross-origin"
+          }
+        ]
+      }
+    ],
+    "cleanUrls": true
+  },
+  "emulators": {
+    "hosting": {
+      "port": 5055
+    },
+    "ui": {
+      "enabled": false
+    }
+  }
 }

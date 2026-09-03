@@ -1,5 +1,5 @@
-# Deploys the Cloud Functions in functions/ when a GitHub release is
-# published (pre-releases are skipped). Can also be run by hand from the
+# Deploys the Cloud Functions in functions/ and the account page in web/
+# to Firebase when a GitHub release is published (pre-releases are skipped). Can also be run by hand from the
 # Actions tab.
 #
 # Authentication is keyless: GitHub's OIDC token is exchanged for the deploy
@@ -10,7 +10,7 @@
 #                                   workloadIdentityPools/<pool>/providers/<id>
 #   GCP_DEPLOY_SERVICE_ACCOUNT      deploy service account email
 #   GHOST_ADMIN_API_URL             Ghost API URL for functions/.env
-name: Deploy functions
+name: Deploy to Firebase
 
 on:
   release:
@@ -60,9 +60,13 @@ jobs:
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          # Minting a token here verifies impersonation up front, so a
+          # permissions problem fails this step with a clear message instead
+          # of a generic "Failed to authenticate" from the Firebase CLI.
+          token_format: access_token
 
       - name: Deploy
         # --force skips the interactive confirmation for deleting functions
         # that were removed from the source.
-        run: npx --yes firebase-tools@15 deploy --only functions --non-interactive --force
+        run: npx --yes firebase-tools@15 deploy --only functions,hosting --non-interactive --force
         working-directory: .

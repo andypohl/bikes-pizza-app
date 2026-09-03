@@ -1,0 +1,45 @@
+<!--
+  Run tools/ghost_code_injection.py to fill in ACCOUNT_URL and copy the
+  result, then paste into Ghost Admin > Settings > Code injection > Site
+  header.
+
+  Sends Ghost's own "Sign in" / "Subscribe" (Portal) buttons and #/portal/
+  links to the Firebase-backed account page instead, so website sign-ups use
+  the same user base as the app. Portal's account screen for members who are
+  already signed in is left alone.
+-->
+<script>
+  (function () {
+    var ACCOUNT_URL = "__ACCOUNT_URL__";
+    function go(mode) {
+      var url = new URL(ACCOUNT_URL);
+      url.searchParams.set("mode", mode);
+      url.searchParams.set("r", location.pathname + location.search);
+      location.href = url.toString();
+    }
+    function modeFor(value) {
+      if (value === "signin") return "signin";
+      if (value === "" || value === "signup" || value.indexOf("signup/") === 0) return "signup";
+      return null; // account, support, etc. stay with Portal
+    }
+    document.addEventListener(
+      "click",
+      function (event) {
+        var el = event.target.closest && event.target.closest("[data-portal], a[href*='#/portal']");
+        if (!el) return;
+        var value = el.hasAttribute("data-portal")
+          ? el.getAttribute("data-portal")
+          : (el.getAttribute("href").split("#/portal/")[1] || "");
+        var mode = modeFor(value);
+        if (!mode) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        go(mode);
+      },
+      true
+    );
+    var hash = location.hash;
+    if (hash.indexOf("#/portal/signin") === 0) go("signin");
+    else if (hash.indexOf("#/portal/signup") === 0) go("signup");
+  })();
+</script>

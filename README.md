@@ -133,8 +133,38 @@ Secret Manager; the same integration's Content API key goes in
 
 Run the function's unit tests with `npm test` inside `functions/`.
 
+## Website sign-up (same accounts as the app)
+
+Ghost Pro cannot run code, so website sign-ups are routed through a small
+account page hosted on Firebase Hosting (`web/public/`). It signs people in
+with Firebase Auth (email/password, Google, or Apple once a Services ID is
+configured; see `docs/firebase.md`), then calls the same
+`ghostSignInUrl` function and sends the browser to the resulting URL, so
+they land on pizzapredator.com as a member. New email accounts must verify
+their address before that hand-off happens.
+
+`web/ghost-code-injection.html` is a snippet for Ghost Admin → Settings →
+Code injection → Site header. It redirects Ghost's own Sign in / Subscribe
+buttons and `#/portal/signin|signup` links to the account page (with a
+`mode` and a return path `r`). Portal keeps handling the account screen for
+members who are already signed in. Ghost does not let integration keys edit
+settings, so it is pasted by hand: run
+
+```sh
+tools/ghost_code_injection.py
+```
+
+which fills in the account page URL and copies the snippet to the clipboard,
+then paste it into Ghost Admin → Settings → Code injection → Site header
+(replacing any earlier copy between the marker comments) and save.
+
+The page reads its Firebase config from Hosting's reserved
+`/__/firebase/init.json`, so nothing project-specific is committed. Preview
+locally with `firebase emulators:start --only hosting` (uses the live
+Firebase project for sign-in) and deploy with `firebase deploy --only hosting`.
+
 Deploys also happen automatically when a GitHub release is published (or by
-running the "Deploy functions" workflow by hand). The workflow authenticates
+running the "Deploy to Firebase" workflow by hand). The workflow authenticates
 without any stored key: GitHub's OIDC token is exchanged for a deploy-only
 service account via Workload Identity Federation. It needs a `production`
 environment and three repository variables (`GCP_WORKLOAD_IDENTITY_PROVIDER`,
@@ -180,8 +210,8 @@ flutter run            # pick a connected device / simulator
 Formatting, `flutter analyze`, `flutter test`, and the Cloud Functions unit
 tests run on GitHub Actions for every pull request targeting `main`
 (`.github/workflows/pr-checks.yml`). Publishing a GitHub release deploys the
-Cloud Functions (`.github/workflows/deploy-functions.yml`); app store
-release workflows will be added later.
+Cloud Functions and the account page (`.github/workflows/deploy-firebase.yml`);
+app store release workflows will be added later.
 
 Adding or renaming tabs: edit `PostFeed` in `lib/models/post_feed.dart` and
 the `NavigationDestination` list in `lib/main.dart`.
