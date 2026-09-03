@@ -146,11 +146,16 @@ their address before that hand-off happens.
 Code injection → Site header. It redirects Ghost's own Sign in / Subscribe
 buttons and `#/portal/signin|signup` links to the account page (with a
 `mode` and a return path `r`). Portal keeps handling the account screen for
-members who are already signed in. Install or update it with:
+members who are already signed in. Ghost does not let integration keys edit
+settings, so it is pasted by hand: run
 
 ```sh
-tools/ghost_code_injection.py --credentials path/to/ghost-creds.txt
+tools/ghost_code_injection.py
 ```
+
+which fills in the account page URL and copies the snippet to the clipboard,
+then paste it into Ghost Admin → Settings → Code injection → Site header
+(replacing any earlier copy between the marker comments) and save.
 
 The page reads its Firebase config from Hosting's reserved
 `/__/firebase/init.json`, so nothing project-specific is committed. Preview
