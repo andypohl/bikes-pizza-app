@@ -9,6 +9,7 @@ import 'models/post_feed.dart';
 import 'screens/post_list_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/store_screen.dart';
+import 'store/store_repository.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,6 +21,7 @@ Future<void> main() async {
     PizzaPredatorApp(
       settings: settings,
       repository: PostRepository.forConfig(),
+      store: StoreRepository.forConfig(),
       auth: FirebaseAuthService(),
     ),
   );
@@ -31,11 +33,16 @@ class PizzaPredatorApp extends StatelessWidget {
     required this.settings,
     required this.repository,
     required this.auth,
+    this.store,
   });
 
   final AppSettings settings;
   final PostRepository repository;
   final AuthService auth;
+
+  /// Null when the build has no Shopify settings; the Store tab then shows
+  /// a placeholder.
+  final StoreRepository? store;
 
   static const _seed = Color(0xFFD62828); // tomato-sauce red
 
@@ -58,7 +65,7 @@ class PizzaPredatorApp extends StatelessWidget {
               brightness: Brightness.dark,
             ),
           ),
-          home: HomeShell(repository: repository, auth: auth),
+          home: HomeShell(repository: repository, auth: auth, store: store),
         ),
       ),
     );
@@ -69,10 +76,16 @@ class PizzaPredatorApp extends StatelessWidget {
 /// feeds, the Store, and Settings. Each tab keeps its scroll position and loaded data
 /// because the pages live in an [IndexedStack].
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key, required this.repository, required this.auth});
+  const HomeShell({
+    super.key,
+    required this.repository,
+    required this.auth,
+    this.store,
+  });
 
   final PostRepository repository;
   final AuthService auth;
+  final StoreRepository? store;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -87,7 +100,7 @@ class _HomeShellState extends State<HomeShell> {
       PostListScreen(feed: PostFeed.blog, repository: widget.repository),
       PostListScreen(feed: PostFeed.pizza, repository: widget.repository),
       PostListScreen(feed: PostFeed.bikes, repository: widget.repository),
-      const StoreScreen(),
+      StoreScreen(repository: widget.store, auth: widget.auth),
       SettingsScreen(repository: widget.repository, auth: widget.auth),
     ];
 
