@@ -134,5 +134,9 @@ flutter test
 flutter run            # pick a connected device / simulator
 ```
 
+`flutter analyze` and `flutter test` also run on GitHub Actions for every pull
+request targeting `main` (see `.github/workflows/pr-checks.yml`). Release
+workflows will be added separately once the app is ready to ship.
+
 Adding or renaming tabs: edit `PostFeed` in `lib/models/post_feed.dart` and
 the `NavigationDestination` list in `lib/main.dart`.
