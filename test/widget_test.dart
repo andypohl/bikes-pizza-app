@@ -9,6 +9,8 @@ import 'package:pizza_predator/data/post_repository.dart';
 import 'package:pizza_predator/main.dart';
 import 'package:pizza_predator/models/post.dart';
 import 'package:pizza_predator/models/post_feed.dart';
+import 'package:pizza_predator/store/product.dart';
+import 'package:pizza_predator/store/store_repository.dart';
 import 'package:pizza_predator/widgets/post_tile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -85,6 +87,60 @@ class FakeAuthService implements AuthService {
   Future<void> signOut() async => _set(null);
 }
 
+/// In-memory store with two products; records checkout requests.
+class FakeStoreRepository implements StoreRepository {
+  final checkouts = <String>[];
+  String? lastEmail;
+
+  static const _usd = Money(amount: 20, currencyCode: 'USD');
+
+  @override
+  Future<ProductPage> fetchProducts({String? after}) async => const ProductPage(
+        products: [
+          Product(
+            id: 'p1',
+            title: 'Pizza Predator Tee',
+            handle: 'tee',
+            description: 'Soft cotton.',
+            price: _usd,
+            availableForSale: true,
+            variants: [
+              ProductVariant(
+                  id: 'v-s', title: 'S', price: _usd, availableForSale: true),
+              ProductVariant(
+                  id: 'v-m', title: 'M', price: _usd, availableForSale: true),
+            ],
+          ),
+          Product(
+            id: 'p2',
+            title: 'Sticker Pack',
+            handle: 'stickers',
+            description: '',
+            price: Money(amount: 5, currencyCode: 'USD'),
+            availableForSale: false,
+            variants: [
+              ProductVariant(
+                  id: 'v-st',
+                  title: 'Default Title',
+                  price: Money(amount: 5, currencyCode: 'USD'),
+                  availableForSale: false),
+            ],
+          ),
+        ],
+      );
+
+  @override
+  Future<Uri> createCheckout({
+    required String variantId,
+    int quantity = 1,
+    String? email,
+  }) async {
+    checkouts.add(variantId);
+    lastEmail = email;
+    return Uri.parse('https://example.myshopify.com/checkouts/1');
+  }
+}
+
 Post _post(String title, DateTime date) => Post(
       id: title,
       title: title,
@@ -97,6 +153,7 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   late FakeAuthService auth;
+  FakeStoreRepository? store;
 
   Future<FakePostRepository> pumpApp(WidgetTester tester) async {
     auth = FakeAuthService();
@@ -113,6 +170,7 @@ void main() {
         settings: AppSettings(),
         repository: repo,
         auth: auth,
+        store: store,
       ),
     );
     await tester.pumpAndSettle();
@@ -168,13 +226,67 @@ void main() {
     expect(repo.requestedFeeds, containsAll(PostFeed.values));
   });
 
-  testWidgets('Store tab shows the coming-soon placeholder', (tester) async {
+  testWidgets('Store tab shows the coming-soon placeholder when unconfigured',
+      (tester) async {
+    store = null;
     await pumpApp(tester);
 
     await tester.tap(find.text('Store'));
     await tester.pumpAndSettle();
 
     expect(find.text('Coming Soon!'), findsOneWidget);
+  });
+
+  testWidgets('Store tab lists products with prices and sold-out state',
+      (tester) async {
+    store = FakeStoreRepository();
+    await pumpApp(tester);
+
+    await tester.tap(find.text('Store'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pizza Predator Tee'), findsOneWidget);
+    expect(find.text('\$20.00'), findsOneWidget);
+    expect(find.text('Sticker Pack'), findsOneWidget);
+    expect(find.text('Sold out'), findsOneWidget);
+  });
+
+  testWidgets('buying a variant creates a checkout with the signed-in email',
+      (tester) async {
+    store = FakeStoreRepository();
+    await pumpApp(tester);
+    await auth.signIn(email: 'andy@example.com', password: 'correct-horse');
+
+    await tester.tap(find.text('Store'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pizza Predator Tee'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Soft cotton.'), findsOneWidget);
+    await tester.ensureVisible(find.text('M'));
+    await tester.tap(find.text('M'));
+    await tester.pump();
+    await tester.ensureVisible(find.byKey(const Key('buy-now')));
+    await tester.tap(find.byKey(const Key('buy-now')));
+    // url_launcher has no platform implementation under test, so the busy
+    // spinner never settles; a single frame is enough for the checkout call.
+    await tester.pump();
+
+    expect(store!.checkouts, ['v-m']);
+    expect(store!.lastEmail, 'andy@example.com');
+  });
+
+  testWidgets('sold-out product cannot be bought', (tester) async {
+    store = FakeStoreRepository();
+    await pumpApp(tester);
+
+    await tester.tap(find.text('Store'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sticker Pack'));
+    await tester.pumpAndSettle();
+
+    final button = tester.widget<FilledButton>(find.byKey(const Key('buy-now')));
+    expect(button.onPressed, isNull);
   });
 
   testWidgets('user can sign in from Settings and sign out again',

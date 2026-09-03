@@ -12,11 +12,30 @@ Five bottom-bar tabs:
 | Blog     | Every post, newest first, with title and thumbnail             |
 | Pizza    | Posts tagged `pizza`                                           |
 | Bikes    | Posts tagged `biking` or `off-road-biking`                     |
-| Store    | Placeholder ("Coming Soon!") for a future merch store          |
+| Store    | Shopify product grid and checkout (placeholder if unconfigured) |
 | Settings | Account (email, Google, Apple sign-in), theme, data source      |
 
 Tapping a post opens it in-app with the hero image and full HTML body. A
 toolbar button opens the post in the browser.
+
+## Build-time configuration
+
+Values that identify external services are passed at build time rather
+than committed. Copy `config/local.example.json` to `config/local.json`,
+fill it in (it is git-ignored), and pass it to Flutter:
+
+```sh
+flutter run --dart-define-from-file=config/local.json
+```
+
+| Key                        | Purpose                                            |
+|----------------------------|----------------------------------------------------|
+| `GHOST_CONTENT_API_KEY`    | Full blog archive via the Ghost Content API        |
+| `SHOPIFY_STORE_DOMAIN`     | `your-store.myshopify.com`                         |
+| `SHOPIFY_STOREFRONT_TOKEN` | Public Storefront API access token                 |
+
+Leave a value empty to disable that integration: the blog falls back to
+RSS and the Store tab shows a placeholder.
 
 ## Data sources
 
@@ -39,6 +58,21 @@ flutter build appbundle --dart-define=GHOST_CONTENT_API_KEY=your_key_here
 
 Without the define the app silently uses RSS. The Settings tab shows which
 source is active.
+
+## Store (Shopify)
+
+The Store tab reads the catalogue through Shopify's Storefront GraphQL API
+using a public access token, which Shopify designs to ship inside client
+apps (it can only read products and create carts). Tapping **Buy now**
+creates a cart with the chosen variant and opens Shopify's hosted checkout
+in an in-app browser. If the user is signed in, their email pre-fills the
+checkout so the order lands on the matching Shopify customer.
+
+To get the two values: in Shopify admin go to **Settings → Apps and sales
+channels → Develop apps**, create an app, grant it the
+`unauthenticated_read_product_listings` and `unauthenticated_write_checkouts`
+Storefront API scopes, install it, and copy the *Storefront API access
+token*. The store domain is the `*.myshopify.com` address of the shop.
 
 ## Firebase
 
@@ -83,6 +117,10 @@ lib/
   screens/post_list_screen.dart list with pull-to-refresh + infinite scroll
   screens/post_detail_screen.dart
   screens/settings_screen.dart
+  screens/store_screen.dart     Shopify product grid, or placeholder
+  screens/product_detail_screen.dart
+  store/product.dart            Product / variant / money models
+  store/store_repository.dart   StoreRepository + Shopify Storefront client
   widgets/post_tile.dart        title + thumbnail row
 test/                           unit tests for both backends, widget tests
 ```
