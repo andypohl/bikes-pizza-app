@@ -166,6 +166,16 @@ Planned:
 - Optional: a function that turns a batch of approved photos into a draft
   Ghost post via the Admin API.
 
+## Hosting
+
+One site (the project's default), serving `web/public/`: the account page
+that signs people in with Firebase Auth and hands them to the Ghost site as
+a member. It needs a Web app registration on the project so that Hosting's
+reserved `/__/firebase/init.json` returns the config. The Ghost site's
+header code injection points at this site's URL (a custom domain such as an
+`account.` subdomain can be attached later in the Hosting console; add it to
+Authentication → Settings → Authorized domains too).
+
 ## Extensions (planned)
 
 - Resize Images, configured for the Storage layout above.
@@ -182,7 +192,8 @@ Keep this list current. It is the checklist for rebuilding the project.
    (choose a support email), and Apple. Register signing-key fingerprints on
    the Android app, then re-run `flutterfire configure`.
 4. Register the iOS and Android apps by running `flutterfire configure`
-   from the repo root with the FlutterFire CLI installed.
+   from the repo root with the FlutterFire CLI installed, and a Web app with
+   `firebase apps:create WEB` (used by Hosting's reserved config URL).
 5. Create the Firestore database (choose a region close to Chicago; the
    Ghost site's timezone is America/Chicago) and the default Storage bucket.
 6. Deploy rules, indexes, and functions from the repo with `firebase deploy`.
@@ -194,7 +205,8 @@ Keep this list current. It is the checklist for rebuilding the project.
    Cloud console (IAM & Admin → Service Accounts) used only for deploys, with
    these roles: Cloud Functions Admin, Cloud Run Admin, Cloud Build Editor,
    Artifact Registry Administrator, Service Account User, Secret Manager
-   Viewer, Service Usage Consumer. Do not create a key for it.
+   Viewer, Service Usage Consumer, Firebase Hosting Admin. Do not create a
+   key for it.
 10. Set up keyless access for GitHub Actions (Workload Identity Federation):
     enable the IAM Credentials and STS APIs; create a workload identity pool
     with an OIDC provider whose issuer is
