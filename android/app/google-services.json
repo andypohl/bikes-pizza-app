@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "79972934725",
+    "project_id": "pizzapredator-a445e",
+    "storage_bucket": "pizzapredator-a445e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:79972934725:android:18841b553a427c4a122f2c",
+        "android_client_info": {
+          "package_name": "com.pizzapredator.pizza_predator"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAIDshZ59UkhtRbHY8G3WCIVhSzttWIvAo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
