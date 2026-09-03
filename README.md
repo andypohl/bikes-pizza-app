@@ -42,7 +42,7 @@ source is active.
 
 ## Firebase
 
-The app uses Firebase Authentication (project `pizzapredator-a445e`) for
+The app uses Firebase Authentication for
 user accounts. Email + password sign-in lives under Settings → Account.
 The generated config (`lib/firebase_options.dart`, `android/app/google-services.json`,
 `ios/Runner/GoogleService-Info.plist`) identifies the app to Firebase and is
@@ -53,13 +53,16 @@ To re-register apps or refresh the config:
 
 ```sh
 dart pub global activate flutterfire_cli
-flutterfire configure --project=pizzapredator-a445e --platforms=ios,android
+flutterfire configure --platforms=ios,android
 ```
 
 In the Firebase console, **Authentication → Sign-in method** must have
 *Email/Password* enabled. Google and Apple sign-in can be added there later;
 the app's `AuthService` facade in `lib/auth/auth_service.dart` is where the
 corresponding methods go.
+
+See `docs/firebase.md` for an outline of how the Firebase project is
+structured and the console steps needed to rebuild it.
 
 ## Project layout
 
