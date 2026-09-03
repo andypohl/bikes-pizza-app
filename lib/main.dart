@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'app_settings.dart';
 import 'auth/auth_service.dart';
+import 'ghost/ghost_session_service.dart';
 import 'firebase_options.dart';
 import 'data/post_repository.dart';
 import 'models/post_feed.dart';
@@ -21,6 +22,7 @@ Future<void> main() async {
       repository: PostRepository.forConfig(),
       store: StoreRepository.forConfig(),
       auth: FirebaseAuthService(),
+      ghost: CloudFunctionsGhostSessionService(),
     ),
   );
 }
@@ -32,6 +34,7 @@ class PizzaPredatorApp extends StatelessWidget {
     required this.repository,
     required this.auth,
     this.store,
+    this.ghost,
   });
 
   final AppSettings settings;
@@ -41,6 +44,9 @@ class PizzaPredatorApp extends StatelessWidget {
   /// Null when the build has no Shopify settings; the Store tab then shows
   /// a placeholder.
   final StoreRepository? store;
+
+  /// Null when website sign-in is unavailable; Settings then hides the tile.
+  final GhostSessionService? ghost;
 
   static const _seed = Color(0xFFD62828); // tomato-sauce red
 
@@ -61,7 +67,12 @@ class PizzaPredatorApp extends StatelessWidget {
               brightness: Brightness.dark,
             ),
           ),
-          home: HomeShell(repository: repository, auth: auth, store: store),
+          home: HomeShell(
+            repository: repository,
+            auth: auth,
+            store: store,
+            ghost: ghost,
+          ),
         ),
       ),
     );
@@ -77,11 +88,13 @@ class HomeShell extends StatefulWidget {
     required this.repository,
     required this.auth,
     this.store,
+    this.ghost,
   });
 
   final PostRepository repository;
   final AuthService auth;
   final StoreRepository? store;
+  final GhostSessionService? ghost;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -97,7 +110,11 @@ class _HomeShellState extends State<HomeShell> {
       PostListScreen(feed: PostFeed.pizza, repository: widget.repository),
       PostListScreen(feed: PostFeed.bikes, repository: widget.repository),
       StoreScreen(repository: widget.store, auth: widget.auth),
-      SettingsScreen(repository: widget.repository, auth: widget.auth),
+      SettingsScreen(
+        repository: widget.repository,
+        auth: widget.auth,
+        ghost: widget.ghost,
+      ),
     ];
 
     return Scaffold(

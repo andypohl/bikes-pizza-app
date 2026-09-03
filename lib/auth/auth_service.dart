@@ -8,11 +8,20 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 /// The signed-in user, reduced to what the UI needs.
 class AppUser {
-  const AppUser({required this.uid, this.email, this.displayName});
+  const AppUser({
+    required this.uid,
+    this.email,
+    this.displayName,
+    this.emailVerified = false,
+  });
 
   final String uid;
   final String? email;
   final String? displayName;
+
+  /// Whether the provider vouched for [email]. Google and Apple accounts are
+  /// verified up front; password accounts need [AuthService.sendEmailVerification].
+  final bool emailVerified;
 }
 
 /// Thrown by [AuthService] with a message safe to show to the user.
@@ -44,6 +53,13 @@ abstract class AuthService {
   Future<void> createAccount({required String email, required String password});
 
   Future<void> sendPasswordReset(String email);
+
+  /// Emails the signed-in user a link that marks their address as verified.
+  Future<void> sendEmailVerification();
+
+  /// Re-fetches the signed-in user so [userChanges] reflects a verification
+  /// completed outside the app.
+  Future<void> reloadUser();
 
   /// Opens the Google account picker and signs in with the chosen account.
   Future<void> signInWithGoogle();
@@ -93,6 +109,16 @@ class FirebaseAuthService implements AuthService {
   @override
   Future<void> sendPasswordReset(String email) =>
       _guard(() => _auth.sendPasswordResetEmail(email: email.trim()));
+
+  @override
+  Future<void> sendEmailVerification() => _guard(() async {
+    await _auth.currentUser?.sendEmailVerification();
+  });
+
+  @override
+  Future<void> reloadUser() => _guard(() async {
+    await _auth.currentUser?.reload();
+  });
 
   @override
   Future<void> signInWithGoogle() => _guard(() async {
@@ -176,6 +202,7 @@ class FirebaseAuthService implements AuthService {
           uid: user.uid,
           email: user.email,
           displayName: user.displayName,
+          emailVerified: user.emailVerified,
         );
 
   static String _randomNonce([int length = 32]) {

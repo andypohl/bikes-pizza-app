@@ -1,0 +1,21 @@
+{
+  "name": "pizza-predator-functions",
+  "private": true,
+  "description": "Cloud Functions for the PizzaPredator app",
+  "type": "module",
+  "main": "index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "test": "node --test",
+    "serve": "firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.4.0",
+    "firebase-functions": "^6.4.0",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
