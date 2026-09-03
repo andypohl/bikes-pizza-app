@@ -180,10 +180,12 @@ Sign in with Apple on the web needs, in the Apple Developer portal, a
 Services ID with Sign in with Apple enabled whose website configuration
 lists the project's `firebaseapp.com` auth domain and the return URL
 `https://<auth domain>/__/auth/handler`, using the iOS app's App ID as the
-primary App ID. That Services ID (and optionally the Team ID, a Sign in with
-Apple key ID and its private key, for the OAuth code flow) goes into the Apple
-provider's settings under Authentication → Sign-in method. The app's native
-Apple sign-in does not need any of this.
+primary App ID, plus a Sign in with Apple key (Keys section; download the
+.p8 once). The Services ID, Team ID, key ID, and the key's contents all go
+into the Apple provider's settings under Authentication → Sign-in method;
+Firebase's web flow refuses Apple sign-in ("Code flow is not enabled") until
+the key fields are filled. The app's native Apple sign-in does not need any
+of this.
 
 ## Extensions (planned)
 
