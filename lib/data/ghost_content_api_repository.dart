@@ -33,9 +33,6 @@ class GhostContentApiRepository implements PostRepository {
     'html',
   ];
 
-  @override
-  String get sourceName => 'Ghost Content API';
-
   Uri buildUri(PostFeed feed, int page) {
     final params = <String, String>{
       'key': apiKey,

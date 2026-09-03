@@ -13,7 +13,7 @@ Five bottom-bar tabs:
 | Pizza    | Posts tagged `pizza`                                           |
 | Bikes    | Posts tagged `biking` or `off-road-biking`                     |
 | Store    | Shopify product grid and checkout (placeholder if unconfigured) |
-| Settings | Account (email, Google, Apple sign-in), theme, data source      |
+| Settings | Account (email, Google, Apple sign-in), theme, website link     |
 
 Tapping a post opens it in-app with the hero image and full HTML body. A
 toolbar button opens the post in the browser.
@@ -34,30 +34,27 @@ flutter run --dart-define-from-file=config/local.json
 | `SHOPIFY_STORE_DOMAIN`     | `your-store.myshopify.com`                         |
 | `SHOPIFY_STOREFRONT_TOKEN` | Public Storefront API access token                 |
 
-Leave a value empty to disable that integration: the blog falls back to
-RSS and the Store tab shows a placeholder.
+`GHOST_CONTENT_API_KEY` is required; the app refuses to start without it.
+Leave the Shopify values empty to disable the store (the Store tab then
+shows a placeholder).
 
 ## Data sources
 
-The blog runs on Ghost (Ghost Pro). The app talks to it one of two ways:
-
-1. **Ghost Content API** (preferred). Full archive, paging, infinite scroll,
-   server-side tag filtering. Requires a Content API key.
-2. **RSS feeds** (fallback, no key needed). Ghost only exposes the 15 most
-   recent posts per feed, so the lists are capped at 15.
-
-To use the Content API, create a key in Ghost Admin
-(Settings → Integrations → Add custom integration → copy *Content API key*)
-and pass it at build/run time:
+The blog runs on Ghost (Ghost Pro). The app reads it through the **Ghost
+Content API**: full archive, paging, infinite scroll, and server-side tag
+filtering. Create a key in Ghost Admin (Settings → Integrations → Add
+custom integration → copy *Content API key*), put it in `config/local.json`
+as `GHOST_CONTENT_API_KEY`, and pass the file at build/run time:
 
 ```sh
-flutter run --dart-define=GHOST_CONTENT_API_KEY=your_key_here
-flutter build ipa --dart-define=GHOST_CONTENT_API_KEY=your_key_here
-flutter build appbundle --dart-define=GHOST_CONTENT_API_KEY=your_key_here
+flutter run --dart-define-from-file=config/local.json
+flutter build ipa --dart-define-from-file=config/local.json
+flutter build appbundle --dart-define-from-file=config/local.json
 ```
 
-Without the define the app silently uses RSS. The Settings tab shows which
-source is active.
+Content API keys grant read-only access to public content, so they are not
+secret in Ghost's model, but the key is still kept out of the repo. Without
+it the app throws on startup with a message naming the missing define.
 
 ## Store (Shopify)
 
@@ -185,7 +182,6 @@ lib/
   models/post_feed.dart         Blog / Pizza / Bikes feed definitions
   data/post_repository.dart     PostRepository interface + backend selection
   data/ghost_content_api_repository.dart
-  data/rss_post_repository.dart
   screens/post_list_screen.dart list with pull-to-refresh + infinite scroll
   screens/post_detail_screen.dart
   screens/settings_screen.dart

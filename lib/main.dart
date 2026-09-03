@@ -110,11 +110,7 @@ class _HomeShellState extends State<HomeShell> {
       PostListScreen(feed: PostFeed.pizza, repository: widget.repository),
       PostListScreen(feed: PostFeed.bikes, repository: widget.repository),
       StoreScreen(repository: widget.store, auth: widget.auth),
-      SettingsScreen(
-        repository: widget.repository,
-        auth: widget.auth,
-        ghost: widget.ghost,
-      ),
+      SettingsScreen(auth: widget.auth, ghost: widget.ghost),
     ];
 
     return Scaffold(

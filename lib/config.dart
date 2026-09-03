@@ -3,12 +3,11 @@
 /// The Ghost Content API key is supplied at build time so it never has to be
 /// committed to source control:
 ///
-///   flutter run --dart-define=GHOST_CONTENT_API_KEY=your_key_here
+///   flutter run --dart-define-from-file=config/local.json
 ///
 /// Create a key in Ghost Admin: Settings -> Integrations -> Add custom
-/// integration, then copy the "Content API key". When no key is provided the
-/// app falls back to the site's public RSS feeds, which only expose the 15
-/// most recent posts per feed.
+/// integration, then copy the "Content API key". The key is required; see
+/// [PostRepository.forConfig].
 class GhostConfig {
   GhostConfig._();
 

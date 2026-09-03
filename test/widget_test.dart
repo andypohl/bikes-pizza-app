@@ -23,9 +23,6 @@ class FakePostRepository implements PostRepository {
   final requestedFeeds = <PostFeed>[];
 
   @override
-  String get sourceName => 'Fake';
-
-  @override
   Future<PostPage> fetchPosts(PostFeed feed, {int page = 1}) async {
     requestedFeeds.add(feed);
     return PostPage(posts: page == 1 ? byFeed[feed] ?? [] : [], hasMore: false);
