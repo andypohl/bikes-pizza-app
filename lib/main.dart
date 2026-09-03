@@ -13,9 +13,7 @@ import 'store/store_repository.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   final settings = await AppSettings.load();
   runApp(
     PizzaPredatorApp(
@@ -56,9 +54,7 @@ class PizzaPredatorApp extends StatelessWidget {
           title: 'Pizza Predator',
           debugShowCheckedModeBanner: false,
           themeMode: settings.themeMode,
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(seedColor: _seed),
-          ),
+          theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: _seed)),
           darkTheme: ThemeData(
             colorScheme: ColorScheme.fromSeed(
               seedColor: _seed,

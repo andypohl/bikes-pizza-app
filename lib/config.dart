@@ -15,8 +15,9 @@ class GhostConfig {
   /// Canonical site origin. The apex domain 301-redirects here.
   static const String siteUrl = 'https://www.pizzapredator.com';
 
-  static const String contentApiKey =
-      String.fromEnvironment('GHOST_CONTENT_API_KEY');
+  static const String contentApiKey = String.fromEnvironment(
+    'GHOST_CONTENT_API_KEY',
+  );
 
   static bool get hasContentApiKey => contentApiKey.isNotEmpty;
 
@@ -38,11 +39,13 @@ class ShopifyConfig {
   ShopifyConfig._();
 
   /// e.g. `your-store.myshopify.com`
-  static const String storeDomain =
-      String.fromEnvironment('SHOPIFY_STORE_DOMAIN');
+  static const String storeDomain = String.fromEnvironment(
+    'SHOPIFY_STORE_DOMAIN',
+  );
 
-  static const String storefrontToken =
-      String.fromEnvironment('SHOPIFY_STOREFRONT_TOKEN');
+  static const String storefrontToken = String.fromEnvironment(
+    'SHOPIFY_STOREFRONT_TOKEN',
+  );
 
   /// Storefront API version, see
   /// https://shopify.dev/docs/api/usage/versioning

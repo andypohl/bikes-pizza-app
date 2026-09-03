@@ -11,7 +11,7 @@ import 'post_repository.dart';
 /// only publishes the 15 most recent posts per feed and there is no paging.
 class RssPostRepository implements PostRepository {
   RssPostRepository({required this.siteUrl, http.Client? client})
-      : _client = client ?? http.Client();
+    : _client = client ?? http.Client();
 
   final String siteUrl;
   final http.Client _client;
@@ -20,17 +20,15 @@ class RssPostRepository implements PostRepository {
   String get sourceName => 'RSS feed (latest 15 posts)';
 
   Uri feedUri(String? tagSlug) => Uri.parse(
-        tagSlug == null ? '$siteUrl/rss/' : '$siteUrl/tag/$tagSlug/rss/',
-      );
+    tagSlug == null ? '$siteUrl/rss/' : '$siteUrl/tag/$tagSlug/rss/',
+  );
 
   @override
   Future<PostPage> fetchPosts(PostFeed feed, {int page = 1}) async {
     // RSS has a single page; anything beyond it is empty.
     if (page > 1) return PostPage.empty;
 
-    final uris = feed.isFiltered
-        ? feed.tagSlugs.map(feedUri)
-        : [feedUri(null)];
+    final uris = feed.isFiltered ? feed.tagSlugs.map(feedUri) : [feedUri(null)];
 
     final results = await Future.wait(uris.map(_fetchFeed));
 
@@ -69,12 +67,14 @@ class RssPostRepository implements PostRepository {
       throw PostFetchException('Could not parse RSS feed: ${e.message}');
     }
 
-    return doc.findAllElements('item').map(_postFromItem).toList(growable: false);
+    return doc
+        .findAllElements('item')
+        .map(_postFromItem)
+        .toList(growable: false);
   }
 
   static Post _postFromItem(XmlElement item) {
-    String text(String name) =>
-        item.getElement(name)?.innerText.trim() ?? '';
+    String text(String name) => item.getElement(name)?.innerText.trim() ?? '';
 
     final link = text('link');
     final guid = text('guid');
@@ -112,8 +112,8 @@ class RssPostRepository implements PostRepository {
     final leadingImg = RegExp(r'^\s*<img\b[^>]*>', caseSensitive: false);
     final match = leadingImg.firstMatch(html);
     if (match == null) return html;
-    final srcMatch =
-        RegExp(r'''src\s*=\s*["']([^"']+)''').firstMatch(match.group(0)!);
+    final srcMatch = RegExp(r'''src\s*=\s*["']([^"']+)''')
+        .firstMatch(match.group(0)!);
     if (srcMatch?.group(1) != featureImage) return html;
     return html.substring(match.end).trimLeft();
   }

@@ -22,9 +22,7 @@ class AppUser {
 class AuthException implements Exception {
   AuthException(this.message, {this.cancelled = false});
 
-  AuthException.cancelled()
-      : message = 'Sign-in cancelled.',
-        cancelled = true;
+  AuthException.cancelled() : message = 'Sign-in cancelled.', cancelled = true;
 
   final String message;
   final bool cancelled;
@@ -59,8 +57,8 @@ abstract class AuthService {
 /// [AuthService] backed by Firebase Authentication.
 class FirebaseAuthService implements AuthService {
   FirebaseAuthService({fb.FirebaseAuth? auth, GoogleSignIn? googleSignIn})
-      : _auth = auth ?? fb.FirebaseAuth.instance,
-        _google = googleSignIn ?? GoogleSignIn.instance;
+    : _auth = auth ?? fb.FirebaseAuth.instance,
+      _google = googleSignIn ?? GoogleSignIn.instance;
 
   final fb.FirebaseAuth _auth;
   final GoogleSignIn _google;
@@ -85,13 +83,12 @@ class FirebaseAuthService implements AuthService {
   Future<void> createAccount({
     required String email,
     required String password,
-  }) =>
-      _guard(() async {
-        await _auth.createUserWithEmailAndPassword(
-          email: email.trim(),
-          password: password,
-        );
-      });
+  }) => _guard(() async {
+    await _auth.createUserWithEmailAndPassword(
+      email: email.trim(),
+      password: password,
+    );
+  });
 
   @override
   Future<void> sendPasswordReset(String email) =>
@@ -99,68 +96,68 @@ class FirebaseAuthService implements AuthService {
 
   @override
   Future<void> signInWithGoogle() => _guard(() async {
-        // The plugin reads client IDs from google-services.json /
-        // GoogleService-Info.plist, so no IDs are needed here.
-        _googleInit ??= _google.initialize();
-        await _googleInit;
+    // The plugin reads client IDs from google-services.json /
+    // GoogleService-Info.plist, so no IDs are needed here.
+    _googleInit ??= _google.initialize();
+    await _googleInit;
 
-        final GoogleSignInAccount account;
-        try {
-          account = await _google.authenticate();
-        } on GoogleSignInException catch (e) {
-          if (e.code == GoogleSignInExceptionCode.canceled) {
-            throw AuthException.cancelled();
-          }
-          throw AuthException(_describeGoogle(e));
-        }
+    final GoogleSignInAccount account;
+    try {
+      account = await _google.authenticate();
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        throw AuthException.cancelled();
+      }
+      throw AuthException(_describeGoogle(e));
+    }
 
-        final idToken = account.authentication.idToken;
-        if (idToken == null) {
-          throw AuthException('Google did not return a sign-in token.');
-        }
-        await _auth.signInWithCredential(
-          fb.GoogleAuthProvider.credential(idToken: idToken),
-        );
-      });
+    final idToken = account.authentication.idToken;
+    if (idToken == null) {
+      throw AuthException('Google did not return a sign-in token.');
+    }
+    await _auth.signInWithCredential(
+      fb.GoogleAuthProvider.credential(idToken: idToken),
+    );
+  });
 
   @override
   Future<void> signInWithApple() => _guard(() async {
-        // Apple returns an ID token bound to a nonce; Firebase verifies the
-        // raw nonce against the SHA-256 that Apple signed.
-        final rawNonce = _randomNonce();
-        final hashedNonce = sha256.convert(utf8.encode(rawNonce)).toString();
+    // Apple returns an ID token bound to a nonce; Firebase verifies the
+    // raw nonce against the SHA-256 that Apple signed.
+    final rawNonce = _randomNonce();
+    final hashedNonce = sha256.convert(utf8.encode(rawNonce)).toString();
 
-        final AuthorizationCredentialAppleID apple;
-        try {
-          apple = await SignInWithApple.getAppleIDCredential(
-            scopes: const [
-              AppleIDAuthorizationScopes.email,
-              AppleIDAuthorizationScopes.fullName,
-            ],
-            nonce: hashedNonce,
-          );
-        } on SignInWithAppleAuthorizationException catch (e) {
-          if (e.code == AuthorizationErrorCode.canceled) {
-            throw AuthException.cancelled();
-          }
-          throw AuthException('Apple sign-in failed: ${e.message}');
-        }
+    final AuthorizationCredentialAppleID apple;
+    try {
+      apple = await SignInWithApple.getAppleIDCredential(
+        scopes: const [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: hashedNonce,
+      );
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (e.code == AuthorizationErrorCode.canceled) {
+        throw AuthException.cancelled();
+      }
+      throw AuthException('Apple sign-in failed: ${e.message}');
+    }
 
-        final idToken = apple.identityToken;
-        if (idToken == null) {
-          throw AuthException('Apple did not return a sign-in token.');
-        }
-        await _auth.signInWithCredential(
-          fb.AppleAuthProvider.credentialWithIDToken(
-            idToken,
-            rawNonce,
-            fb.AppleFullPersonName(
-              givenName: apple.givenName,
-              familyName: apple.familyName,
-            ),
-          ),
-        );
-      });
+    final idToken = apple.identityToken;
+    if (idToken == null) {
+      throw AuthException('Apple did not return a sign-in token.');
+    }
+    await _auth.signInWithCredential(
+      fb.AppleAuthProvider.credentialWithIDToken(
+        idToken,
+        rawNonce,
+        fb.AppleFullPersonName(
+          givenName: apple.givenName,
+          familyName: apple.familyName,
+        ),
+      ),
+    );
+  });
 
   @override
   Future<void> signOut() async {
@@ -175,14 +172,20 @@ class FirebaseAuthService implements AuthService {
 
   static AppUser? _toAppUser(fb.User? user) => user == null
       ? null
-      : AppUser(uid: user.uid, email: user.email, displayName: user.displayName);
+      : AppUser(
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+        );
 
   static String _randomNonce([int length = 32]) {
     const chars =
         '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._';
     final random = Random.secure();
-    return List.generate(length, (_) => chars[random.nextInt(chars.length)])
-        .join();
+    return List.generate(
+      length,
+      (_) => chars[random.nextInt(chars.length)],
+    ).join();
   }
 
   /// Runs [action], translating Firebase error codes into readable messages.

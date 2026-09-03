@@ -19,8 +19,10 @@ class SettingsScreen extends StatelessWidget {
 
   static const _appVersion = '0.1.0';
 
-  Future<void> _openSite() =>
-      launchUrl(Uri.parse(GhostConfig.siteUrl), mode: LaunchMode.externalApplication);
+  Future<void> _openSite() => launchUrl(
+    Uri.parse(GhostConfig.siteUrl),
+    mode: LaunchMode.externalApplication,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -65,8 +67,8 @@ class SettingsScreen extends StatelessWidget {
               GhostConfig.hasContentApiKey
                   ? repository.sourceName
                   : '${repository.sourceName}\n'
-                      'Build with --dart-define=GHOST_CONTENT_API_KEY=... '
-                      'to load the full archive.',
+                        'Build with --dart-define=GHOST_CONTENT_API_KEY=... '
+                        'to load the full archive.',
             ),
             isThreeLine: !GhostConfig.hasContentApiKey,
           ),
@@ -110,9 +112,7 @@ class _AccountTile extends StatelessWidget {
             subtitle: const Text('Sign in or create a Pizza Predator account'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => SignInScreen(auth: auth),
-              ),
+              MaterialPageRoute<void>(builder: (_) => SignInScreen(auth: auth)),
             ),
           );
         }

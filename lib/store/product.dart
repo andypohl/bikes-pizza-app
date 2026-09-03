@@ -6,9 +6,9 @@ class Money {
   final String currencyCode;
 
   factory Money.fromJson(Map<String, dynamic> json) => Money(
-        amount: double.tryParse('${json['amount']}') ?? 0,
-        currencyCode: json['currencyCode'] as String? ?? 'USD',
-      );
+    amount: double.tryParse('${json['amount']}') ?? 0,
+    currencyCode: json['currencyCode'] as String? ?? 'USD',
+  );
 }
 
 class ProductVariant {
@@ -27,13 +27,13 @@ class ProductVariant {
   final bool availableForSale;
 
   factory ProductVariant.fromJson(Map<String, dynamic> json) => ProductVariant(
-        id: json['id'] as String? ?? '',
-        title: json['title'] as String? ?? '',
-        price: Money.fromJson(
-          (json['price'] as Map?)?.cast<String, dynamic>() ?? const {},
-        ),
-        availableForSale: json['availableForSale'] as bool? ?? false,
-      );
+    id: json['id'] as String? ?? '',
+    title: json['title'] as String? ?? '',
+    price: Money.fromJson(
+      (json['price'] as Map?)?.cast<String, dynamic>() ?? const {},
+    ),
+    availableForSale: json['availableForSale'] as bool? ?? false,
+  );
 }
 
 class Product {
@@ -72,7 +72,7 @@ class Product {
     final range = (json['priceRange'] as Map?)?.cast<String, dynamic>();
     final minPrice =
         (range?['minVariantPrice'] as Map?)?.cast<String, dynamic>() ??
-            const {};
+        const {};
     final variantEdges = ((json['variants'] as Map?)?['edges'] as List?) ?? [];
 
     return Product(

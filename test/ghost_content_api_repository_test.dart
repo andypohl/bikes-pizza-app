@@ -8,24 +8,24 @@ import 'package:pizza_predator/data/post_repository.dart';
 import 'package:pizza_predator/models/post_feed.dart';
 
 Map<String, dynamic> _post(String id, {List<String> tags = const []}) => {
-      'id': id,
-      'title': 'Post $id',
-      'url': 'https://example.com/$id/',
-      'feature_image': 'https://example.com/$id.jpg',
-      'published_at': '2025-04-12T04:12:00.000+00:00',
-      'excerpt': 'Excerpt $id',
-      'html': '<p>Body $id</p>',
-      'tags': [
-        for (final t in tags) {'slug': t, 'name': t},
-      ],
-    };
+  'id': id,
+  'title': 'Post $id',
+  'url': 'https://example.com/$id/',
+  'feature_image': 'https://example.com/$id.jpg',
+  'published_at': '2025-04-12T04:12:00.000+00:00',
+  'excerpt': 'Excerpt $id',
+  'html': '<p>Body $id</p>',
+  'tags': [
+    for (final t in tags) {'slug': t, 'name': t},
+  ],
+};
 
 String _body(List<Map<String, dynamic>> posts, {int? next}) => jsonEncode({
-      'posts': posts,
-      'meta': {
-        'pagination': {'page': 1, 'limit': 15, 'pages': 2, 'next': next},
-      },
-    });
+  'posts': posts,
+  'meta': {
+    'pagination': {'page': 1, 'limit': 15, 'pages': 2, 'next': next},
+  },
+});
 
 void main() {
   GhostContentApiRepository repo(MockClient client) =>
@@ -49,7 +49,10 @@ void main() {
 
   test('filters tag feeds with NQL', () {
     final r = repo(MockClient((_) async => http.Response('', 200)));
-    expect(r.buildUri(PostFeed.pizza, 1).queryParameters['filter'], 'tag:[pizza]');
+    expect(
+      r.buildUri(PostFeed.pizza, 1).queryParameters['filter'],
+      'tag:[pizza]',
+    );
     expect(
       r.buildUri(PostFeed.bikes, 1).queryParameters['filter'],
       'tag:[biking,off-road-biking]',
@@ -59,7 +62,10 @@ void main() {
   test('parses posts and pagination', () async {
     final client = MockClient(
       (_) async => http.Response(
-        _body([_post('a', tags: ['pizza']), _post('b')], next: 2),
+        _body([
+          _post('a', tags: ['pizza']),
+          _post('b'),
+        ], next: 2),
         200,
         headers: {'content-type': 'application/json'},
       ),
@@ -76,8 +82,9 @@ void main() {
   });
 
   test('reports the last page', () async {
-    final client =
-        MockClient((_) async => http.Response(_body([_post('a')]), 200));
+    final client = MockClient(
+      (_) async => http.Response(_body([_post('a')]), 200),
+    );
     final page = await repo(client).fetchPosts(PostFeed.blog);
     expect(page.hasMore, isFalse);
   });

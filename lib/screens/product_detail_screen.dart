@@ -71,8 +71,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final theme = Theme.of(context);
     final product = widget.product;
     final variant = _variant;
-    final canBuy =
-        !_busy && variant != null && variant.availableForSale;
+    final canBuy = !_busy && variant != null && variant.availableForSale;
 
     return Scaffold(
       appBar: AppBar(),

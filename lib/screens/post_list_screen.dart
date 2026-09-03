@@ -106,9 +106,7 @@ class _PostListScreenState extends State<PostListScreen> {
 
   void _openPost(Post post) {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => PostDetailScreen(post: post),
-      ),
+      MaterialPageRoute<void>(builder: (_) => PostDetailScreen(post: post)),
     );
   }
 

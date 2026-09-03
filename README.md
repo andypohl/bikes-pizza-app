@@ -129,13 +129,14 @@ test/                           unit tests for both backends, widget tests
 
 ```sh
 flutter pub get
+dart format lib test   # CI fails if this would change anything
 flutter analyze
 flutter test
 flutter run            # pick a connected device / simulator
 ```
 
-`flutter analyze` and `flutter test` also run on GitHub Actions for every pull
-request targeting `main` (see `.github/workflows/pr-checks.yml`). Release
+Formatting, `flutter analyze`, and `flutter test` also run on GitHub Actions
+for every pull request targeting `main` (see `.github/workflows/pr-checks.yml`). Release
 workflows will be added separately once the app is ready to ship.
 
 Adding or renaming tabs: edit `PostFeed` in `lib/models/post_feed.dart` and

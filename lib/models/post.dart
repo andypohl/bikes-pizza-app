@@ -37,17 +37,18 @@ class Post {
     final rawTags = json['tags'];
     final tags = rawTags is List
         ? rawTags
-            .whereType<Map<String, dynamic>>()
-            .map((t) => t['slug'])
-            .whereType<String>()
-            .toList(growable: false)
+              .whereType<Map<String, dynamic>>()
+              .map((t) => t['slug'])
+              .whereType<String>()
+              .toList(growable: false)
         : const <String>[];
 
     return Post(
       id: json['id'] as String? ?? json['uuid'] as String? ?? '',
       title: json['title'] as String? ?? '(untitled)',
       url: json['url'] as String? ?? '',
-      publishedAt: DateTime.tryParse(json['published_at'] as String? ?? '') ??
+      publishedAt:
+          DateTime.tryParse(json['published_at'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
       excerpt: (json['custom_excerpt'] as String?)?.trim().isNotEmpty == true
           ? (json['custom_excerpt'] as String).trim()

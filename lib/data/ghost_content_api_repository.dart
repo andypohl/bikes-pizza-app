@@ -72,16 +72,16 @@ class GhostContentApiRepository implements PostRepository {
     final rawPosts = body['posts'];
     final posts = rawPosts is List
         ? rawPosts
-            .whereType<Map<String, dynamic>>()
-            .map(Post.fromGhostJson)
-            .toList(growable: false)
+              .whereType<Map<String, dynamic>>()
+              .map(Post.fromGhostJson)
+              .toList(growable: false)
         : const <Post>[];
 
     final meta = body['meta'];
-    final pagination =
-        meta is Map<String, dynamic> ? meta['pagination'] : null;
-    final nextPage =
-        pagination is Map<String, dynamic> ? pagination['next'] : null;
+    final pagination = meta is Map<String, dynamic> ? meta['pagination'] : null;
+    final nextPage = pagination is Map<String, dynamic>
+        ? pagination['next']
+        : null;
 
     return PostPage(posts: posts, hasMore: nextPage != null);
   }
