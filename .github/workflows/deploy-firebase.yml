@@ -1,5 +1,6 @@
-# Deploys the Cloud Functions in functions/ and the account page in web/
-# to Firebase when a GitHub release is published (pre-releases are skipped). Can also be run by hand from the
+# Deploys the Cloud Functions in functions/, the account page in web/, and
+# the Firestore rules to Firebase when a GitHub release is published
+# (pre-releases are skipped). Can also be run by hand from the
 # Actions tab.
 #
 # Authentication is keyless: GitHub's OIDC token is exchanged for the deploy
@@ -68,5 +69,5 @@ jobs:
       - name: Deploy
         # --force skips the interactive confirmation for deleting functions
         # that were removed from the source.
-        run: npx --yes firebase-tools@15 deploy --only functions,hosting --non-interactive --force
+        run: npx --yes firebase-tools@15 deploy --only functions,hosting,firestore --non-interactive --force
         working-directory: .
