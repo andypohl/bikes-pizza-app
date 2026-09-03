@@ -31,6 +31,29 @@ the intended shape and have not been created yet.
   Gradle plugin to the Android build.
 - These config files are committed. They identify the app to Firebase; they
   do not grant access. Access is governed by security rules.
+- The repository is public, so GitHub's secret scanning flags the Firebase
+  API keys inside those files as "Google API Key". Firebase documents these
+  keys as safe to ship in client code. The alerts were resolved as false
+  positives with that explanation, and the keys were hardened as below.
+
+### API key restrictions
+
+Firebase auto-creates one API key per platform (plus a browser key) in the
+underlying Google Cloud project and restricts each to Firebase's own APIs.
+On top of that, application restrictions were applied through the API Keys
+API:
+
+- iOS key: allowed bundle IDs = the app's bundle ID.
+- Android key: allowed applications = the app's package name paired with a
+  signing-certificate SHA-1. Only the local debug keystore's fingerprint is
+  listed so far. **Before a Play release, add the Play App Signing key's
+  SHA-1 here too**, or Firebase calls from the store build will be rejected.
+  This is the same fingerprint the Google sign-in provider needs.
+- Browser key: unused by the app; left as Firebase created it.
+
+To review or change these, open Google Cloud console, APIs & Services,
+Credentials, for the Firebase project, or use the API Keys API with an
+OAuth token that has the cloud-platform scope.
 
 ## Authentication (current)
 
