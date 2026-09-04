@@ -18,48 +18,28 @@
 </a>
 
 <script>
-  // Firebase Hosting serves the project's web config at this reserved URL.
-  // The SDK is only loaded from the CDN once the config is available; on a
-  // plain `astro preview` there is no config and the button stays neutral.
-  type User = { displayName: string | null; email: string | null } | null;
-  let user: User = null;
-  let known = false;
+  import { onAuth, signInHref, type SiteUser } from '../scripts/auth';
+
+  let current: { user: SiteUser; known: boolean } = { user: null, known: false };
 
   function render() {
     const link = document.getElementById('account-button') as HTMLAnchorElement | null;
     const label = document.getElementById('account-label');
-    if (!link || !label || !known) return;
-    if (user) {
+    if (!link || !label || !current.known) return;
+    if (current.user) {
       link.href = '/account/?mode=account';
       label.textContent = 'Account';
-      link.title = user.displayName || user.email || 'Account';
+      link.title = current.user.displayName || current.user.email || 'Account';
     } else {
-      const back = location.pathname + location.search;
-      link.href = `/account/?mode=signin&r=${encodeURIComponent(back)}`;
+      link.href = signInHref(location.pathname + location.search);
       label.textContent = 'Sign in';
       link.title = 'Sign in or create an account';
     }
   }
 
-  async function watch() {
-    try {
-      const res = await fetch('/__/firebase/init.json');
-      if (!res.ok) return;
-      const config = await res.json();
-      const [{ initializeApp }, { getAuth, onAuthStateChanged }] = await Promise.all([
-        import('https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js'),
-        import('https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js'),
-      ]);
-      onAuthStateChanged(getAuth(initializeApp(config)), (next: User) => {
-        user = next;
-        known = true;
-        render();
-      });
-    } catch {
-      // Leave the neutral label.
-    }
-  }
-
-  watch();
+  onAuth((user, known) => {
+    current = { user, known };
+    render();
+  });
   document.addEventListener('astro:page-load', render);
 </script>
