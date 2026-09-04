@@ -16,7 +16,6 @@
   "dependencies": {
     "firebase-admin": "^13.4.0",
     "firebase-functions": "^6.4.0",
-    "jsonwebtoken": "^9.0.2",
-    "nodemailer": "^7.0.13"
+    "jsonwebtoken": "^9.0.2"
   }
 }

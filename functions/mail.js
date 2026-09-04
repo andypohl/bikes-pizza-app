@@ -1,24 +1,38 @@
-// Sends the submission notification over SMTP. The SMTP_URL secret looks
-// like smtps://user%40example.com:password@smtp.example.com:465 (Gmail with
-// an app password, Mailgun's SMTP credentials, etc.). The sender address
-// defaults to the URL's user name; pass `from` to use another address the
-// provider allows.
+// Sends the submission notification through Mailgun's HTTP API
+// (POST https://api.mailgun.net/v3/<domain>/messages with basic auth
+// "api:<key>"). The API key is the MAILGUN_API_KEY secret; the sending
+// domain and sender address are plain parameters.
 
-import nodemailer from "nodemailer";
+const PLACEHOLDER = "unset"; // what the secret holds before it is configured
 
-export function isMailConfigured(smtpUrl) {
-  return typeof smtpUrl === "string" && /^smtps?:\/\//.test(smtpUrl);
-}
-
-export function senderFrom(smtpUrl) {
-  return decodeURIComponent(new URL(smtpUrl).username);
+export function isMailConfigured({ apiKey, domain }) {
+  return Boolean(apiKey && apiKey !== PLACEHOLDER && domain);
 }
 
 /**
- * @param {{smtpUrl: string, to: string, subject: string, text: string, replyTo?: string, from?: string}} options
- * @param {(url: string) => {sendMail: Function}} [createTransport]
+ * @param {{apiKey: string, domain: string, apiBase?: string, from: string,
+ *   to: string, subject: string, text: string, replyTo?: string}} message
+ * @param {typeof fetch} [fetchImpl]
+ * @returns {Promise<{id?: string, message?: string}>} Mailgun's response
  */
-export async function sendMail({ smtpUrl, to, subject, text, replyTo, from }, createTransport) {
-  const transport = (createTransport ?? nodemailer.createTransport)(smtpUrl);
-  await transport.sendMail({ from: from || senderFrom(smtpUrl), to, subject, text, replyTo });
+export async function sendMail(
+  { apiKey, domain, apiBase = "https://api.mailgun.net", from, to, subject, text, replyTo },
+  fetchImpl = globalThis.fetch,
+) {
+  const form = new URLSearchParams({ from, to, subject, text });
+  if (replyTo) form.set("h:Reply-To", replyTo);
+  const response = await fetchImpl(`${apiBase.replace(/\/+$/, "")}/v3/${domain}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Basic ${Buffer.from(`api:${apiKey}`).toString("base64")}` },
+    body: form,
+  });
+  const text_ = await response.text();
+  if (!response.ok) {
+    throw new Error(`Mailgun ${response.status}: ${text_.slice(0, 200)}`);
+  }
+  try {
+    return JSON.parse(text_);
+  } catch {
+    return { message: text_ };
+  }
 }

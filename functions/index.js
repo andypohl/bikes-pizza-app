@@ -31,14 +31,16 @@ const ghostAdminApiKey = defineSecret("GHOST_ADMIN_API_KEY");
 // Set in functions/.env (see .env.example); not a secret.
 const ghostAdminApiUrl = defineString("GHOST_ADMIN_API_URL");
 
-// SMTP URL for the notification email (see mail.js); set with
-// `firebase functions:secrets:set SMTP_URL`. Anything that is not an
-// smtp:// or smtps:// URL disables the email.
-const smtpUrl = defineSecret("SMTP_URL");
-// Who to tell about new submissions; set in functions/.env. Empty disables
-// the email.
+// Mailgun sends the notification email (see mail.js). The API key is set
+// with `firebase functions:secrets:set MAILGUN_API_KEY`; the rest lives in
+// functions/.env. Without a real key, domain and recipient the email is
+// skipped.
+const mailgunApiKey = defineSecret("MAILGUN_API_KEY");
+const mailgunDomain = defineString("MAILGUN_DOMAIN", { default: "" });
+const mailgunApiBase = defineString("MAILGUN_API_BASE", { default: "https://api.mailgun.net" });
+// Who to tell about new submissions.
 const notifyEmail = defineString("SUBMISSION_NOTIFY_EMAIL", { default: "" });
-// Sender address for the notification; empty means the SMTP user name.
+// Sender; empty means postmaster@<MAILGUN_DOMAIN>.
 const fromEmail = defineString("SUBMISSION_FROM_EMAIL", { default: "" });
 // Email of the Ghost staff account that submission drafts are attributed
 // to; set in functions/.env. Empty leaves Ghost's default author.
@@ -119,7 +121,7 @@ export const updateGhostMember = onCall(options, (request) =>
 );
 
 export const submitPost = onCall(
-  { ...options, secrets: [ghostAdminApiKey, smtpUrl], memory: "512MiB", timeoutSeconds: 120 },
+  { ...options, secrets: [ghostAdminApiKey, mailgunApiKey], memory: "512MiB", timeoutSeconds: 120 },
   (request) =>
     withMember(request, "send your submission", async ({ user, ghost }) => {
       const submission = validateSubmission(request.data);
@@ -138,7 +140,9 @@ export const submitPost = onCall(
 
       let notified = false;
       const to = notifyEmail.value().trim();
-      if (to && isMailConfigured(smtpUrl.value())) {
+      const domain = mailgunDomain.value().trim();
+      const apiKey = mailgunApiKey.value();
+      if (to && isMailConfigured({ apiKey, domain })) {
         try {
           const mail = notificationEmail({
             ...submission,
@@ -147,9 +151,11 @@ export const submitPost = onCall(
             adminUrl: ghostAdminApiUrl.value(),
           });
           await sendMail({
-            smtpUrl: smtpUrl.value(),
+            apiKey,
+            domain,
+            apiBase: mailgunApiBase.value(),
+            from: fromEmail.value().trim() || `postmaster@${domain}`,
             to,
-            from: fromEmail.value().trim() || undefined,
             replyTo: user.email,
             ...mail,
           });
@@ -159,7 +165,9 @@ export const submitPost = onCall(
           logger.warn("submission email failed", { uid: user.uid, message: error.message });
         }
       } else {
-        logger.warn("submission email skipped: SMTP_URL or SUBMISSION_NOTIFY_EMAIL not set");
+        logger.warn(
+          "submission email skipped: MAILGUN_API_KEY, MAILGUN_DOMAIN or SUBMISSION_NOTIFY_EMAIL not set",
+        );
       }
       return { postId: post.id, notified };
     }),
