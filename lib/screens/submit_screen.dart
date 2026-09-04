@@ -163,9 +163,11 @@ class _SubmitScreenState extends State<SubmitScreen> {
             enabled: !_sending,
             textCapitalization: TextCapitalization.sentences,
             maxLength: 255,
+            // Keep the label up so the grey example text is always visible.
             decoration: InputDecoration(
               labelText: 'Title',
               hintText: widget.feed.submitTitleHint,
+              floatingLabelBehavior: FloatingLabelBehavior.always,
               counterText: '',
             ),
             validator: (v) =>
@@ -181,6 +183,7 @@ class _SubmitScreenState extends State<SubmitScreen> {
             decoration: const InputDecoration(
               labelText: 'From',
               hintText: '(your name/nickname)',
+              floatingLabelBehavior: FloatingLabelBehavior.always,
               counterText: '',
             ),
             validator: (v) =>
