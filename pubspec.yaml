@@ -35,7 +35,6 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   http: ^1.6.0
-  xml: ^7.0.1
   cached_network_image: ^4.0.0
   flutter_widget_from_html_core: ^0.17.3
   url_launcher: ^6.3.2

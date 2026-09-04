@@ -1,5 +1,4 @@
-/// A single blog post, normalised from either the Ghost Content API or the
-/// site's RSS feed so the UI never has to care where it came from.
+/// A single blog post as loaded from the Ghost Content API.
 class Post {
   const Post({
     required this.id,

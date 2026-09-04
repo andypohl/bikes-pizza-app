@@ -5,18 +5,11 @@ import '../app_settings.dart';
 import '../auth/auth_service.dart';
 import '../auth/sign_in_screen.dart';
 import '../config.dart';
-import '../data/post_repository.dart';
 import '../ghost/ghost_session_service.dart';
 
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({
-    super.key,
-    required this.repository,
-    required this.auth,
-    this.ghost,
-  });
+  const SettingsScreen({super.key, required this.auth, this.ghost});
 
-  final PostRepository repository;
   final AuthService auth;
   final GhostSessionService? ghost;
 
@@ -63,18 +56,6 @@ class SettingsScreen extends StatelessWidget {
           ),
           const Divider(),
           const _SectionHeader('Content'),
-          ListTile(
-            leading: const Icon(Icons.cloud_outlined),
-            title: const Text('Data source'),
-            subtitle: Text(
-              GhostConfig.hasContentApiKey
-                  ? repository.sourceName
-                  : '${repository.sourceName}\n'
-                        'Build with --dart-define=GHOST_CONTENT_API_KEY=... '
-                        'to load the full archive.',
-            ),
-            isThreeLine: !GhostConfig.hasContentApiKey,
-          ),
           ListTile(
             leading: const Icon(Icons.public),
             title: const Text('Visit pizzapredator.com'),
