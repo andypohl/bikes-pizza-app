@@ -1,10 +1,16 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
+import '../auth/session_expiry.dart';
+
 /// Thrown by [MemberService] with a message safe to show to the user.
 class MemberException implements Exception {
-  MemberException(this.message);
+  MemberException(this.message, {this.sessionExpired = false});
 
   final String message;
+
+  /// True when the server no longer accepts the user's session; the UI
+  /// should sign out (see `handleSessionExpired`).
+  final bool sessionExpired;
 
   @override
   String toString() => message;
@@ -91,8 +97,10 @@ class CloudFunctionsMemberService implements MemberService {
           .call<Map<String, dynamic>>(data);
       return MemberProfile.fromJson(result.data);
     } on FirebaseFunctionsException catch (e) {
+      if (e.code == 'unauthenticated') {
+        throw MemberException(sessionExpiredMessage, sessionExpired: true);
+      }
       throw MemberException(switch (e.code) {
-        'unauthenticated' => 'Sign in first.',
         'failed-precondition' ||
         'invalid-argument' => e.message ?? 'Could not update your account.',
         _ => 'Could not reach your account right now.',

@@ -150,6 +150,7 @@ class FakeAuthService implements AuthService {
 /// In-memory member profile; records updates.
 class FakeMemberService implements MemberService {
   bool fail = false;
+  bool expireSession = false;
   int loads = 0;
   final updates = <({String? name, List<String>? newsletters})>[];
   MemberProfile profile = const MemberProfile(
@@ -168,6 +169,9 @@ class FakeMemberService implements MemberService {
   @override
   Future<MemberProfile> load() async {
     loads++;
+    if (expireSession) {
+      throw MemberException('Session gone.', sessionExpired: true);
+    }
     if (fail) throw MemberException('Could not reach your account right now.');
     return profile;
   }
@@ -199,9 +203,13 @@ class FakeMemberService implements MemberService {
 class FakeSubmissionService implements SubmissionService {
   final submissions = <Submission>[];
   bool fail = false;
+  bool expireSession = false;
 
   @override
   Future<SubmissionResult> submit(Submission submission) async {
+    if (expireSession) {
+      throw SubmissionException('Session gone.', sessionExpired: true);
+    }
     if (fail) throw SubmissionException('Could not send your submission.');
     submissions.add(submission);
     return const SubmissionResult(postId: 'p1', notified: true);
@@ -917,6 +925,49 @@ void main() {
     await tester.tap(find.byKey(const Key('done')));
     await tester.pumpAndSettle();
     expect(find.text('Submit Pizza'), findsOneWidget); // back on the list
+  });
+
+  testWidgets(
+    'an expired session on submit signs out and returns to the list',
+    (tester) async {
+      submissions.expireSession = true;
+      await openSubmitForm(tester, 'Bikes');
+      await tester.tap(find.byKey(const Key('pick-photo')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('photo-library')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('title')), 'Trek');
+      await scrollToSubmit(tester);
+      await tester.tap(find.byKey(const Key('submit')));
+      await tester.pumpAndSettle();
+
+      expect(auth.currentUser, isNull);
+      expect(find.widgetWithText(AppBar, 'Bikes'), findsOneWidget);
+      expect(
+        find.text('Your session has expired. Please sign in again.'),
+        findsOneWidget,
+      );
+      // Signed out, so the member button is gone too.
+      expect(find.text('Submit Bike'), findsNothing);
+    },
+  );
+
+  testWidgets('an expired session on the account screen signs out', (
+    tester,
+  ) async {
+    members = FakeMemberService()..expireSession = true;
+    await openSignIn(tester);
+    await tester.ensureVisible(find.byKey(const Key('google-sign-in')));
+    await tester.tap(find.byKey(const Key('google-sign-in')));
+    await tester.pumpAndSettle();
+    await openAccount(tester);
+
+    expect(auth.currentUser, isNull);
+    expect(find.text('Sign in'), findsOneWidget); // back on Settings
+    expect(
+      find.text('Your session has expired. Please sign in again.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('submission failures show a snackbar and keep the form', (
