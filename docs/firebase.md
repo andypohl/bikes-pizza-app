@@ -117,8 +117,16 @@ Current:
 - `users/{uid}`: the link between a Firebase user and their Ghost member.
   Fields: `ghostMemberId`, `email` (the address that was linked), `linkedAt`,
   and `relinkedFrom` when a previously linked member had been deleted in
-  Ghost. Written only by the `ghostSignInUrl` function through the Admin SDK.
-  The rules currently deny all client reads and writes.
+  Ghost. Written only by the member functions through the Admin SDK; no
+  client access.
+- `submissions/{id}`: a member submission. Fields: `feed`, `title`, `from`,
+  `description`, `uid`, `email`, `status` (`pending`, `approved`,
+  `rejected`), `createdAt`, `image` (`path`, `thumbPath`, `contentType`,
+  `width`, `height` in Storage), and `review` (null until reviewed; then
+  `action`, `at`, `by`, `byEmail`, `note`, and for approvals `postId`,
+  `postUrl`, `postStatus`). Written only by functions; readable by users
+  with the `admin` custom claim (the review page). One composite index:
+  `status` ascending + `createdAt` descending.
 
 Planned additions for the bike photo feature:
 
@@ -135,16 +143,16 @@ Planned additions for the bike photo feature:
     `status == approved` ordered by created date, which needs one
     composite index.
 
-## Cloud Storage (planned)
+## Cloud Storage
 
-- Single default bucket.
-- Layout: `bikes/{uid}/{photoId}.jpg` for originals. Thumbnails generated
-  by the Resize Images extension land alongside in a `thumbs` subfolder.
-- Rules: signed-in users can write only under their own uid folder, with a
-  size cap and an image content-type check. Reads are public for approved
-  content; simplest first version is public read of the bucket while
-  approval gating happens in Firestore, tightening later if needed.
-- Rules live in `storage.rules` via `firebase init storage`.
+The default bucket, in the same region as the functions. Rules live in
+`storage.rules` and deploy with `firebase deploy --only storage`.
+
+- `submissions/{id}/photo.jpg` and `thumb.jpg`: a submission's normalised
+  photo and its thumbnail, written by the `submitPost` function. Readable
+  by users with the `admin` custom claim; no client writes. Approved photos
+  are copied into Ghost's media library on publish, so the bucket is not
+  referenced by the blog.
 
 ## Cloud Functions
 
@@ -164,13 +172,17 @@ first use by email).
 - `updateGhostMember`: changes the member's name and/or the full list of
   newsletters they receive, validated against that same profile.
 - `submitPost`: takes a member's bike or pizza submission (photo as base64,
-  title, from, description), uploads the photo to Ghost, creates a draft
-  post attributed to the staff account in `SUBMISSION_AUTHOR_EMAIL`, and
-  emails `SUBMISSION_NOTIFY_EMAIL` through Mailgun. Needs the
-  `MAILGUN_API_KEY` secret and `MAILGUN_DOMAIN`; without them or the
-  recipient the email step is skipped. `SUBMISSION_FROM_EMAIL` optionally
-  sets the sender and `MAILGUN_API_BASE` the API region. These parameters
-  live in `functions/.env`.
+  title, from, description), normalises the photo and makes a thumbnail
+  (sharp), stores both in Cloud Storage and a `submissions` document in
+  Firestore, and emails `SUBMISSION_NOTIFY_EMAIL` through Mailgun with a
+  link to the review page (`REVIEW_PAGE_URL`, derived from the project when
+  empty). Needs the `MAILGUN_API_KEY` secret and `MAILGUN_DOMAIN`; without
+  them or the recipient the email step is skipped. `SUBMISSION_FROM_EMAIL`
+  optionally sets the sender and `MAILGUN_API_BASE` the API region.
+- `reviewSubmission` (admins only, i.e. the `admin` custom claim): publishes
+  or drafts a pending submission to Ghost from the Markdown template in
+  `functions/templates/`, attributed to `SUBMISSION_AUTHOR_EMAIL`, or
+  rejects it. Records the outcome on the submission document.
   Runs with 512 MiB and a 2-minute timeout because of the image upload.
 
   Configuration: a Secret Manager secret holding the Ghost Admin API key

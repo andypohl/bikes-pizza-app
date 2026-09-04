@@ -1,9 +1,14 @@
 rules_version = '2';
 
 // Firestore is written only by Cloud Functions through the Admin SDK, which
-// bypasses these rules. Nothing is readable or writable from clients yet.
+// bypasses these rules. Admins (custom claim `admin`) may read submissions
+// for the review page; nothing else is readable or writable from clients.
 service cloud.firestore {
   match /databases/{database}/documents {
+    match /submissions/{submissionId} {
+      allow read: if request.auth != null && request.auth.token.admin == true;
+      allow write: if false;
+    }
     match /{document=**} {
       allow read, write: if false;
     }

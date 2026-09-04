@@ -2,15 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { ValidationError } from "./account.js";
-import { GhostApiError } from "./ghost.js";
 import { isMailConfigured, sendMail } from "./mail.js";
-import {
-  buildPost,
-  createDraft,
-  notificationEmail,
-  paragraphs,
-  validateSubmission,
-} from "./submission.js";
+import { notificationEmail, submissionRecord, validateSubmission } from "./submission.js";
 
 const png = Buffer.from("89504e470d0a1a0a", "hex").toString("base64");
 const good = {
@@ -45,86 +38,36 @@ test("description is optional", () => {
   assert.equal(validateSubmission({ ...good, description: undefined }).description, "");
 });
 
-test("paragraphs escapes HTML and keeps line breaks", () => {
-  assert.equal(
-    paragraphs("a <b>\nb\n\n\nc & d"),
-    "<p>a &lt;b&gt;<br>b</p>\n<p>c &amp; d</p>",
+test("submissionRecord shapes a pending document", () => {
+  const image = { path: "submissions/s1/photo.jpg", thumbPath: "submissions/s1/thumb.jpg" };
+  const record = submissionRecord(
+    { feed: "pizza", title: "T", from: "F", description: "D" },
+    { uid: "u1", email: "a@b.c", image },
   );
-});
-
-test("buildPost makes a tagged draft with the photo as feature image", () => {
-  const post = buildPost({
+  assert.deepEqual(record, {
     feed: "pizza",
-    title: "Pepperoni",
-    from: "Ada <script>",
-    description: "Tasty",
-    imageUrl: "https://example.com/i.jpg",
-  });
-  assert.equal(post.status, "draft");
-  assert.equal(post.feature_image, "https://example.com/i.jpg");
-  assert.deepEqual(post.tags, [{ name: "pizza" }, { name: "#submission" }]);
-  assert.equal(post.html, "<p><em>Submitted by Ada &lt;script&gt;</em></p>\n<p>Tasty</p>");
-  assert.equal(post.title, "Pepperoni");
-  assert.equal("authors" in post, false);
-});
-
-test("buildPost attributes the draft to the configured staff account", () => {
-  const post = buildPost({
-    feed: "bikes",
     title: "T",
-    from: "A",
-    description: "",
-    imageUrl: "https://example.com/i.jpg",
-    authorEmail: "staff@example.com",
+    from: "F",
+    description: "D",
+    uid: "u1",
+    email: "a@b.c",
+    status: "pending",
+    image,
+    review: null,
   });
-  assert.deepEqual(post.authors, [{ email: "staff@example.com" }]);
 });
 
-test("createDraft retries without the author when Ghost rejects it", async () => {
-  const attempts = [];
-  const ghost = {
-    async createPost(post) {
-      attempts.push(post);
-      if (post.authors) {
-        throw new GhostApiError("Validation error, cannot edit post.", {
-          status: 422,
-          type: "ValidationError",
-        });
-      }
-      return { id: "p1" };
-    },
-  };
-  const warnings = [];
-  const post = { title: "T", authors: [{ email: "nobody@example.com" }] };
-  const result = await createDraft(ghost, post, (m) => warnings.push(m));
-  assert.equal(result.id, "p1");
-  assert.equal(attempts.length, 2);
-  assert.equal("authors" in attempts[1], false);
-  assert.equal(warnings.length, 1);
-
-  // Other failures propagate untouched, and no retry without an author.
-  const failing = { async createPost() { throw new GhostApiError("down", { status: 503 }); } };
-  await assert.rejects(createDraft(failing, post), /down/);
-  const rejecting = {
-    async createPost() {
-      throw new GhostApiError("bad", { status: 422, type: "ValidationError" });
-    },
-  };
-  await assert.rejects(createDraft(rejecting, { title: "T" }), /bad/);
-});
-
-test("notificationEmail names the submitter and links the editor", () => {
+test("notificationEmail names the submitter and links the review page", () => {
   const mail = notificationEmail({
     feed: "bikes",
     title: "Trek",
     from: "Ada",
     description: "",
     userEmail: "a@b.c",
-    post: { id: "p1" },
-    adminUrl: "https://site.ghost.io/",
+    reviewUrl: "https://example.web.app/review/",
   });
   assert.equal(mail.subject, "New bike submission: Trek");
-  assert.match(mail.text, /https:\/\/site\.ghost\.io\/ghost\/#\/editor\/post\/p1/);
+  assert.match(mail.text, /Review it: https:\/\/example\.web\.app\/review\//);
   assert.match(mail.text, /From: Ada <a@b.c>/);
   assert.match(mail.text, /\(no description\)/);
 });

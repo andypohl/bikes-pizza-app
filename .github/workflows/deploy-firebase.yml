@@ -16,6 +16,7 @@
 #   SUBMISSION_NOTIFY_EMAIL         (optional) who to email about submissions
 #   SUBMISSION_AUTHOR_EMAIL         (optional) Ghost staff account for drafts
 #   SUBMISSION_FROM_EMAIL           (optional) sender address for the email
+#   REVIEW_PAGE_URL                 (optional) link in the notification email
 name: Deploy to Firebase
 
 on:
@@ -65,6 +66,7 @@ jobs:
           echo "SUBMISSION_NOTIFY_EMAIL=${{ vars.SUBMISSION_NOTIFY_EMAIL }}" >> .env
           echo "SUBMISSION_AUTHOR_EMAIL=${{ vars.SUBMISSION_AUTHOR_EMAIL }}" >> .env
           echo "SUBMISSION_FROM_EMAIL=${{ vars.SUBMISSION_FROM_EMAIL }}" >> .env
+          echo "REVIEW_PAGE_URL=${{ vars.REVIEW_PAGE_URL }}" >> .env
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -79,5 +81,5 @@ jobs:
       - name: Deploy
         # --force skips the interactive confirmation for deleting functions
         # that were removed from the source.
-        run: npx --yes firebase-tools@15 deploy --only functions,hosting,firestore --non-interactive --force
+        run: npx --yes firebase-tools@15 deploy --only functions,hosting,firestore,storage --non-interactive --force
         working-directory: .

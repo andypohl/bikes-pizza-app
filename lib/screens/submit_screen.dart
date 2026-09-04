@@ -6,8 +6,9 @@ import '../models/post_feed.dart';
 import '../submissions/photo_picker.dart';
 import '../submissions/submission_service.dart';
 
-/// Form where a member submits their own bike or pizza. On success the blog
-/// gets a draft post and the author an email; the member sees a thank-you.
+/// Form where a member submits their own bike or pizza. On success the
+/// submission is stored for review (and the reviewer emailed); the member
+/// sees a thank-you.
 class SubmitScreen extends StatefulWidget {
   const SubmitScreen({
     super.key,

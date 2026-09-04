@@ -65,18 +65,34 @@ it the app throws on startup with a message naming the missing define.
 The Submit Pizza / Submit Bike form (`lib/screens/submit_screen.dart`) asks
 for a main photo (camera or library, scaled to 2048px on the device), a
 title, who it is from, and a description or story. Submitting calls the
-`submitPost` Cloud Function, which uploads the photo to Ghost, creates a
-**draft** post tagged `pizza` or `biking` plus the internal `#submission`
-tag, with the photo as feature image and the text as body, and then emails
-a configured address. Nothing is published until someone edits and
-publishes the draft in Ghost Admin. The submitter's email is only in the
-notification email (as the reply-to), never in the post.
+`submitPost` Cloud Function, which normalises the photo (rotation, 2048px
+long edge, JPEG) and makes a thumbnail, stores both in Cloud Storage under
+`submissions/{id}/`, writes a `submissions/{id}` document in Firestore with
+status `pending`, and emails a configured address with a link to the review
+page. Nothing reaches the blog at this point.
 
-Drafts are attributed to a dedicated Ghost staff account (its email in
-`SUBMISSION_AUTHOR_EMAIL`), so they are easy to tell apart from the owner's
-own drafts; if that account does not exist, Ghost's default author is used
-and a warning is logged. The staff account is a Ghost login only; it has
-nothing to do with Firebase, which only handles members.
+**Review page**: `web/public/review/` on the Hosting site (`/review/`).
+Only Firebase users with the `admin` custom claim can open it; grant it
+with `tools/grant_admin.py you@example.com` (revoke with `--revoke`). It
+lists submissions as a paginated table with thumbnails and Pending / Posted
+/ Rejected / All filters. Opening a row shows the full photo and story, and
+offers Publish, Save as draft, or Reject, each calling the `reviewSubmission`
+function.
+
+**Publishing** renders `functions/templates/submission_post.md`, a Markdown
+file with a front-matter block (`title`, `tags`, `feature_image`) and
+Mustache placeholders, uploads the photo to Ghost, and creates the post as
+published or as a draft. Available placeholders: `title`, `from`,
+`description`, `feed` (`pizza`/`bikes`), `noun` (`pizza`/`bike`), `tag`
+(`pizza`/`biking`), `image_url`, `submitted_on` (YYYY-MM-DD). Body text is
+HTML-escaped so a member cannot inject markup; the front matter is not,
+since it fills plain fields. The `#submission` tag is always added. The
+submitter's email is never available to the template.
+
+Posts are attributed to a dedicated Ghost staff account (its email in
+`SUBMISSION_AUTHOR_EMAIL`); if that account does not exist, Ghost's default
+author is used and a warning is logged. The staff account is a Ghost login
+only; it has nothing to do with Firebase, which only handles members.
 
 The email goes out through Mailgun's HTTP API. Configure once per
 Firebase project:
@@ -87,11 +103,11 @@ firebase functions:secrets:set MAILGUN_API_KEY
 # Not secret, in functions/.env and as repository variables for the deploy
 # workflow: MAILGUN_DOMAIN (a verified sending domain, or the sandbox domain
 # for tests), SUBMISSION_NOTIFY_EMAIL (recipient), SUBMISSION_AUTHOR_EMAIL
-# (staff account), optionally SUBMISSION_FROM_EMAIL (sender) and
-# MAILGUN_API_BASE (EU-region accounts only).
+# (staff account), optionally SUBMISSION_FROM_EMAIL (sender),
+# MAILGUN_API_BASE (EU-region accounts only) and REVIEW_PAGE_URL.
 ```
 
-Without a key, domain and recipient, the draft is still created and the
+Without a key, domain and recipient, the submission is still stored and the
 email is skipped with a warning in the function logs. Mailgun sandbox
 domains only deliver to recipients authorized in Mailgun.
 

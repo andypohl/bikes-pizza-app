@@ -1,8 +1,8 @@
 // Pure helpers for member submissions: checking the request, shaping the
-// draft post, and wording the notification email.
+// stored record, and wording the notification email. Posting to Ghost
+// happens later, on approval; see post.js.
 
 import { ValidationError } from "./account.js";
-import { GhostApiError } from "./ghost.js";
 
 /** Feeds that accept submissions, keyed by the app's PostFeed name. */
 export const FEEDS = {
@@ -70,73 +70,28 @@ export function validateSubmission(data) {
   };
 }
 
-export function escapeHtml(value) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-
-/** Plain text with blank-line paragraphs and single newlines as breaks. */
-export function paragraphs(value) {
-  return value
-    .split(/\n\s*\n/)
-    .map((p) => p.trim())
-    .filter(Boolean)
-    .map((p) => `<p>${escapeHtml(p).replaceAll("\n", "<br>")}</p>`)
-    .join("\n");
-}
-
-/**
- * The draft post for Ghost. The submitter's email is deliberately left out
- * of the post (it goes in the notification email) so it cannot be published
- * by accident. `authorEmail`, if given, names the staff account the draft
- * is attributed to.
- */
-export function buildPost({ feed, title, from, description, imageUrl, authorEmail }) {
-  const html = [
-    `<p><em>Submitted by ${escapeHtml(from)}</em></p>`,
-    paragraphs(description),
-  ]
-    .filter(Boolean)
-    .join("\n");
+/** The Firestore document for a new submission (timestamps added by the caller). */
+export function submissionRecord({ feed, title, from, description }, { uid, email, image }) {
   return {
+    feed,
     title,
-    html,
-    status: "draft",
-    feature_image: imageUrl,
-    tags: [{ name: FEEDS[feed].tag }, { name: SUBMISSION_TAG }],
-    ...(authorEmail ? { authors: [{ email: authorEmail }] } : {}),
+    from,
+    description,
+    uid,
+    email,
+    status: "pending",
+    image,
+    review: null,
   };
 }
 
-/**
- * Creates the draft. If Ghost rejects the configured author (no staff user
- * with that email), the draft is created without one rather than losing the
- * submission; `warn` is told about it.
- */
-export async function createDraft(ghost, post, warn = () => {}) {
-  try {
-    return await ghost.createPost(post);
-  } catch (error) {
-    if (post.authors && error instanceof GhostApiError && error.type === "ValidationError") {
-      warn(`Ghost rejected the submission author (${error.message}); using the default author.`);
-      const { authors: _authors, ...withoutAuthor } = post;
-      return ghost.createPost(withoutAuthor);
-    }
-    throw error;
-  }
-}
-
-/** Subject and body for the email that tells the author about a new draft. */
-export function notificationEmail({ feed, title, from, description, userEmail, post, adminUrl }) {
+/** Subject and body for the email that announces a new submission. */
+export function notificationEmail({ feed, title, from, description, userEmail, reviewUrl }) {
   const noun = FEEDS[feed].noun;
-  const editUrl = adminUrl ? `${adminUrl.replace(/\/+$/, "")}/ghost/#/editor/post/${post.id}` : null;
   const lines = [
     `${from} submitted a ${noun}: ${title}`,
     "",
-    `A draft post is waiting in Ghost${editUrl ? `: ${editUrl}` : "."}`,
+    `Review it${reviewUrl ? `: ${reviewUrl}` : " on the review page."}`,
     "",
     `From: ${from} <${userEmail}>`,
     "",
