@@ -60,6 +60,15 @@
             "value": "strict-origin-when-cross-origin"
           }
         ]
+      },
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
       }
     ],
     "cleanUrls": true

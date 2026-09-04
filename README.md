@@ -144,12 +144,19 @@ configured; see `docs/firebase.md`), then calls the same
 they land on pizzapredator.com as a member. New email accounts must verify
 their address before that hand-off happens.
 
+The same page is the members' account screen (`?mode=account`): it shows the
+email and sign-in method, lets them edit their name and newsletter choices
+(through the `ghostMember` and `updateGhostMember` functions, which update
+the Ghost member), and, for email/password accounts, change their password
+or request a reset email. Sign out ends both the Firebase session and, via
+Portal's own sign-out route, the Ghost one.
+
 `web/ghost-code-injection.html` is a snippet for Ghost Admin → Settings →
-Code injection → Site header. It redirects Ghost's own Sign in / Subscribe
-buttons and `#/portal/signin|signup` links to the account page (with a
-`mode` and a return path `r`). Portal keeps handling the account screen for
-members who are already signed in. Ghost does not let integration keys edit
-settings, so it is pasted by hand: run
+Code injection → Site header. It redirects Ghost's own Sign in / Subscribe /
+Account buttons and `#/portal/signin|signup|account` links to the account
+page (with a `mode` and a return path `r`), so Portal's own account screen
+is never shown; only its sign-out route is left to Portal. Ghost does not
+let integration keys edit settings, so it is pasted by hand: run
 
 ```sh
 tools/ghost_code_injection.py

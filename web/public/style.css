@@ -226,3 +226,49 @@ button[disabled] {
 .message.ok {
   color: var(--muted);
 }
+
+h2 {
+  font-size: 1rem;
+  margin: 0 0 0.6rem;
+}
+
+fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0 0 1rem;
+}
+
+legend {
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0;
+  margin-bottom: 0.4rem;
+}
+
+.choice {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  font-weight: 400;
+  margin-bottom: 0.6rem;
+}
+
+.choice input {
+  width: auto;
+  margin: 0.3rem 0 0;
+  accent-color: var(--red);
+}
+
+.choice span {
+  display: block;
+}
+
+.subsection {
+  border-top: 1px solid var(--line);
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+}
+
+button.secondary + button.secondary {
+  margin-top: 0.6rem;
+}

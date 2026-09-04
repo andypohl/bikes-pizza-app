@@ -1,5 +1,6 @@
 // Minimal Ghost Admin API client covering what the app needs: look up or
-// create a member by email, and mint a one-time sign-in URL for them.
+// create a member by email, read and update a member's name and newsletter
+// subscriptions, and mint a one-time sign-in URL for them.
 //
 // The sign-in URL endpoint (`members/{id}/signin_urls/`) is what Ghost Admin
 // itself uses for "Sign in as member". It is not in the public API docs, so
@@ -74,10 +75,13 @@ export class GhostAdminClient {
     return json;
   }
 
-  /** Returns the member with this ID, or null if it no longer exists. */
+  /**
+   * Returns the member with this ID (including its `newsletters`), or null
+   * if it no longer exists.
+   */
   async getMember(id) {
     try {
-      const json = await this.request("GET", `/members/${encodeURIComponent(id)}/?fields=id,email,name`);
+      const json = await this.request("GET", `/members/${encodeURIComponent(id)}/?include=newsletters`);
       return json.members?.[0] ?? null;
     } catch (error) {
       if (error instanceof GhostApiError && error.status === 404) return null;
@@ -100,8 +104,32 @@ export class GhostAdminClient {
   async createMember({ email, name }) {
     const member = { email };
     if (name) member.name = name;
-    const json = await this.request("POST", "/members/", { members: [member] });
+    const json = await this.request("POST", "/members/?include=newsletters", { members: [member] });
     return json.members[0];
+  }
+
+  /**
+   * Changes a member's name and/or newsletter subscriptions. `newsletters`
+   * is the complete list of newsletter IDs the member should receive; an
+   * empty list unsubscribes them from all of them.
+   */
+  async updateMember(id, { name, newsletters }) {
+    const patch = {};
+    if (name !== undefined) patch.name = name;
+    if (newsletters !== undefined) patch.newsletters = newsletters.map((nid) => ({ id: nid }));
+    const json = await this.request(
+      "PUT",
+      `/members/${encodeURIComponent(id)}/?include=newsletters`,
+      { members: [patch] },
+    );
+    return json.members[0];
+  }
+
+  /** Active newsletters on the site, in Ghost's sort order. */
+  async listNewsletters() {
+    const query = new URLSearchParams({ filter: "status:active", limit: "all" });
+    const json = await this.request("GET", `/newsletters/?${query}`);
+    return json.newsletters ?? [];
   }
 
   /** @returns {Promise<{id: string, email: string, created: boolean}>} */
