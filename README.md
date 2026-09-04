@@ -75,6 +75,15 @@ builds need no token; run `npm run build` in `site/` to produce `dist/`,
 which the `home` Hosting target serves. Content changes appear on the site
 at the next deploy. See `site/README.md`.
 
+The site's header has a Sign in / Account button backed by the same
+Firebase Auth users as the app and the Ghost site. The build copies the
+account page (`web/public/`) into `dist/account/`, so the site and the
+account page share one origin and therefore one Firebase session: the
+button reads "Sign in" or "Account" accordingly, signing in returns to the
+page you came from, and signing out returns to the site. Served from
+`/account/`, the page skips the Ghost hand-off; served from its own Hosting
+site it behaves as before.
+
 ## Member submissions
 
 The Submit Pizza / Submit Bike form (`lib/screens/submit_screen.dart`) asks

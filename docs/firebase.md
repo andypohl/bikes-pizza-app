@@ -232,7 +232,11 @@ targets in `firebase.json` by `.firebaserc` (create the extra sites with
 
 - The home site serves the Astro site built from `site/` (its `dist/`
   output, which is git-ignored and produced by `npm run build` before a
-  deploy) at https://bikes.pizza/. Its custom domains are the apex (Firebase
+  deploy) at https://bikes.pizza/. The build also copies the account page
+  into `dist/account/`, so https://bikes.pizza/account/ is the same page as
+  the account site, sharing the website's origin (and so its Firebase Auth
+  session); the apex domain is on the Auth authorized-domains list for that
+  reason. Its custom domains are the apex (Firebase
   asks for an `A` record to its IP plus a `hosting-site=<site-id>` `TXT`
   record) and `www`, which is registered as a redirect to the apex (a CNAME
   to the site's `web.app` host).

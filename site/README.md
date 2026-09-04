@@ -18,3 +18,11 @@ dataset in `astro.config.mjs`; override with `PUBLIC_SANITY_PROJECT_ID` and
 Sanity's CDN with responsive `srcset`s. `src/lib/sanity.ts` holds the query
 and image helpers; `src/pages/` has the index, `category/[category]` and
 `post/[slug]` routes.
+
+The header's Sign in / Account button uses the shared account page, which
+`npm run build` copies from `../web/public` into `dist/account/` so both
+share the site's origin and Firebase Auth session. The button's script reads
+the Firebase web config from Hosting's `/__/firebase/init.json`, so it only
+becomes session-aware when served by Firebase Hosting (locally:
+`firebase emulators:start --only hosting` from the repo root, home site on
+port 5055); under `astro preview` it stays on its neutral label.
