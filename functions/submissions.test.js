@@ -5,11 +5,16 @@ import { ValidationError } from "./account.js";
 import { AppError } from "./errors.js";
 import {
   createSubmission,
+  dequeue,
+  enqueue,
   getSubmission,
   listSubmissions,
   parseListQuery,
   parseReview,
+  queueInfo,
+  queueItems,
   reviewSubmission,
+  submitNext,
 } from "./submissions.js";
 
 /** In-memory stand-in for submission_store.js. */
@@ -42,6 +47,32 @@ export function memoryStore(seed = []) {
     },
     async setReview(id, { status, review }) {
       docs.set(id, { ...docs.get(id), status, review: { ...review, at: new Date(2026, 5, 1) } });
+    },
+    timestamp: () => new Date(2026, 5, 1, 12, ++n),
+    async transition(id, { from, patch, message }) {
+      const doc = docs.get(id);
+      if (!doc) throw new AppError("not-found", "That submission no longer exists.");
+      if (!from.includes(doc.status)) throw new AppError("failed-precondition", message);
+      const next = { ...doc };
+      for (const [key, value] of Object.entries(patch)) {
+        if (key.includes(".")) {
+          const [a, b] = key.split(".");
+          next[a] = { ...(next[a] ?? {}), [b]: value };
+        } else next[key] = value;
+      }
+      docs.set(id, next);
+      return doc;
+    },
+    async queueList(feed) {
+      return [...docs.values()]
+        .filter((d) => d.status === "queued" && d.feed === feed)
+        .sort((a, b) => a.queue.at - b.queue.at);
+    },
+    async queueHead(feed) {
+      return (await this.queueList(feed))[0] ?? null;
+    },
+    async queueLength(feed) {
+      return (await this.queueList(feed)).length;
     },
     async setImageToken(id, token) {
       docs.get(id).image.token = token;
@@ -155,21 +186,101 @@ test("reviewSubmission drafts to Ghost and records the post", async () => {
   assert.equal(store.docs.get("s2").review.postId, "p1");
 });
 
-test("reviewSubmission refuses missing and already-posted submissions", async () => {
+const NOW = new Date("2026-09-04T15:30:00Z"); // 10:30 CDT
+
+test("reviewSubmission publish queues instead of posting, and refuses re-review", async () => {
   const store = await seeded();
-  const ghost = {
-    uploadImage: async () => "https://cdn/x.jpg",
-    createPost: async () => ({ id: "p1", url: "https://blog/x", status: "published" }),
-  };
+  const ghost = { uploadImage: () => assert.fail("posted immediately") };
   await assert.rejects(
     reviewSubmission({ id: "nope", action: "reject", note: "" }, admin, { store, ghost }),
     (e) => e instanceof AppError && e.code === "not-found",
   );
-  await reviewSubmission({ id: "s1", action: "publish", note: "" }, admin, { store, ghost });
+  const result = await reviewSubmission({ id: "s1", action: "publish", note: "nice" }, admin, { store, ghost, now: NOW });
+  assert.equal(result.status, "queued");
+  assert.equal(result.position, 1);
+  assert.equal(result.length, 1);
+  assert.equal(result.nextPostAt, "2026-09-04T17:00:00.000Z");
+  const doc = store.docs.get("s1");
+  assert.equal(doc.status, "queued");
+  assert.equal(doc.queue.byEmail, "admin@example.com");
+  assert.equal(doc.queue.note, "nice");
   await assert.rejects(
     reviewSubmission({ id: "s1", action: "reject", note: "" }, admin, { store, ghost }),
-    (e) => e instanceof AppError && e.code === "failed-precondition",
+    (e) => e.code === "failed-precondition" && /already queued/.test(e.message),
   );
+});
+
+test("enqueue and dequeue check the feed and the status", async () => {
+  const store = await seeded();
+  await assert.rejects(enqueue({ feed: "pizza", id: "s1" }, admin, { store }), (e) => /bikes feed/.test(e.message));
+  await assert.rejects(enqueue({ feed: "blog", id: "s1" }, admin, { store }), ValidationError);
+  await assert.rejects(enqueue({ feed: "bikes", id: "zzz" }, admin, { store }), (e) => e.code === "not-found");
+  await assert.rejects(dequeue({ feed: "bikes", id: "s1" }, admin, { store }), (e) => /not in the queue/.test(e.message));
+  await enqueue({ feed: "bikes", id: "s1" }, admin, { store, now: NOW });
+  await assert.rejects(enqueue({ feed: "bikes", id: "s1" }, admin, { store }), (e) => /already queued/.test(e.message));
+  const back = await dequeue({ feed: "bikes", id: "s1" }, admin, { store, now: NOW });
+  assert.equal(back.status, "pending");
+  assert.equal(back.length, 0);
+  assert.equal(store.docs.get("s1").status, "pending");
+  assert.equal(store.docs.get("s1").queue, null);
+});
+
+test("queueInfo and queueItems describe the queue in order", async () => {
+  const store = await seeded();
+  await createSubmission({ ...body, title: "Third" }, user, { store, processImage, notify: async () => true });
+  await enqueue({ feed: "bikes", id: "s3", note: "" }, admin, { store, now: NOW });
+  await enqueue({ feed: "bikes", id: "s1", note: "" }, admin, { store, now: NOW });
+  const info = await queueInfo("bikes", { store, now: NOW });
+  assert.deepEqual(info, {
+    feed: "bikes",
+    length: 2,
+    nextPostAt: "2026-09-04T17:00:00.000Z",
+    seconds: 5400,
+    countdown: "1h 30m 0s",
+    clock: "01:30:00",
+  });
+  const q = await queueItems("bikes", { store, now: NOW });
+  assert.deepEqual(q.items.map((i) => [i.position, i.id, i.status]), [[1, "s3", "queued"], [2, "s1", "queued"]]);
+  assert.equal(q.items[0].queue.byEmail, "admin@example.com");
+  assert.equal((await queueInfo("pizza", { store, now: NOW })).length, 0);
+  await assert.rejects(queueInfo("blog", { store }), ValidationError);
+});
+
+test("submitNext posts the oldest entry and leaves the rest queued", async () => {
+  const store = await seeded();
+  await createSubmission({ ...body, title: "Third" }, user, { store, processImage, notify: async () => true });
+  await enqueue({ feed: "bikes", id: "s1", note: "first" }, admin, { store, now: NOW });
+  await enqueue({ feed: "bikes", id: "s3", note: "" }, admin, { store, now: NOW });
+  const posts = [];
+  const ghost = {
+    uploadImage: async () => "https://cdn/x.jpg",
+    createPost: async (post) => posts.push([post.status, post.title]) && { id: "p1", url: "https://blog/trek", status: "published" },
+  };
+  const empty = await submitNext("pizza", { store, ghost, now: NOW });
+  assert.equal(empty.posted, null);
+  assert.equal(empty.length, 0);
+
+  const result = await submitNext("bikes", { store, ghost, now: NOW });
+  assert.deepEqual(posts, [["published", "Trek 970"]]);
+  assert.equal(result.posted.id, "s1");
+  assert.equal(result.posted.status, "approved");
+  assert.equal(result.posted.review.postUrl, "https://blog/trek");
+  assert.equal(result.posted.review.note, "first");
+  assert.equal(result.posted.review.byEmail, "admin@example.com");
+  assert.match(result.posted.queue.postedAt, /^2026-/);
+  assert.equal(result.length, 1);
+  assert.equal((await store.queueHead("bikes")).id, "s3");
+});
+
+test("submitNext puts the entry back in the queue when Ghost fails", async () => {
+  const store = await seeded();
+  await enqueue({ feed: "bikes", id: "s1", note: "" }, admin, { store, now: NOW });
+  const ghost = { uploadImage: async () => { throw new Error("ghost down"); } };
+  await assert.rejects(submitNext("bikes", { store, ghost, now: NOW }), /ghost down/);
+  const doc = store.docs.get("s1");
+  assert.equal(doc.status, "queued");
+  assert.equal(doc.queue.lastError, "ghost down");
+  assert.equal(await store.queueLength("bikes"), 1);
 });
 
 test("parseListQuery applies defaults and limits", () => {

@@ -124,10 +124,14 @@ Current:
   `rejected`), `createdAt`, `image` (`path`, `thumbPath`, `contentType`,
   `width`, `height` in Storage), and `review` (null until reviewed; then
   `action`, `at`, `by`, `byEmail`, `note`, and for approvals `postId`,
-  `postUrl`, `postStatus`). `image.token` is the download token that the
-  API's photo links carry. Written and read only by functions; clients go
-  through the REST API (`docs/api.md`). One composite index: `status`
-  ascending + `createdAt` descending.
+  `postUrl`, `postStatus`). `status` moves `pending` → `queued` → `posting`
+  → `approved` for publishing (or `pending` → `approved` for drafts and
+  `pending` → `rejected`); `queue` (`at`, `by`, `byEmail`, `note`, and after
+  posting `postedAt`, or `lastError` if a scheduled post failed) records the
+  queue entry. `image.token` is the download token that the API's photo
+  links carry. Written and read only by functions; clients go through the
+  REST API (`docs/api.md`). Two composite indexes: `status` + `createdAt`
+  descending for listing, and `status` + `feed` + `queue.at` for the queues.
 
 Planned additions for the bike photo feature:
 
@@ -187,9 +191,16 @@ first use by email).
   rejects it. Records the outcome on the submission document.
   Runs with 512 MiB and a 2-minute timeout because of the image upload.
 - `api` (HTTPS, not a callable): the REST API in `functions/api.js`, which
-  wraps the same submission logic (list, fetch, review, create) for the
-  review page and the app. Served through the submissions Hosting site's
-  `/api/**` rewrite; see `docs/api.md`.
+  wraps the same submission logic (list, fetch, review, create, queues) for
+  the review page and the app. Served through the submissions Hosting
+  site's `/api/**` rewrite; see `docs/api.md`.
+- `postBikesQueue` and `postPizzaQueue` (scheduled): post the oldest queued
+  submission of their feed at the feed's posting times, 8am/12pm/4pm/8pm
+  Central for bikes and 9am/1pm/5pm/9pm for pizza (`functions/schedule.js`,
+  America/Chicago so daylight saving is followed). They are Cloud Scheduler
+  jobs, so deploying them needs the Cloud Scheduler API enabled and the
+  deployer to hold Cloud Scheduler Admin. Approving a submission (`publish`)
+  queues it rather than posting it; drafts still go to Ghost immediately.
 
   Configuration: a Secret Manager secret holding the Ghost Admin API key
   (name in `functions/index.js`) and a plain parameter with the Ghost API
@@ -271,7 +282,7 @@ Keep this list current. It is the checklist for rebuilding the project.
    Cloud console (IAM & Admin → Service Accounts) used only for deploys, with
    these roles: Cloud Functions Admin, Cloud Run Admin, Cloud Build Editor,
    Artifact Registry Administrator, Service Account User, Secret Manager
-   Viewer, Service Usage Consumer, Firebase Hosting Admin, Firebase Rules
+   Viewer, Service Usage Consumer, Cloud Scheduler Admin, Firebase Hosting Admin, Firebase Rules
    Admin, Cloud Datastore Index Admin, Cloud Storage for Firebase Admin. Do
    not create a key for it.
 10. Set up keyless access for GitHub Actions (Workload Identity Federation):

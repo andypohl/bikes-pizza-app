@@ -79,8 +79,11 @@ Only Firebase users with the `admin` custom claim can open it; grant it
 with `tools/grant_admin.py you@example.com` (revoke with `--revoke`). It
 lists submissions as a paginated table with thumbnails and Pending / Posted
 / Rejected / All filters. Opening a row shows the full photo and story, and
-offers Publish, Save as draft, or Reject, each calling the `reviewSubmission`
-function.
+offers Queue to post, Save as draft, or Reject. Queued submissions wait in a
+per-feed queue and go live one at a time on a fixed schedule (bikes at
+8am, 12pm, 4pm and 8pm Central; pizza at 9am, 1pm, 5pm and 9pm), run by
+scheduled functions; the page shows each queue's length and the time to
+its next post, and the API exposes the queues under `/api/queue/`.
 
 **Publishing** renders `functions/templates/submission_post.md`, a Markdown
 file with a front-matter block (`title`, `tags`, `feature_image`) and

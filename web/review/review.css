@@ -398,3 +398,16 @@ button.danger {
   max-width: min(64rem, 100%);
   min-width: 0;
 }
+
+.queues {
+  margin: 0 0 0.75rem;
+}
+
+.status.queued,
+.status.posting {
+  color: #b26a00;
+}
+
+#d-queue-actions {
+  margin-top: 0.5rem;
+}

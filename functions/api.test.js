@@ -32,6 +32,16 @@ const service = {
     calls.push(["create", data.title, user.uid]);
     return { submissionId: "s9", notified: false };
   },
+  queue: {
+    info: async (feed) => {
+      if (feed === "blog") throw new ValidationError("Unknown feed.");
+      return { feed, length: 2, nextPostAt: "2026-09-04T17:00:00.000Z", seconds: 5400, countdown: "1h 30m 0s", clock: "01:30:00" };
+    },
+    items: async (feed) => ({ feed, length: 1, items: [{ position: 1, id: "s1" }] }),
+    add: async (input, admin) => calls.push(["add", input, admin.uid]) && { status: "queued", position: 3 },
+    remove: async (input, admin) => calls.push(["remove", input, admin.uid]) && { status: "pending" },
+    submitNext: async (feed) => calls.push(["submit-next", feed]) && { posted: { id: "s1" }, length: 0 },
+  },
 };
 
 let base;
@@ -116,6 +126,37 @@ test("members can create submissions; bad JSON is a 400", async () => {
   assert.deepEqual(calls, [["create", "T", "u1"]]);
   const junk = await call("/api/submissions", { token: "member", method: "POST", body: "{not json" });
   assert.equal(junk.status, 400);
+});
+
+test("queue reads are for members, queue changes for admins", async () => {
+  const len = await call("/api/queue/pizza/length", { token: "member" });
+  assert.equal(len.status, 200);
+  assert.deepEqual(len.body, { feed: "pizza", length: 2 });
+  const cd = await call("/api/queue/bikes/countdown-time", { token: "member" });
+  assert.equal(cd.status, 200);
+  assert.equal(cd.body.countdown, "1h 30m 0s");
+  assert.equal(cd.body.nextPostAt, "2026-09-04T17:00:00.000Z");
+  assert.equal((await call("/api/queue/blog/length", { token: "member" })).status, 400);
+  assert.equal((await call("/api/queue/pizza", { token: "member" })).status, 403);
+  const items = await call("/api/queue/pizza", { token: "admin" });
+  assert.equal(items.status, 200);
+  assert.equal(items.body.items[0].position, 1);
+
+  calls.length = 0;
+  assert.equal((await call("/api/queue/pizza/add", { token: "member", method: "POST", body: { id: "s1" } })).status, 403);
+  const add = await call("/api/queue/pizza/add", { token: "admin", method: "POST", body: { id: "s1", note: "n" } });
+  assert.equal(add.status, 200);
+  assert.equal(add.body.position, 3);
+  const rm = await call("/api/queue/bikes/remove", { token: "admin", method: "POST", body: { id: "s2" } });
+  assert.equal(rm.status, 200);
+  const next = await call("/api/queue/bikes/submit-next", { token: "admin", method: "POST" });
+  assert.equal(next.status, 200);
+  assert.equal(next.body.posted.id, "s1");
+  assert.deepEqual(calls, [
+    ["add", { id: "s1", note: "n", feed: "pizza" }, "a1"],
+    ["remove", { id: "s2", feed: "bikes" }, "a1"],
+    ["submit-next", "bikes"],
+  ]);
 });
 
 test("unknown endpoints are JSON 404s", async () => {
