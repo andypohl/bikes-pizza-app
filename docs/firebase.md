@@ -253,7 +253,8 @@ Keep this list current. It is the checklist for rebuilding the project.
    these roles: Cloud Functions Admin, Cloud Run Admin, Cloud Build Editor,
    Artifact Registry Administrator, Service Account User, Secret Manager
    Viewer, Service Usage Consumer, Firebase Hosting Admin, Firebase Rules
-   Admin, Cloud Datastore Index Admin. Do not create a key for it.
+   Admin, Cloud Datastore Index Admin, Cloud Storage for Firebase Admin. Do
+   not create a key for it.
 10. Set up keyless access for GitHub Actions (Workload Identity Federation):
     enable the IAM Credentials and STS APIs; create a workload identity pool
     with an OIDC provider whose issuer is

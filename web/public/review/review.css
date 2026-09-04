@@ -159,3 +159,8 @@ button.danger {
   color: var(--error);
   border-color: var(--error);
 }
+
+/* The flex rules above would otherwise beat the hidden attribute. */
+[hidden] {
+  display: none !important;
+}
