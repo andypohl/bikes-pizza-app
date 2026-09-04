@@ -71,7 +71,7 @@ export const post = defineType({
       description: 'Where this post lived before Sanity. Empty for posts written here.',
       options: { collapsible: true, collapsed: true },
       fields: [
-        defineField({ name: 'system', type: 'string', options: { list: ['ghost'] } }),
+        defineField({ name: 'system', type: 'string', options: { list: ['ghost', 'submission'] } }),
         defineField({ name: 'id', type: 'string' }),
         defineField({ name: 'url', type: 'url' }),
       ],

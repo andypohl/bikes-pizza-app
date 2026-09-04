@@ -2,8 +2,9 @@
 //
 // All entry points require a Firebase user with a verified email. Member
 // profiles live in Firestore (members/{uid}; see members.js). Submissions
-// are stored for review and, on approval, posted to Ghost (submissions.js);
-// they are reachable both as callables and through the REST API in api.js.
+// are stored for review and, on approval, published to Sanity as posts
+// (submissions.js, post.js); they are reachable both as callables and
+// through the REST API in api.js.
 //
 // member:            the member's profile (name, email, newsletter choices)
 //                    for the account page and the app.
@@ -11,8 +12,8 @@
 // submitPost:        checks a bike/pizza submission's photo with Google
 //                    SafeSearch, stores it (photo + text) in Firestore and
 //                    Storage and emails the reviewer.
-// reviewSubmission:  admin only; publishes or drafts an approved submission
-//                    to Ghost from the Markdown template, or rejects it.
+// reviewSubmission:  admin only; queues, drafts (in Sanity) or rejects a
+//                    pending submission.
 // api:               HTTPS; the REST API behind /api/ on the submissions
 //                    Hosting site (list, fetch, review, create, queues).
 // postBikesQueue,    scheduled; post the oldest queued submission of the
@@ -30,22 +31,27 @@ import { logger } from "firebase-functions";
 import { ValidationError, profile, validateUpdate } from "./account.js";
 import { createApi } from "./api.js";
 import { AppError, adminFromClaims, userFromClaims } from "./errors.js";
-import { GhostAdminClient, GhostApiError } from "./ghost.js";
 import { processImage } from "./images.js";
 import { NEWSLETTERS, firestoreMemberStore, loadMember, updateMember as applyMemberUpdate } from "./members.js";
 import { isMailConfigured, sendMail } from "./mail.js";
 import { inspectImage } from "./safesearch.js";
 import { TIME_ZONE, cronFor } from "./schedule.js";
 import { notificationEmail } from "./submission.js";
+import { SanityClient } from "./sanity.js";
 import { firestoreSubmissionStore } from "./submission_store.js";
 import * as subs from "./submissions.js";
 
 initializeApp();
 
-// Set with `firebase functions:secrets:set GHOST_ADMIN_API_KEY`.
-const ghostAdminApiKey = defineSecret("GHOST_ADMIN_API_KEY");
-// Set in functions/.env (see .env.example); not a secret.
-const ghostAdminApiUrl = defineString("GHOST_ADMIN_API_URL");
+// Approved submissions become posts in Sanity. The token (an Editor token
+// for the project) is set with `firebase functions:secrets:set
+// SANITY_WRITE_TOKEN`; the identifiers are plain parameters with defaults.
+const sanityWriteToken = defineSecret("SANITY_WRITE_TOKEN");
+const sanityProjectId = defineString("SANITY_PROJECT_ID", { default: "nva9b0ia" });
+const sanityDataset = defineString("SANITY_DATASET", { default: "production" });
+const SANITY_API_VERSION = "2025-02-19";
+// The website that renders the posts; published posts link there.
+const siteUrl = defineString("SITE_URL", { default: "https://bikes.pizza" });
 
 // Mailgun sends the notification email (see mail.js). The API key is set
 // with `firebase functions:secrets:set MAILGUN_API_KEY`; the rest lives in
@@ -58,13 +64,9 @@ const mailgunApiBase = defineString("MAILGUN_API_BASE", { default: "https://api.
 const notifyEmail = defineString("SUBMISSION_NOTIFY_EMAIL", { default: "" });
 // Sender; empty means postmaster@<MAILGUN_DOMAIN>.
 const fromEmail = defineString("SUBMISSION_FROM_EMAIL", { default: "" });
-// Email of the Ghost staff account that approved posts are attributed to;
-// empty leaves Ghost's default author.
-const authorEmail = defineString("SUBMISSION_AUTHOR_EMAIL", { default: "" });
 // Link put in the notification email; empty means the submissions site.
 const reviewPageUrl = defineString("REVIEW_PAGE_URL", { default: "" });
 
-const options = { region: "us-central1", secrets: [ghostAdminApiKey] };
 const heavy = { memory: "512MiB", timeoutSeconds: 120 };
 
 /** The signed-in, verified user behind a callable request, or throws. */
@@ -72,10 +74,12 @@ const verifiedUser = (request) => userFromClaims(request.auth && { uid: request.
 /** A verified user who also carries the `admin` custom claim. */
 const adminUser = (request) => adminFromClaims(request.auth && { uid: request.auth.uid, ...request.auth.token });
 
-function ghostClient() {
-  return new GhostAdminClient({
-    url: ghostAdminApiUrl.value(),
-    key: ghostAdminApiKey.value(),
+function sanityClient() {
+  return new SanityClient({
+    projectId: sanityProjectId.value(),
+    dataset: sanityDataset.value(),
+    apiVersion: SANITY_API_VERSION,
+    token: sanityWriteToken.value(),
   });
 }
 
@@ -87,9 +91,6 @@ async function guarded(uid, what, work) {
     if (error instanceof HttpsError) throw error;
     if (error instanceof AppError) throw new HttpsError(error.code, error.message);
     if (error instanceof ValidationError) throw new HttpsError("invalid-argument", error.message);
-    if (error instanceof GhostApiError && error.type === "ValidationError") {
-      throw new HttpsError("invalid-argument", error.message);
-    }
     logger.error(`${what} failed`, { uid, message: error.message });
     throw new HttpsError("unavailable", `Could not ${what} right now.`);
   }
@@ -161,16 +162,15 @@ async function notify(submission, user) {
 const googleAuth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
 const safeSearch = (bytes) => inspectImage(bytes, { getToken: () => googleAuth.getAccessToken() });
 
-/** The submission operations, bound to Firestore, Storage, Vision, Ghost and Mailgun. */
+/** The submission operations, bound to Firestore, Storage, Vision, Sanity and Mailgun. */
 const service = {
   create: (data, user) =>
     subs.createSubmission(data, user, { store: store(), processImage, safeSearch, notify, log: logger.info }),
   review: (input, admin) =>
     subs.reviewSubmission(subs.parseReview(input), admin, {
       store: store(),
-      ghost: ghostClient(),
-      authorEmail: authorEmail.value().trim(),
-      warn: (message) => logger.warn(message),
+      sanity: sanityClient(),
+      siteUrl: siteUrl.value(),
       log: logger.info,
     }),
   list: (query) => subs.listSubmissions(subs.parseListQuery(query), { store: store() }),
@@ -183,9 +183,8 @@ const service = {
     submitNext: (feed) =>
       subs.submitNext(feed, {
         store: store(),
-        ghost: ghostClient(),
-        authorEmail: authorEmail.value().trim(),
-        warn: (message) => logger.warn(message),
+        sanity: sanityClient(),
+        siteUrl: siteUrl.value(),
         log: logger.info,
       }),
   },
@@ -199,7 +198,7 @@ export const submitPost = onCall(
     ),
 );
 
-export const reviewSubmission = onCall({ ...options, ...heavy }, (request) =>
+export const reviewSubmission = onCall({ region: "us-central1", secrets: [sanityWriteToken], ...heavy }, (request) =>
   guarded(request.auth?.uid, "review the submission", () =>
     service.review(request.data, adminUser(request)),
   ),
@@ -208,7 +207,7 @@ export const reviewSubmission = onCall({ ...options, ...heavy }, (request) =>
 /** Posts a feed's oldest queued submission at each of its scheduled times. */
 const queueRunner = (feed) =>
   onSchedule(
-    { schedule: cronFor(feed), timeZone: TIME_ZONE, region: "us-central1", secrets: [ghostAdminApiKey], retryCount: 2, ...heavy },
+    { schedule: cronFor(feed), timeZone: TIME_ZONE, region: "us-central1", secrets: [sanityWriteToken], retryCount: 2, ...heavy },
     async () => {
       const result = await service.queue.submitNext(feed);
       logger.info("queue run", { feed, posted: result.posted?.id ?? null, remaining: result.length });
@@ -219,7 +218,7 @@ export const postBikesQueue = queueRunner("bikes");
 export const postPizzaQueue = queueRunner("pizza");
 
 export const api = onRequest(
-  { region: "us-central1", secrets: [ghostAdminApiKey, mailgunApiKey], ...heavy },
+  { region: "us-central1", secrets: [sanityWriteToken, mailgunApiKey], ...heavy },
   createApi({
     verifyToken: (token) => getAuth().verifyIdToken(token),
     service,
