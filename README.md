@@ -60,6 +60,30 @@ Content API keys grant read-only access to public content, so they are not
 secret in Ghost's model, but the key is still kept out of the repo. Without
 it the app throws on startup with a message naming the missing define.
 
+## Sanity (experimental)
+
+`studio/` holds a Sanity Studio with a `post` content model (title, slug,
+feed, main image, excerpt, Portable Text body, and a record of where imported
+posts came from). It is a trial of Sanity as a replacement for Ghost as the
+post store; the app still reads Ghost. See `studio/README.md` for running the
+Studio, deploying the schema, and importing posts from Ghost.
+
+`site/` is the public website at https://bikes.pizza/, an Astro site that
+renders the Sanity posts as a photo gallery (the Astro Frame Shift theme by
+Ema Suriano, adapted). It is statically built from the public dataset, so
+builds need no token; run `npm run build` in `site/` to produce `dist/`,
+which the `home` Hosting target serves. Content changes appear on the site
+at the next deploy. See `site/README.md`.
+
+The site's header has a Sign in / Account button backed by the same
+Firebase Auth users as the app and the Ghost site. The build copies the
+account page (`web/public/`) into `dist/account/`, so the site and the
+account page share one origin and therefore one Firebase session: the
+button reads "Sign in" or "Account" accordingly, signing in returns to the
+page you came from, and signing out returns to the site. Served from
+`/account/`, the page skips the Ghost hand-off; served from its own Hosting
+site it behaves as before.
+
 ## Member submissions
 
 The Submit Pizza / Submit Bike form (`lib/screens/submit_screen.dart`) asks
@@ -288,7 +312,8 @@ flutter run            # pick a connected device / simulator
 Formatting, `flutter analyze`, `flutter test`, and the Cloud Functions unit
 tests run on GitHub Actions for every pull request targeting `main`
 (`.github/workflows/pr-checks.yml`). Publishing a GitHub release deploys the
-Cloud Functions and the account page (`.github/workflows/deploy-firebase.yml`);
+Cloud Functions, the website and the account page
+(`.github/workflows/deploy-firebase.yml`);
 app store release workflows will be added later.
 
 Adding or renaming tabs: edit `PostFeed` in `lib/models/post_feed.dart` and

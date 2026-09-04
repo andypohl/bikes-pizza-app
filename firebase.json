@@ -43,7 +43,7 @@
   "hosting": [
     {
       "target": "home",
-      "public": "web/home",
+      "public": "site/dist",
       "ignore": [
         "firebase.json",
         "**/.*",
@@ -64,7 +64,16 @@
           ]
         },
         {
-          "source": "**/*.@(jpg|png)",
+          "source": "/_astro/**",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=31536000, immutable"
+            }
+          ]
+        },
+        {
+          "source": "**/*.@(png|jpg|svg|ico)",
           "headers": [
             {
               "key": "Cache-Control",
@@ -73,7 +82,8 @@
           ]
         }
       ],
-      "cleanUrls": true
+      "cleanUrls": true,
+      "trailingSlash": true
     },
     {
       "target": "account",

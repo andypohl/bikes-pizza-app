@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-inter: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+html:has(#image-zoom:popover-open),
+html:has(#image-zoom:popover-open) body {
+  overflow: hidden;
+}
+
+/* Post bodies (Portable Text). */
+.post-body p {
+  margin-bottom: 1.25rem;
+}
+.post-body h2,
+.post-body h3 {
+  margin: 2rem 0 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+.post-body h2 {
+  font-size: 1.5rem;
+}
+.post-body h3 {
+  font-size: 1.25rem;
+}
+.post-body ul,
+.post-body ol {
+  margin: 0 0 1.25rem 1.25rem;
+}
+.post-body ul {
+  list-style: disc;
+}
+.post-body ol {
+  list-style: decimal;
+}
+.post-body blockquote {
+  margin: 1.5rem 0;
+  padding-left: 1rem;
+  border-left: 2px solid currentColor;
+  opacity: 0.85;
+}
+.post-body a {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.post-body figure {
+  margin: 2rem 0;
+}
+.post-body figcaption {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  opacity: 0.75;
+}

@@ -1,0 +1,205 @@
+---
+import { PortableText } from 'astro-portabletext';
+import Layout from '../../layouts/Layout.astro';
+import PostMasonry from '../../components/PostMasonry.astro';
+import ImageBlock from '../../components/portable-text/ImageBlock.astro';
+import Link from '../../components/portable-text/Link.astro';
+import { categoryOf, responsive, summaryOf, urlFor, type Post } from '../../lib/sanity';
+import { formatDate } from '../../utils/format';
+
+export async function getStaticPaths() {
+  const RELATED_LIMIT = 8;
+  const { categoryOf, getPosts } = await import('../../lib/sanity');
+  const posts = await getPosts();
+  return posts.map((post) => ({
+    params: { slug: post.id },
+    props: {
+      post,
+      related: posts
+        .filter((other) => other.id !== post.id && categoryOf(other) === categoryOf(post))
+        .slice(0, RELATED_LIMIT),
+    },
+  }));
+}
+
+interface Props {
+  post: Post;
+  related: Post[];
+}
+
+const { post, related } = Astro.props;
+const category = categoryOf(post);
+const { src, srcset } = responsive(post.image, [800, 1200, 1600]);
+const largeSrc = urlFor(post.image).width(2400).quality(80).url();
+const ogImage = urlFor(post.image).width(1200).height(630).quality(80).url();
+const components = { type: { image: ImageBlock }, mark: { link: Link } };
+---
+
+<Layout title={`${post.title} | bikes.pizza`} description={summaryOf(post)} image={ogImage}>
+  <main class="container mx-auto px-6 py-16">
+    <a
+      href={`/category/${category.toLowerCase()}/`}
+      class="inline-flex items-center mb-12 text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-stone-200 transition-colors duration-300 font-light"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+        <path
+          fill-rule="evenodd"
+          d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
+          clip-rule="evenodd"></path>
+      </svg>
+      Back to {category}
+    </a>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-12 items-start">
+      <div
+        class="lg:col-span-2 overflow-hidden rounded-lg max-h-[85vh] flex items-center justify-center bg-transparent"
+        transition:name={`post-${post.id}`}
+      >
+        <button type="button" class="zoom-trigger" popovertarget="image-zoom" aria-label={`View larger: ${post.title}`}>
+          <img
+            src={src}
+            srcset={srcset}
+            sizes="(min-width: 1024px) 66vw, 100vw"
+            alt={post.image.alt}
+            width={post.image.width}
+            height={post.image.height}
+            loading="eager"
+            decoding="async"
+            class="w-auto h-auto object-contain max-h-[85vh] max-w-full"
+          />
+        </button>
+      </div>
+
+      <div class="lg:col-span-1 py-4 lg:sticky lg:top-8">
+        <h1 class="text-3xl font-light tracking-wide mb-2 text-stone-900 dark:text-stone-100">
+          {post.title}
+        </h1>
+
+        <h2 class="text-lg font-light mb-8 text-stone-600 dark:text-slate-300 tracking-wide">
+          {category} · {formatDate(post.publishedAt)}
+        </h2>
+
+        <div class="post-body mb-8 text-stone-700 dark:text-gray-200 leading-relaxed font-light">
+          <PortableText value={post.body} components={components} />
+        </div>
+
+        {
+          post.submittedBy && (
+            <div class="flex text-sm">
+              <span class="font-medium w-28 text-stone-600 dark:text-slate-400">Submitted by:</span>
+              <span class="text-stone-700 dark:text-slate-300 font-light">{post.submittedBy}</span>
+            </div>
+          )
+        }
+      </div>
+    </div>
+
+    {
+      related.length > 0 && (
+        <div class="mt-16">
+          <h2 class="text-2xl font-light tracking-wide mb-8 text-stone-900 dark:text-stone-100">
+            More {category}
+          </h2>
+          <PostMasonry posts={related} eager={0} />
+        </div>
+      )
+    }
+  </main>
+</Layout>
+
+<div id="image-zoom" popover class="zoom-popover">
+  <button
+    type="button"
+    class="zoom-backdrop"
+    popovertarget="image-zoom"
+    popovertargetaction="hide"
+    aria-label="Close larger image"
+  >
+    <img src={largeSrc} alt={post.image.alt} loading="lazy" />
+  </button>
+</div>
+
+<style>
+  .zoom-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: zoom-in;
+    max-width: 100%;
+  }
+
+  .zoom-popover {
+    box-sizing: border-box;
+    inset: 0;
+    width: auto;
+    height: auto;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    background: rgba(12, 10, 9, 0.94);
+    opacity: 0;
+    transform: scale(0.98);
+    transition:
+      opacity 280ms ease,
+      transform 280ms ease,
+      overlay 280ms allow-discrete,
+      display 280ms allow-discrete;
+  }
+
+  .zoom-popover:popover-open {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  @starting-style {
+    .zoom-popover:popover-open {
+      opacity: 0;
+      transform: scale(0.98);
+    }
+  }
+
+  .zoom-popover::backdrop {
+    background: rgb(12 10 9 / 0);
+    transition:
+      background 280ms ease,
+      overlay 280ms allow-discrete,
+      display 280ms allow-discrete;
+  }
+
+  .zoom-popover:popover-open::backdrop {
+    background: rgb(12 10 9 / 0.72);
+  }
+
+  @starting-style {
+    .zoom-popover:popover-open::backdrop {
+      background: rgb(12 10 9 / 0);
+    }
+  }
+
+  .zoom-backdrop {
+    box-sizing: border-box;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    padding: clamp(1rem, 4vw, 2.5rem);
+    border: 0;
+    background: transparent;
+    cursor: zoom-out;
+  }
+
+  .zoom-backdrop img {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: calc(100dvh - 2 * clamp(1rem, 4vw, 2.5rem));
+    object-fit: contain;
+  }
+</style>

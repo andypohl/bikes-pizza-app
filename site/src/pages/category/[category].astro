@@ -1,0 +1,33 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CategoryFilters from '../../components/CategoryFilters.astro';
+import PostMasonry from '../../components/PostMasonry.astro';
+import { slugify } from '../../utils/slug';
+
+export async function getStaticPaths() {
+  const { categoryOf, getPosts } = await import('../../lib/sanity');
+  const posts = await getPosts();
+  const categories = [...new Set(posts.map(categoryOf))].sort((a, b) => a.localeCompare(b));
+  return categories.map((category) => ({
+    params: { category: slugify(category) },
+    props: {
+      category,
+      categories,
+      posts: posts.filter((post) => categoryOf(post) === category),
+    },
+  }));
+}
+
+const { category, categories, posts } = Astro.props;
+---
+
+<Layout title={`${category} | bikes.pizza`}>
+  <main class="container mx-auto px-6 py-16">
+    <h1 class="text-5xl font-light tracking-wide mb-8 text-stone-900 dark:text-stone-100">
+      <a href="/">bikes.pizza</a>
+    </h1>
+
+    <CategoryFilters categories={categories} active={slugify(category)} />
+    <PostMasonry posts={posts} />
+  </main>
+</Layout>

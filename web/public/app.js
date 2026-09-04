@@ -32,6 +32,10 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-functions.js";
 
 const SITE = "https://www.pizzapredator.com";
+// The same page is served at /account/ on the bikes.pizza site. There the
+// session lives on the site's own origin, so sign-in returns to the site
+// instead of handing off to Ghost, and sign-out goes back to the site.
+const ON_SITE = location.pathname.startsWith("/account");
 const params = new URLSearchParams(location.search);
 const redirectTo = sanitizePath(params.get("r"));
 
@@ -174,6 +178,7 @@ function fail(error) {
 // ---- the hand-off to Ghost -------------------------------------------------
 
 async function connectToSite() {
+  if (ON_SITE) return location.replace(redirectTo);
   show("connecting");
   try {
     const { data } = await ghostSignInUrl({ redirectTo });
@@ -310,7 +315,7 @@ $("#signout-account").addEventListener("click", async () => {
   handled = false;
   await signOut(auth);
   // Portal's sign-out route ends the Ghost session too.
-  location.replace(`${SITE}/#/portal/signout`);
+  location.replace(ON_SITE ? "/" : `${SITE}/#/portal/signout`);
 });
 
 // ---- events ---------------------------------------------------------------
@@ -431,7 +436,8 @@ for (const id of ["#signout-verify", "#signout-error"]) {
 
 // ---- start ----------------------------------------------------------------
 
-$("#site-link").href = SITE + redirectTo;
+$("#site-link").href = ON_SITE ? redirectTo : SITE + redirectTo;
+if (ON_SITE) $("#site-link").textContent = "bikes.pizza";
 setMode(mode);
 
 onAuthStateChanged(auth, (user) => {
