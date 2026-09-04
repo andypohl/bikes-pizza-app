@@ -237,7 +237,7 @@ then paste it into Ghost Admin → Settings → Code injection → Site header
 
 Both pages read their Firebase config from Hosting's reserved
 `/__/firebase/init.json`, so nothing project-specific is committed. They are
-two Hosting sites (targets `account` and `review` in `firebase.json`, mapped
+Hosting sites (targets `account` and `review` in `firebase.json`, mapped
 to site IDs in `.firebaserc`), so each serves its page from `/`. Preview
 locally with `firebase emulators:start --only hosting` (uses the live
 Firebase project for sign-in) and deploy with `firebase deploy --only hosting`.

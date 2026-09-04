@@ -5,6 +5,9 @@
   "targets": {
     "pizzapredator-a445e": {
       "hosting": {
+        "home": [
+          "bikes-pizza-home"
+        ],
         "account": [
           "pizzapredator-a445e"
         ],

@@ -226,10 +226,15 @@ Planned:
 
 ## Hosting
 
-Two sites on the project, mapped to the `account` and `review` targets in
-`firebase.json` by `.firebaserc` (create the second with
+Three sites on the project, mapped to the `home`, `account` and `review`
+targets in `firebase.json` by `.firebaserc` (create the extra sites with
 `firebase hosting:sites:create <site-id>` before the first deploy):
 
+- The home site serves `web/home/`, the static https://bikes.pizza/ landing
+  page. Its custom domains are the apex (Firebase asks for an `A` record to
+  its IP plus a `hosting-site=<site-id>` `TXT` record) and `www`, which is
+  registered as a redirect to the apex (a CNAME to the site's `web.app`
+  host).
 - The project's default site serves `web/public/`: the account page that
   signs people in with Firebase Auth and hands them to the Ghost site as a
   member, and doubles as the members' account screen (name, newsletters,
@@ -243,7 +248,7 @@ Two sites on the project, mapped to the `account` and `review` targets in
   at the DNS provider as plain records (with Cloudflare, the proxy must be
   off for that name so Firebase can issue the certificate).
 
-Both need a Web app registration on the project so that Hosting's reserved
+The account and review sites need a Web app registration on the project so that Hosting's reserved
 `/__/firebase/init.json` returns the config, and any custom domain must also
 be listed under Authentication → Settings → Authorized domains for sign-in
 to work there.
