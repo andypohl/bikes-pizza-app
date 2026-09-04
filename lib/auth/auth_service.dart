@@ -29,12 +29,23 @@ class AppUser {
 /// [cancelled] is true when the user backed out of a provider's sign-in
 /// sheet; callers should treat that as a non-error and show nothing.
 class AuthException implements Exception {
-  AuthException(this.message, {this.cancelled = false});
+  AuthException(
+    this.message, {
+    this.cancelled = false,
+    this.badCredentials = false,
+  });
 
-  AuthException.cancelled() : message = 'Sign-in cancelled.', cancelled = true;
+  AuthException.cancelled()
+    : message = 'Sign-in cancelled.',
+      cancelled = true,
+      badCredentials = false;
 
   final String message;
   final bool cancelled;
+
+  /// True when the email/password pair was rejected. The UI uses this to
+  /// point people who subscribed before passwords existed at creating one.
+  final bool badCredentials;
 
   @override
   String toString() => message;
@@ -222,7 +233,10 @@ class FirebaseAuthService implements AuthService {
     } on AuthException {
       rethrow;
     } on fb.FirebaseAuthException catch (e) {
-      throw AuthException(_describe(e));
+      throw AuthException(
+        _describe(e),
+        badCredentials: _badCredentialCodes.contains(e.code),
+      );
     }
   }
 
@@ -237,6 +251,12 @@ class FirebaseAuthService implements AuthService {
         return 'Google sign-in failed. Please try again.';
     }
   }
+
+  static const _badCredentialCodes = {
+    'user-not-found',
+    'wrong-password',
+    'invalid-credential',
+  };
 
   static String _describe(fb.FirebaseAuthException e) {
     switch (e.code) {

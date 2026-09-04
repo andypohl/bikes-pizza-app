@@ -27,6 +27,10 @@ class _SignInScreenState extends State<SignInScreen> {
   bool _obscure = true;
   String? _error;
 
+  /// Set after a rejected email/password sign-in so the legacy-member notice
+  /// is emphasised.
+  bool _badCredentials = false;
+
   @override
   void dispose() {
     _email.dispose();
@@ -36,11 +40,21 @@ class _SignInScreenState extends State<SignInScreen> {
 
   bool get _isSignIn => _mode == _Mode.signIn;
 
+  void _switchMode(_Mode mode) => setState(() {
+    _mode = mode;
+    _error = null;
+    _badCredentials = false;
+    // Keep the email so a legacy member can go straight to creating a
+    // password for the address they subscribed with.
+    _password.clear();
+  });
+
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() {
       _busy = true;
       _error = null;
+      _badCredentials = false;
     });
     try {
       if (_isSignIn) {
@@ -53,7 +67,10 @@ class _SignInScreenState extends State<SignInScreen> {
       }
       if (mounted) Navigator.of(context).pop();
     } on AuthException catch (e) {
-      setState(() => _error = e.message);
+      setState(() {
+        _error = e.message;
+        _badCredentials = e.badCredentials;
+      });
     } on Object {
       setState(() => _error = 'Something went wrong. Please try again.');
     } finally {
@@ -120,6 +137,24 @@ class _SignInScreenState extends State<SignInScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (_isSignIn)
+                  _LegacyMemberNotice(
+                    emphasised: _badCredentials,
+                    onCreatePassword: _busy
+                        ? null
+                        : () => _switchMode(_Mode.createAccount),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Text(
+                      'Already subscribed to the newsletter? Use the same '
+                      'email and your subscription carries over.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
                 TextFormField(
                   controller: _email,
                   enabled: !_busy,
@@ -192,12 +227,9 @@ class _SignInScreenState extends State<SignInScreen> {
                 TextButton(
                   onPressed: _busy
                       ? null
-                      : () => setState(() {
-                          _mode = _isSignIn
-                              ? _Mode.createAccount
-                              : _Mode.signIn;
-                          _error = null;
-                        }),
+                      : () => _switchMode(
+                          _isSignIn ? _Mode.createAccount : _Mode.signIn,
+                        ),
                   child: Text(
                     _isSignIn
                         ? 'New here? Create an account'
@@ -248,6 +280,61 @@ class _SignInScreenState extends State<SignInScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Tells members who signed up before the app existed that sign-in now uses
+/// a password, with a shortcut to create one. Emphasised after a rejected
+/// sign-in, which is the moment such a member hits the change.
+class _LegacyMemberNotice extends StatelessWidget {
+  const _LegacyMemberNotice({
+    required this.emphasised,
+    required this.onCreatePassword,
+  });
+
+  final bool emphasised;
+  final VoidCallback? onCreatePassword;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Container(
+      key: const Key('legacy-notice'),
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      decoration: BoxDecoration(
+        color: emphasised
+            ? scheme.primaryContainer
+            : scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            emphasised
+                ? 'Subscribed before we had passwords?'
+                : 'Subscribed before?',
+            style: theme.textTheme.titleSmall,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Pizza Predator accounts now use a password. Create one with the '
+            'email you subscribed with and your subscription carries over.',
+            style: theme.textTheme.bodyMedium,
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              key: const Key('create-password'),
+              onPressed: onCreatePassword,
+              child: const Text('Create a password'),
+            ),
+          ),
+        ],
       ),
     );
   }

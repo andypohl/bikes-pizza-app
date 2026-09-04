@@ -74,9 +74,21 @@ function setMode(next) {
   for (const tab of document.querySelectorAll("[data-tab]")) {
     tab.setAttribute("aria-selected", String(tab.dataset.tab === mode));
   }
-  $("#submit").textContent = mode === "signup" ? "Create account" : "Sign in";
-  $("input[name=password]").autocomplete = mode === "signup" ? "new-password" : "current-password";
+  const signup = mode === "signup";
+  $("#submit").textContent = signup ? "Create account" : "Sign in";
+  $("input[name=password]").autocomplete = signup ? "new-password" : "current-password";
+  // The email is kept across modes so a member who subscribed before
+  // passwords existed can go straight to creating one for that address.
+  $("input[name=password]").value = "";
+  $("#legacy-notice").hidden = signup;
+  $("#signup-note").hidden = !signup;
+  emphasiseLegacyNotice(false);
   hideMessage();
+}
+
+function emphasiseLegacyNotice(on) {
+  $("#legacy-notice").classList.toggle("emphasised", on);
+  $("#legacy-title").textContent = on ? "Subscribed before we had passwords?" : "Subscribed before?";
 }
 
 function sanitizePath(value) {
@@ -90,6 +102,12 @@ function actionCodeSettings() {
   back.searchParams.set("mode", "signin");
   return { url: back.toString() };
 }
+
+const BAD_CREDENTIAL_CODES = new Set([
+  "auth/user-not-found",
+  "auth/wrong-password",
+  "auth/invalid-credential",
+]);
 
 function describe(error) {
   switch (error?.code) {
@@ -167,10 +185,13 @@ $("#auth-form").addEventListener("submit", async (event) => {
   } catch (error) {
     const text = describe(error);
     if (text) say(text);
+    if (mode === "signin" && BAD_CREDENTIAL_CODES.has(error?.code)) emphasiseLegacyNotice(true);
   } finally {
     busy(false);
   }
 });
+
+$("#create-password").addEventListener("click", () => setMode("signup"));
 
 $("#forgot").addEventListener("click", async () => {
   const email = $("input[name=email]").value.trim();
