@@ -109,6 +109,10 @@ users itself, so a Cloud Function bridges the two:
    Ghost for a one-time sign-in URL (`functions/index.js`, `functions/ghost.js`).
 3. The app opens that URL in an in-app browser; Ghost sets its member cookie.
 
+The Firebase user ↔ Ghost member link is stored in Firestore (`users/{uid}`,
+server-only) after the first sign-in, so the two are matched by ID from then
+on and an email change on either side does not create a duplicate member.
+
 Password accounts must verify their email first (Settings shows a
 "Verify your email" tile); Google and Apple accounts are verified already.
 Newsletter subscription for members created this way follows the Ghost

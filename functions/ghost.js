@@ -74,6 +74,17 @@ export class GhostAdminClient {
     return json;
   }
 
+  /** Returns the member with this ID, or null if it no longer exists. */
+  async getMember(id) {
+    try {
+      const json = await this.request("GET", `/members/${encodeURIComponent(id)}/?fields=id,email,name`);
+      return json.members?.[0] ?? null;
+    } catch (error) {
+      if (error instanceof GhostApiError && error.status === 404) return null;
+      throw error;
+    }
+  }
+
   /** Returns the member with this email, or null. */
   async findMember(email) {
     const filter = `email:'${email.replace(/'/g, "\\'")}'`;

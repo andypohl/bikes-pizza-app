@@ -2,12 +2,19 @@
 //
 // ghostSignInUrl: lets a Firebase-authenticated user open the Ghost site as a
 // signed-in member without a magic-link email. The app calls it, then opens
-// the returned URL in an in-app browser.
+// the returned URL in an in-app browser. The Firebase user ↔ Ghost member
+// link is stored in Firestore (users/{uid}) so later email changes on either
+// side do not break it; see link.js.
 
+import { initializeApp } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { defineSecret, defineString } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import { GhostAdminClient, GhostApiError } from "./ghost.js";
+import { firestoreStore, resolveMember } from "./link.js";
+
+initializeApp();
 
 // Set with `firebase functions:secrets:set GHOST_ADMIN_API_KEY`.
 const ghostAdminApiKey = defineSecret("GHOST_ADMIN_API_KEY");
@@ -39,9 +46,16 @@ export const ghostSignInUrl = onCall(
     });
 
     try {
-      const member = await ghost.findOrCreateMember({ email, name });
+      const member = await resolveMember(
+        { uid: auth.uid, email, name },
+        { store: firestoreStore(getFirestore()), ghost },
+      );
       const url = await ghost.signInUrl(member.id, { redirectTo });
-      logger.info("ghost sign-in url issued", { uid: auth.uid, created: member.created });
+      logger.info("ghost sign-in url issued", {
+        uid: auth.uid,
+        created: member.created,
+        linked: member.linked,
+      });
       return { url, created: member.created };
     } catch (error) {
       if (error instanceof GhostApiError && error.type === "ValidationError") {

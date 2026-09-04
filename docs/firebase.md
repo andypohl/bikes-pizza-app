@@ -106,13 +106,25 @@ OAuth token that has the cloud-platform scope.
 - Apple requires offering Sign in with Apple wherever Google sign-in is
   offered on iOS; that is why both ship together.
 
-## Cloud Firestore (planned)
+## Cloud Firestore
 
-Intended as the store for user-generated text and photo metadata. Rough
-schema, one collection per concept:
+One database (the default), in the same region as the functions. Rules and
+indexes live in the repo (`firestore.rules`, `firestore.indexes.json`) and
+deploy with `firebase deploy --only firestore`.
 
-- `users/{uid}`: display name, optional Ghost member flag, created date.
-  Readable by the owner; writable by the owner for their own profile fields.
+Current:
+
+- `users/{uid}`: the link between a Firebase user and their Ghost member.
+  Fields: `ghostMemberId`, `email` (the address that was linked), `linkedAt`,
+  and `relinkedFrom` when a previously linked member had been deleted in
+  Ghost. Written only by the `ghostSignInUrl` function through the Admin SDK.
+  The rules currently deny all client reads and writes.
+
+Planned additions for the bike photo feature:
+
+- `users/{uid}` gains display name and profile fields, readable by the
+  owner and writable by the owner for those fields only (the Ghost link
+  fields stay server-only).
 - `bikePhotos/{photoId}`: owner uid, Storage path, caption, created date,
   and a `status` field of `pending`, `approved`, or `rejected`.
   - Anyone signed in can create a document with their own uid and
@@ -122,10 +134,6 @@ schema, one collection per concept:
   - Public reads return only `approved` documents; the app queries on
     `status == approved` ordered by created date, which needs one
     composite index.
-
-Rules and indexes should be kept in the repo (`firestore.rules`,
-`firestore.indexes.json`) via `firebase init firestore` and deployed with
-`firebase deploy`.
 
 ## Cloud Storage (planned)
 
@@ -214,8 +222,8 @@ Keep this list current. It is the checklist for rebuilding the project.
    Cloud console (IAM & Admin → Service Accounts) used only for deploys, with
    these roles: Cloud Functions Admin, Cloud Run Admin, Cloud Build Editor,
    Artifact Registry Administrator, Service Account User, Secret Manager
-   Viewer, Service Usage Consumer, Firebase Hosting Admin. Do not create a
-   key for it.
+   Viewer, Service Usage Consumer, Firebase Hosting Admin, Firebase Rules
+   Admin, Cloud Datastore Index Admin. Do not create a key for it.
 10. Set up keyless access for GitHub Actions (Workload Identity Federation):
     enable the IAM Credentials and STS APIs; create a workload identity pool
     with an OIDC provider whose issuer is
