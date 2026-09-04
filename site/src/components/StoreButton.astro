@@ -1,0 +1,14 @@
+---
+// Link to the Shopify store, which lives on its own host.
+const storeUrl = import.meta.env.PUBLIC_STORE_URL || 'https://shop.bikes.pizza/';
+---
+
+<a
+  href={storeUrl}
+  class="inline-flex items-center gap-2 px-4 py-3 rounded-full bg-stone-200 dark:bg-slate-700 hover:bg-stone-300 dark:hover:bg-slate-600 text-stone-800 dark:text-stone-100 text-sm font-medium tracking-wide transition-colors duration-200"
+>
+  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+    <path d="M3 3a1 1 0 000 2h1l.6 3H3.5a1 1 0 100 2H5l.4 2H5a3 3 0 100 6h10a3 3 0 100-6H7.3l-.2-1H15a1 1 0 00.98-.8l1-5A1 1 0 0016 4H5.6l-.2-1.2A1 1 0 004.4 2H3zm3.1 4H14.8l-.6 3H6.7l-.6-3zM5 15a1 1 0 112 0 1 1 0 01-2 0zm9 0a1 1 0 112 0 1 1 0 01-2 0z"></path>
+  </svg>
+  Store
+</a>

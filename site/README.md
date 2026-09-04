@@ -27,6 +27,9 @@ becomes session-aware when served by Firebase Hosting (locally:
 `firebase emulators:start --only hosting` from the repo root, home site on
 port 5055); under `astro preview` it stays on its neutral label.
 
+The header also links to the store (`PUBLIC_STORE_URL`, default
+`https://shop.bikes.pizza/`).
+
 `/submit/` is the website's submission form ("Submit a bike or pizza" in the
 header). It needs a signed-in member: signed-out visitors are sent to the
 sign-in page and brought back afterwards. The form posts to the submissions
