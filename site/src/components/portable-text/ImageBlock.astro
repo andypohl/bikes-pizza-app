@@ -1,0 +1,19 @@
+---
+import { responsive } from '../../lib/sanity';
+
+const { node } = Astro.props;
+const { src, srcset } = responsive(node, [600, 1000, 1600]);
+---
+
+<figure>
+  <img
+    src={src}
+    srcset={srcset}
+    sizes="(min-width: 1024px) 60vw, 100vw"
+    alt={node.alt ?? ''}
+    loading="lazy"
+    decoding="async"
+    class="w-full h-auto rounded-lg"
+  />
+  {node.caption && <figcaption>{node.caption}</figcaption>}
+</figure>

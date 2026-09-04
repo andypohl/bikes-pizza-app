@@ -68,6 +68,10 @@ jobs:
           echo "SUBMISSION_FROM_EMAIL=${{ vars.SUBMISSION_FROM_EMAIL }}" >> .env
           echo "REVIEW_PAGE_URL=${{ vars.REVIEW_PAGE_URL }}" >> .env
 
+      - name: Build the website
+        working-directory: site
+        run: npm ci && npm run build
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:

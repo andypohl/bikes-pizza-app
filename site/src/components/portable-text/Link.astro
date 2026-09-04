@@ -1,0 +1,10 @@
+---
+const { node } = Astro.props;
+const href: string = node?.href ?? '';
+const external = /^https?:\/\//.test(href);
+---
+
+<a
+  href={href}
+  rel={external ? 'noopener noreferrer' : undefined}
+  target={external ? '_blank' : undefined}><slot /></a>

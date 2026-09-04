@@ -68,6 +68,13 @@ posts came from). It is a trial of Sanity as a replacement for Ghost as the
 post store; the app still reads Ghost. See `studio/README.md` for running the
 Studio, deploying the schema, and importing posts from Ghost.
 
+`site/` is the public website at https://bikes.pizza/, an Astro site that
+renders the Sanity posts as a photo gallery (the Astro Frame Shift theme by
+Ema Suriano, adapted). It is statically built from the public dataset, so
+builds need no token; run `npm run build` in `site/` to produce `dist/`,
+which the `home` Hosting target serves. Content changes appear on the site
+at the next deploy. See `site/README.md`.
+
 ## Member submissions
 
 The Submit Pizza / Submit Bike form (`lib/screens/submit_screen.dart`) asks
@@ -296,7 +303,8 @@ flutter run            # pick a connected device / simulator
 Formatting, `flutter analyze`, `flutter test`, and the Cloud Functions unit
 tests run on GitHub Actions for every pull request targeting `main`
 (`.github/workflows/pr-checks.yml`). Publishing a GitHub release deploys the
-Cloud Functions and the account page (`.github/workflows/deploy-firebase.yml`);
+Cloud Functions, the website and the account page
+(`.github/workflows/deploy-firebase.yml`);
 app store release workflows will be added later.
 
 Adding or renaming tabs: edit `PostFeed` in `lib/models/post_feed.dart` and

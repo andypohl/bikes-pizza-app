@@ -1,0 +1,20 @@
+---
+import Layout from '../layouts/Layout.astro';
+import CategoryFilters from '../components/CategoryFilters.astro';
+import PostMasonry from '../components/PostMasonry.astro';
+import { categoryOf, getPosts } from '../lib/sanity';
+
+const posts = await getPosts();
+const categories = [...new Set(posts.map(categoryOf))].sort((a, b) => a.localeCompare(b));
+---
+
+<Layout title="bikes.pizza">
+  <main class="container mx-auto px-6 py-16">
+    <h1 class="text-5xl font-light tracking-wide mb-8 text-stone-900 dark:text-stone-100">
+      bikes.pizza
+    </h1>
+
+    <CategoryFilters categories={categories} active="all" />
+    <PostMasonry posts={posts} />
+  </main>
+</Layout>
