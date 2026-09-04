@@ -698,6 +698,96 @@ void main() {
     expect(find.byKey(const Key('verify-email')), findsNothing);
   });
 
+  /// From any tab of a pumped app: Settings > Sign in > Google.
+  Future<void> signInWithGoogle(WidgetTester tester) async {
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign in'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('google-sign-in')));
+    await tester.tap(find.byKey(const Key('google-sign-in')));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('submit buttons appear on Pizza and Bikes for members only', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+
+    await tester.tap(find.text('Bikes'));
+    await tester.pumpAndSettle();
+    expect(find.text('Submit Bike'), findsNothing);
+
+    await signInWithGoogle(tester);
+
+    await tester.tap(find.text('Bikes'));
+    await tester.pumpAndSettle();
+    expect(find.text('Submit Bike'), findsOneWidget);
+    expect(find.text('Submit Pizza'), findsNothing);
+
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    expect(find.text('Submit Pizza'), findsOneWidget);
+    expect(find.text('Submit Bike'), findsNothing);
+
+    await tester.tap(find.text('Blog'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Submit'), findsNothing);
+
+    // Signing out hides them again.
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign out'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    expect(find.text('Submit Pizza'), findsNothing);
+  });
+
+  testWidgets('submit button is hidden on a post and for unverified users', (
+    tester,
+  ) async {
+    members = FakeMemberService(); // so Settings offers the verify tile
+    await openSignIn(tester);
+    await tester.enterText(find.byType(TextField).at(0), 'me@example.com');
+    await tester.enterText(find.byType(TextField).at(1), 'correct-horse');
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
+    await tester.pumpAndSettle();
+
+    // Password accounts are not members until their email is verified.
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    expect(find.text('Submit Pizza'), findsNothing);
+
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('verify-email')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    expect(find.text('Submit Pizza'), findsOneWidget);
+
+    // Opening a post pushes a full screen: no button there.
+    await tester.tap(find.text('Detroit style'));
+    await tester.pumpAndSettle();
+    expect(find.text('Submit Pizza'), findsNothing);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('Submit Pizza'), findsOneWidget);
+  });
+
+  testWidgets('submit button opens the submission screen', (tester) async {
+    await pumpApp(tester);
+    await signInWithGoogle(tester);
+    await tester.tap(find.text('Bikes'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('submit-bikes')));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, 'Submit Bike'), findsOneWidget);
+    expect(find.text('Coming soon'), findsOneWidget);
+  });
+
   testWidgets('Settings tab switches theme mode', (tester) async {
     await pumpApp(tester);
 

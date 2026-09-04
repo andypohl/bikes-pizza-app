@@ -1,22 +1,29 @@
 import 'package:flutter/material.dart';
 
+import '../auth/auth_service.dart';
 import '../data/post_repository.dart';
 import '../models/post.dart';
 import '../models/post_feed.dart';
 import '../widgets/post_tile.dart';
 import 'post_detail_screen.dart';
+import 'submit_screen.dart';
 
 /// Reverse-chronological list of posts for one [PostFeed], with pull-to-refresh
 /// and infinite scrolling (when the backend supports paging).
+///
+/// Feeds that take submissions show a "Submit …" bar under the list to
+/// signed-in members when [auth] is given.
 class PostListScreen extends StatefulWidget {
   const PostListScreen({
     super.key,
     required this.feed,
     required this.repository,
+    this.auth,
   });
 
   final PostFeed feed;
   final PostRepository repository;
+  final AuthService? auth;
 
   @override
   State<PostListScreen> createState() => _PostListScreenState();
@@ -110,8 +117,16 @@ class _PostListScreenState extends State<PostListScreen> {
     );
   }
 
+  void _openSubmit() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => SubmitScreen(feed: widget.feed)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final auth = widget.auth;
+    final submitLabel = widget.feed.submitLabel;
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -119,6 +134,17 @@ class _PostListScreenState extends State<PostListScreen> {
         ),
       ),
       body: _buildBody(context),
+      // Sits between the list and the app's tab bar rather than floating
+      // over the posts. The post detail is a pushed route, so it is not
+      // shown there.
+      bottomNavigationBar: auth != null && submitLabel != null
+          ? _SubmitBar(
+              auth: auth,
+              label: submitLabel,
+              buttonKey: Key('submit-${widget.feed.name}'),
+              onPressed: _openSubmit,
+            )
+          : null,
     );
   }
 
@@ -165,6 +191,51 @@ class _PostListScreenState extends State<PostListScreen> {
           return PostTile(post: post, onTap: () => _openPost(post));
         },
       ),
+    );
+  }
+}
+
+/// Full-width "Submit …" button, shown only to signed-in users whose email
+/// is verified (what makes them a member).
+class _SubmitBar extends StatelessWidget {
+  const _SubmitBar({
+    required this.auth,
+    required this.label,
+    required this.buttonKey,
+    required this.onPressed,
+  });
+
+  final AuthService auth;
+  final String label;
+  final Key buttonKey;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<AppUser?>(
+      stream: auth.userChanges,
+      initialData: auth.currentUser,
+      builder: (context, snapshot) {
+        final user = snapshot.data;
+        if (user == null || !user.emailVerified) {
+          return const SizedBox.shrink();
+        }
+        return Material(
+          color: Theme.of(context).colorScheme.surfaceContainer,
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+              child: FilledButton.icon(
+                key: buttonKey,
+                onPressed: onPressed,
+                icon: const Icon(Icons.add_a_photo_outlined),
+                label: Text(label),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

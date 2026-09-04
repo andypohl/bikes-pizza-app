@@ -18,6 +18,11 @@ Five bottom-bar tabs:
 Tapping a post opens it in-app with the hero image and full HTML body. A
 toolbar button opens the post in the browser.
 
+Signed-in members (verified email) see a "Submit Pizza" / "Submit Bike"
+button under the Pizza and Bikes lists, between the list and the tab bar.
+It is not shown on a post. For now it opens a "Coming soon" screen
+(`lib/screens/submit_screen.dart`); the submission flow comes next.
+
 ## Build-time configuration
 
 Values that identify external services are passed at build time rather
