@@ -35,7 +35,7 @@ flutter run --dart-define-from-file=config/local.json
 | Key                        | Purpose                                            |
 |----------------------------|----------------------------------------------------|
 | `GHOST_CONTENT_API_KEY`    | Full blog archive via the Ghost Content API        |
-| `SHOPIFY_STORE_DOMAIN`     | `your-store.myshopify.com`                         |
+| `SHOPIFY_STORE_DOMAIN`     | Store host for the Storefront API (see below)      |
 | `SHOPIFY_STOREFRONT_TOKEN` | Public Storefront API access token                 |
 
 `GHOST_CONTENT_API_KEY` is required; the app refuses to start without it.
@@ -124,7 +124,10 @@ To get the two values: in Shopify admin go to **Settings → Apps and sales
 channels → Develop apps**, create an app, grant it the
 `unauthenticated_read_product_listings` and `unauthenticated_write_checkouts`
 Storefront API scopes, install it, and copy the *Storefront API access
-token*. The store domain is the `*.myshopify.com` address of the shop.
+token*. The store domain is the host the app calls the Storefront API on:
+the shop's `*.myshopify.com` address, or a custom domain connected to the
+store (Settings → Domains) once its DNS and SSL are live. Checkout always
+opens on whichever domain is primary in Shopify, regardless of this value.
 
 ## Firebase
 

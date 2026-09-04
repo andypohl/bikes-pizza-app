@@ -37,7 +37,8 @@ class GhostConfig {
 class ShopifyConfig {
   ShopifyConfig._();
 
-  /// e.g. `your-store.myshopify.com`
+  /// Host for Storefront API calls: `your-store.myshopify.com`, or a custom
+  /// domain connected to the store. Checkout uses Shopify's primary domain.
   static const String storeDomain = String.fromEnvironment(
     'SHOPIFY_STORE_DOMAIN',
   );
