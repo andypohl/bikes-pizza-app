@@ -1,24 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
+import '../account/account_screen.dart';
+import '../account/member_service.dart';
 import '../app_settings.dart';
 import '../auth/auth_service.dart';
 import '../auth/sign_in_screen.dart';
-import '../config.dart';
-import '../ghost/ghost_session_service.dart';
 
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key, required this.auth, this.ghost});
+  const SettingsScreen({super.key, required this.auth, this.members});
 
   final AuthService auth;
-  final GhostSessionService? ghost;
+  final MemberService? members;
 
   static const _appVersion = '0.1.0';
-
-  Future<void> _openSite() => launchUrl(
-    Uri.parse(GhostConfig.siteUrl),
-    mode: LaunchMode.externalApplication,
-  );
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +23,7 @@ class SettingsScreen extends StatelessWidget {
       body: ListView(
         children: [
           const _SectionHeader('Account'),
-          _AccountSection(auth: auth, ghost: ghost),
+          _AccountSection(auth: auth, members: members),
           const Divider(),
           const _SectionHeader('Appearance'),
           RadioGroup<ThemeMode>(
@@ -55,14 +49,6 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           const Divider(),
-          const _SectionHeader('Content'),
-          ListTile(
-            leading: const Icon(Icons.public),
-            title: const Text('Visit pizzapredator.com'),
-            trailing: const Icon(Icons.open_in_new, size: 18),
-            onTap: _openSite,
-          ),
-          const Divider(),
           const _SectionHeader('About'),
           const ListTile(
             leading: Icon(Icons.info_outline),
@@ -78,10 +64,10 @@ class SettingsScreen extends StatelessWidget {
 /// Shows "Sign in" when signed out, or the user's email with a sign-out
 /// action when signed in.
 class _AccountSection extends StatelessWidget {
-  const _AccountSection({required this.auth, required this.ghost});
+  const _AccountSection({required this.auth, required this.members});
 
   final AuthService auth;
-  final GhostSessionService? ghost;
+  final MemberService? members;
 
   @override
   Widget build(BuildContext context) {
@@ -101,7 +87,7 @@ class _AccountSection extends StatelessWidget {
             ),
           );
         }
-        final ghost = this.ghost;
+        final members = this.members;
         return Column(
           children: [
             ListTile(
@@ -117,9 +103,20 @@ class _AccountSection extends StatelessWidget {
                 child: const Text('Sign out'),
               ),
             ),
-            if (ghost != null && user.emailVerified)
-              _MemberSiteTile(ghost: ghost)
-            else if (ghost != null)
+            if (members != null && user.emailVerified)
+              ListTile(
+                key: const Key('manage-account'),
+                leading: const Icon(Icons.manage_accounts_outlined),
+                title: const Text('Manage account'),
+                subtitle: const Text('Name, newsletters and password'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => AccountScreen(auth: auth, members: members),
+                  ),
+                ),
+              )
+            else if (members != null)
               _VerifyEmailTile(auth: auth),
           ],
         );
@@ -128,55 +125,8 @@ class _AccountSection extends StatelessWidget {
   }
 }
 
-/// Signs the user in on the website (as a Ghost member) and opens it.
-class _MemberSiteTile extends StatefulWidget {
-  const _MemberSiteTile({required this.ghost});
-
-  final GhostSessionService ghost;
-
-  @override
-  State<_MemberSiteTile> createState() => _MemberSiteTileState();
-}
-
-class _MemberSiteTileState extends State<_MemberSiteTile> {
-  bool _busy = false;
-
-  Future<void> _open() async {
-    setState(() => _busy = true);
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      final url = await widget.ghost.signInUrl();
-      await launchUrl(url, mode: LaunchMode.inAppBrowserView);
-    } on GhostSessionException catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      key: const Key('member-site'),
-      leading: const Icon(Icons.badge_outlined),
-      title: const Text('Open pizzapredator.com as a member'),
-      subtitle: const Text(
-        'Signs you in on the website without a magic-link email',
-      ),
-      trailing: _busy
-          ? const SizedBox.square(
-              dimension: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : const Icon(Icons.open_in_new),
-      enabled: !_busy,
-      onTap: _open,
-    );
-  }
-}
-
 /// Shown to password accounts until their email address is verified, which
-/// the website sign-in requires.
+/// account management requires.
 class _VerifyEmailTile extends StatefulWidget {
   const _VerifyEmailTile({required this.auth});
 
@@ -211,7 +161,7 @@ class _VerifyEmailTileState extends State<_VerifyEmailTile> {
       subtitle: Text(
         _sent
             ? 'Check your inbox, then tap here once you have verified'
-            : 'Needed before you can sign in on the website',
+            : 'Needed before you can manage your account',
       ),
       trailing: TextButton(
         onPressed: _send,
