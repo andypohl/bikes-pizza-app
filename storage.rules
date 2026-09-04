@@ -1,0 +1,15 @@
+rules_version = '2';
+
+// Submission photos are written only by Cloud Functions (Admin SDK, which
+// bypasses these rules) and read only by admins on the review page.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /submissions/{submissionId}/{file} {
+      allow read: if request.auth != null && request.auth.token.admin == true;
+      allow write: if false;
+    }
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

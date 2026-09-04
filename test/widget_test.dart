@@ -212,7 +212,7 @@ class FakeSubmissionService implements SubmissionService {
     }
     if (fail) throw SubmissionException('Could not send your submission.');
     submissions.add(submission);
-    return const SubmissionResult(postId: 'p1', notified: true);
+    return const SubmissionResult(submissionId: 's1', notified: true);
   }
 }
 

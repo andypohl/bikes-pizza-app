@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Pizza Predator submissions</title>
+    <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/review/review.css" />
+  </head>
+  <body class="wide">
+    <main class="card review" id="app" data-state="loading">
+      <header class="review-head">
+        <a class="brand" href="https://www.pizzapredator.com/">Pizza Predator</a>
+        <h1>Submissions</h1>
+        <div class="who" id="who" hidden>
+          <span id="who-email"></span>
+          <button type="button" class="link inline" id="signout">Sign out</button>
+        </div>
+      </header>
+
+      <section data-view="loading"><p class="muted">Loading…</p></section>
+
+      <section data-view="signin" hidden>
+        <p>Sign in with the account that reviews submissions.</p>
+        <button type="button" class="secondary" id="google"><span class="g">G</span> Continue with Google</button>
+        <button type="button" class="secondary apple" id="apple">
+          <svg class="g" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.57-.12 0-.23-.02-.3-.03-.01-.06-.04-.22-.04-.39 0-1.15.572-2.27 1.206-2.98.804-.94 2.142-1.64 3.248-1.68.03.13.05.28.05.43zm4.565 15.71c-.03.07-.463 1.58-1.518 3.12-.945 1.34-1.94 2.71-3.43 2.71-1.517 0-1.9-.88-3.63-.88-1.698 0-2.302.91-3.67.91-1.377 0-2.332-1.26-3.428-2.8-1.287-1.82-2.323-4.63-2.323-7.28 0-4.28 2.797-6.55 5.552-6.55 1.448 0 2.675.95 3.6.95.865 0 2.222-1.01 3.902-1.01.613 0 2.886.06 4.374 2.19-.13.09-2.383 1.37-2.383 4.19 0 3.26 2.854 4.42 2.955 4.45z"/></svg>
+          Continue with Apple
+        </button>
+        <form id="auth-form" novalidate>
+          <div class="divider"><span>or</span></div>
+          <label>Email <input type="email" name="email" autocomplete="email" required /></label>
+          <label>Password <input type="password" name="password" autocomplete="current-password" required /></label>
+          <button type="submit" class="primary">Sign in</button>
+        </form>
+      </section>
+
+      <section data-view="forbidden" hidden>
+        <h2>Not a reviewer</h2>
+        <p>This account is signed in but does not have review access.</p>
+      </section>
+
+      <section data-view="list" hidden>
+        <nav class="tabs" role="tablist" id="filters">
+          <button type="button" role="tab" data-status="pending" aria-selected="true">Pending</button>
+          <button type="button" role="tab" data-status="approved" aria-selected="false">Posted</button>
+          <button type="button" role="tab" data-status="rejected" aria-selected="false">Rejected</button>
+          <button type="button" role="tab" data-status="" aria-selected="false">All</button>
+        </nav>
+        <div class="table-wrap">
+          <table class="submissions">
+            <thead>
+              <tr><th>Photo</th><th>Feed</th><th>Title</th><th>From</th><th>Submitted</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+        <p class="muted small" id="empty" hidden>Nothing here.</p>
+        <div class="pager">
+          <button type="button" class="secondary small-btn" id="prev">Previous</button>
+          <span class="muted small" id="page-label"></span>
+          <button type="button" class="secondary small-btn" id="next">Next</button>
+        </div>
+      </section>
+
+      <dialog id="detail">
+        <form method="dialog" class="detail">
+          <h2 id="d-title"></h2>
+          <p class="muted small" id="d-meta"></p>
+          <a id="d-image-link" target="_blank" rel="noopener"><img id="d-image" alt="" /></a>
+          <p id="d-description"></p>
+          <p class="muted small" id="d-review" hidden></p>
+          <label id="d-note-label">Note (kept with the submission)
+            <input type="text" id="d-note" maxlength="1000" />
+          </label>
+          <div class="actions" id="d-actions">
+            <button type="button" class="primary" id="d-publish">Publish</button>
+            <button type="button" class="secondary" id="d-draft">Save as draft</button>
+            <button type="button" class="secondary danger" id="d-reject">Reject</button>
+          </div>
+          <button type="submit" class="link">Close</button>
+        </form>
+      </dialog>
+
+      <p class="message" id="message" role="status" hidden></p>
+    </main>
+    <script type="module" src="/review/review.js"></script>
+  </body>
+</html>

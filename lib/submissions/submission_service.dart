@@ -51,16 +51,16 @@ class Submission {
 }
 
 class SubmissionResult {
-  const SubmissionResult({required this.postId, required this.notified});
+  const SubmissionResult({required this.submissionId, required this.notified});
 
-  /// ID of the draft post created in Ghost.
-  final String postId;
+  /// ID of the stored submission awaiting review.
+  final String submissionId;
 
-  /// Whether the author was emailed about it.
+  /// Whether the reviewer was emailed about it.
   final bool notified;
 }
 
-/// Sends a member's submission to the blog as a draft post.
+/// Sends a member's submission to Pizza Predator for review.
 abstract class SubmissionService {
   Future<SubmissionResult> submit(Submission submission);
 }
@@ -93,7 +93,7 @@ class CloudFunctionsSubmissionService implements SubmissionService {
             },
           });
       return SubmissionResult(
-        postId: result.data['postId'] as String? ?? '',
+        submissionId: result.data['submissionId'] as String? ?? '',
         notified: result.data['notified'] == true,
       );
     } on FirebaseFunctionsException catch (e) {
