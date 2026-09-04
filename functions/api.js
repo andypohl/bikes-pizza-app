@@ -1,4 +1,4 @@
-// REST API for submissions, served at https://submissions.pizzapredator.com/api/
+// REST API for submissions, served at https://submissions.bikes.pizza/api/
 // through a Hosting rewrite to the `api` function (see index.js). Every
 // request carries a Firebase ID token as `Authorization: Bearer <token>`.
 //

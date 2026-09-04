@@ -52,7 +52,7 @@ class SettingsScreen extends StatelessWidget {
           const _SectionHeader('About'),
           const ListTile(
             leading: Icon(Icons.info_outline),
-            title: Text('Pizza Predator'),
+            title: Text('bikes.pizza'),
             subtitle: Text('Version $_appVersion'),
           ),
         ],
@@ -80,7 +80,7 @@ class _AccountSection extends StatelessWidget {
           return ListTile(
             leading: const Icon(Icons.person_outline),
             title: const Text('Sign in'),
-            subtitle: const Text('Sign in or create a Pizza Predator account'),
+            subtitle: const Text('Sign in or create a bikes.pizza account'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(builder: (_) => SignInScreen(auth: auth)),

@@ -322,7 +322,7 @@ class _LegacyMemberNotice extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Pizza Predator accounts now use a password. Create one with the '
+            'bikes.pizza accounts now use a password. Create one with the '
             'email you subscribed with and your subscription carries over.',
             style: theme.textTheme.bodyMedium,
           ),

@@ -144,7 +144,7 @@ export const updateGhostMember = onCall(options, (request) =>
 const store = () => firestoreSubmissionStore(getFirestore(), getStorage().bucket());
 
 function reviewUrl() {
-  return reviewPageUrl.value().trim() || "https://submissions.pizzapredator.com/";
+  return reviewPageUrl.value().trim() || "https://submissions.bikes.pizza/";
 }
 
 async function notify(submission, user) {
