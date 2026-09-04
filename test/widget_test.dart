@@ -3,10 +3,10 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pizza_predator/account/member_service.dart';
 import 'package:pizza_predator/app_settings.dart';
 import 'package:pizza_predator/auth/auth_service.dart';
 import 'package:pizza_predator/data/post_repository.dart';
-import 'package:pizza_predator/ghost/ghost_session_service.dart';
 import 'package:pizza_predator/main.dart';
 import 'package:pizza_predator/models/post.dart';
 import 'package:pizza_predator/models/post_feed.dart';
@@ -53,17 +53,36 @@ class FakeAuthService implements AuthService {
         badCredentials: true,
       );
     }
-    _set(AppUser(uid: 'u1', email: email));
+    _set(AppUser(uid: 'u1', email: email, providerIds: const ['password']));
   }
 
   @override
   Future<void> createAccount({
     required String email,
     required String password,
-  }) async => _set(AppUser(uid: 'u2', email: email));
+  }) async =>
+      _set(AppUser(uid: 'u2', email: email, providerIds: const ['password']));
+
+  final resetEmails = <String>[];
 
   @override
-  Future<void> sendPasswordReset(String email) async {}
+  Future<void> sendPasswordReset(String email) async => resetEmails.add(email);
+
+  int passwordChanges = 0;
+
+  @override
+  Future<void> changePassword({
+    required String current,
+    required String next,
+  }) async {
+    if (current != 'correct-horse') {
+      throw AuthException(
+        'Email or password is incorrect.',
+        badCredentials: true,
+      );
+    }
+    passwordChanges++;
+  }
 
   int verificationEmails = 0;
 
@@ -81,6 +100,7 @@ class FakeAuthService implements AuthService {
           email: user.email,
           displayName: user.displayName,
           emailVerified: true,
+          providerIds: user.providerIds,
         ),
       );
     }
@@ -100,6 +120,7 @@ class FakeAuthService implements AuthService {
         email: 'g@example.com',
         displayName: 'G',
         emailVerified: true,
+        providerIds: ['google.com'],
       ),
     );
   }
@@ -114,6 +135,7 @@ class FakeAuthService implements AuthService {
         email: 'a@example.com',
         displayName: 'A',
         emailVerified: true,
+        providerIds: ['apple.com'],
       ),
     );
   }
@@ -122,16 +144,51 @@ class FakeAuthService implements AuthService {
   Future<void> signOut() async => _set(null);
 }
 
-/// Records sign-in URL requests and returns a fixed URL.
-class FakeGhostSessionService implements GhostSessionService {
-  int calls = 0;
+/// In-memory member profile; records updates.
+class FakeMemberService implements MemberService {
   bool fail = false;
+  int loads = 0;
+  final updates = <({String? name, List<String>? newsletters})>[];
+  MemberProfile profile = const MemberProfile(
+    email: 'member@example.com',
+    name: 'Old Name',
+    newsletters: [
+      Newsletter(
+        id: 'weekly',
+        name: 'Weekly',
+        description: 'Every Friday',
+        subscribed: true,
+      ),
+    ],
+  );
 
   @override
-  Future<Uri> signInUrl({String? redirectTo}) async {
-    calls++;
-    if (fail) throw GhostSessionException('Could not sign you in.');
-    return Uri.parse('https://example.com/members/?token=t&action=signin');
+  Future<MemberProfile> load() async {
+    loads++;
+    if (fail) throw MemberException('Could not reach your account right now.');
+    return profile;
+  }
+
+  @override
+  Future<MemberProfile> update({
+    String? name,
+    List<String>? newsletters,
+  }) async {
+    updates.add((name: name, newsletters: newsletters));
+    profile = MemberProfile(
+      email: profile.email,
+      name: name ?? profile.name,
+      newsletters: [
+        for (final n in profile.newsletters)
+          Newsletter(
+            id: n.id,
+            name: n.name,
+            description: n.description,
+            subscribed: newsletters?.contains(n.id) ?? n.subscribed,
+          ),
+      ],
+    );
+    return profile;
   }
 }
 
@@ -211,11 +268,11 @@ void main() {
 
   late FakeAuthService auth;
   FakeStoreRepository? store;
-  FakeGhostSessionService? ghost;
+  FakeMemberService? members;
 
   setUp(() {
     store = null;
-    ghost = null;
+    members = null;
   });
 
   Future<FakePostRepository> pumpApp(WidgetTester tester) async {
@@ -234,7 +291,7 @@ void main() {
         repository: repo,
         auth: auth,
         store: store,
-        ghost: ghost,
+        members: members,
       ),
     );
     await tester.pumpAndSettle();
@@ -495,47 +552,92 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
-  testWidgets('verified users can open the website as a member', (
+  Future<void> openAccount(WidgetTester tester) async {
+    await tester.tap(find.byKey(const Key('manage-account')));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('verified users can edit their name and newsletters', (
     tester,
   ) async {
-    ghost = FakeGhostSessionService();
+    members = FakeMemberService();
     await openSignIn(tester);
     await tester.ensureVisible(find.byKey(const Key('google-sign-in')));
     await tester.tap(find.byKey(const Key('google-sign-in')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('verify-email')), findsNothing);
-    await tester.tap(find.byKey(const Key('member-site')));
-    // launchUrl never resolves under test, so a single frame is enough.
-    await tester.pump();
+    await openAccount(tester);
 
-    expect(ghost!.calls, 1);
+    expect(find.text('member@example.com'), findsOneWidget);
+    expect(find.text('Signs in with Google'), findsOneWidget);
+    expect(find.text('Weekly'), findsOneWidget);
+    // Social accounts have no password to manage.
+    expect(find.byKey(const Key('change-password')), findsNothing);
+    expect(find.textContaining('no password to manage'), findsOneWidget);
+
+    await tester.enterText(find.byKey(const Key('name')), 'Andy');
+    await tester.tap(find.byKey(const Key('newsletter-weekly')));
+    await tester.ensureVisible(find.byKey(const Key('save-profile')));
+    await tester.tap(find.byKey(const Key('save-profile')));
+    await tester.pumpAndSettle();
+
+    expect(members!.updates, hasLength(1));
+    expect(members!.updates.single.name, 'Andy');
+    expect(members!.updates.single.newsletters, isEmpty);
+    expect(find.text('Saved.'), findsOneWidget);
   });
 
-  testWidgets('member-site errors surface as a snackbar', (tester) async {
-    ghost = FakeGhostSessionService()..fail = true;
+  testWidgets('password accounts can change their password', (tester) async {
+    members = FakeMemberService();
     await openSignIn(tester);
-    await tester.ensureVisible(find.byKey(const Key('google-sign-in')));
-    await tester.tap(find.byKey(const Key('google-sign-in')));
+    await tester.enterText(find.byType(TextField).at(0), 'me@example.com');
+    await tester.enterText(find.byType(TextField).at(1), 'correct-horse');
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
+    await tester.pumpAndSettle();
+    // Tapping the verify tile reloads the user; the fake marks them verified.
+    await tester.tap(find.byKey(const Key('verify-email')));
+    await tester.pumpAndSettle();
+    await openAccount(tester);
+
+    expect(find.text('Signs in with a password'), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('change-password')));
+    await tester.enterText(find.byKey(const Key('current-password')), 'nope');
+    await tester.enterText(find.byKey(const Key('new-password')), 'new-secret');
+    await tester.tap(find.byKey(const Key('change-password')));
+    await tester.pumpAndSettle();
+    expect(find.text('Current password is incorrect.'), findsOneWidget);
+    expect(auth.passwordChanges, 0);
+    // Let that snackbar expire so the next one is not queued behind it.
+    await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('member-site')));
+    await tester.enterText(
+      find.byKey(const Key('current-password')),
+      'correct-horse',
+    );
+    await tester.enterText(find.byKey(const Key('new-password')), 'new-secret');
+    await tester.tap(find.byKey(const Key('change-password')));
     await tester.pumpAndSettle();
+    expect(auth.passwordChanges, 1);
+    expect(find.textContaining('Password changed.'), findsOneWidget);
 
-    expect(find.text('Could not sign you in.'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('reset-password')));
+    await tester.pumpAndSettle();
+    expect(auth.resetEmails, ['me@example.com']);
   });
 
   testWidgets('unverified password accounts are asked to verify first', (
     tester,
   ) async {
-    ghost = FakeGhostSessionService();
+    members = FakeMemberService();
     await openSignIn(tester);
     await tester.enterText(find.byType(TextField).at(0), 'me@example.com');
     await tester.enterText(find.byType(TextField).at(1), 'correct-horse');
     await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('member-site')), findsNothing);
+    expect(find.byKey(const Key('manage-account')), findsNothing);
     expect(find.byKey(const Key('verify-email')), findsOneWidget);
 
     await tester.tap(find.text('Send email'));
@@ -543,13 +645,48 @@ void main() {
     expect(auth.verificationEmails, 1);
     expect(find.text('Verification email sent.'), findsOneWidget);
 
-    // Tapping the tile reloads the user; the fake marks them verified.
     await tester.tap(find.byKey(const Key('verify-email')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('member-site')), findsOneWidget);
+    expect(find.byKey(const Key('manage-account')), findsOneWidget);
   });
 
-  testWidgets('member tiles are hidden when website sign-in is unavailable', (
+  testWidgets('account load errors offer a retry', (tester) async {
+    members = FakeMemberService()..fail = true;
+    await openSignIn(tester);
+    await tester.ensureVisible(find.byKey(const Key('google-sign-in')));
+    await tester.tap(find.byKey(const Key('google-sign-in')));
+    await tester.pumpAndSettle();
+    await openAccount(tester);
+
+    expect(
+      find.text('Could not reach your account right now.'),
+      findsOneWidget,
+    );
+    members!.fail = false;
+    await tester.tap(find.text('Try again'));
+    await tester.pumpAndSettle();
+    expect(find.text('member@example.com'), findsOneWidget);
+    expect(members!.loads, 2);
+  });
+
+  testWidgets('signing out from the account screen returns to Settings', (
+    tester,
+  ) async {
+    members = FakeMemberService();
+    await openSignIn(tester);
+    await tester.ensureVisible(find.byKey(const Key('google-sign-in')));
+    await tester.tap(find.byKey(const Key('google-sign-in')));
+    await tester.pumpAndSettle();
+    await openAccount(tester);
+
+    await tester.ensureVisible(find.byKey(const Key('sign-out')));
+    await tester.tap(find.byKey(const Key('sign-out')));
+    await tester.pumpAndSettle();
+    expect(find.text('Sign in'), findsOneWidget);
+    expect(auth.currentUser, isNull);
+  });
+
+  testWidgets('account tiles are hidden when management is unavailable', (
     tester,
   ) async {
     await openSignIn(tester);
@@ -557,7 +694,7 @@ void main() {
     await tester.tap(find.byKey(const Key('google-sign-in')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('member-site')), findsNothing);
+    expect(find.byKey(const Key('manage-account')), findsNothing);
     expect(find.byKey(const Key('verify-email')), findsNothing);
   });
 

@@ -1,9 +1,9 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
+import 'account/member_service.dart';
 import 'app_settings.dart';
 import 'auth/auth_service.dart';
-import 'ghost/ghost_session_service.dart';
 import 'firebase_options.dart';
 import 'data/post_repository.dart';
 import 'models/post_feed.dart';
@@ -22,7 +22,7 @@ Future<void> main() async {
       repository: PostRepository.forConfig(),
       store: StoreRepository.forConfig(),
       auth: FirebaseAuthService(),
-      ghost: CloudFunctionsGhostSessionService(),
+      members: CloudFunctionsMemberService(),
     ),
   );
 }
@@ -34,7 +34,7 @@ class PizzaPredatorApp extends StatelessWidget {
     required this.repository,
     required this.auth,
     this.store,
-    this.ghost,
+    this.members,
   });
 
   final AppSettings settings;
@@ -45,8 +45,8 @@ class PizzaPredatorApp extends StatelessWidget {
   /// a placeholder.
   final StoreRepository? store;
 
-  /// Null when website sign-in is unavailable; Settings then hides the tile.
-  final GhostSessionService? ghost;
+  /// Null when account management is unavailable; Settings then hides it.
+  final MemberService? members;
 
   static const _seed = Color(0xFFD62828); // tomato-sauce red
 
@@ -71,7 +71,7 @@ class PizzaPredatorApp extends StatelessWidget {
             repository: repository,
             auth: auth,
             store: store,
-            ghost: ghost,
+            members: members,
           ),
         ),
       ),
@@ -88,13 +88,13 @@ class HomeShell extends StatefulWidget {
     required this.repository,
     required this.auth,
     this.store,
-    this.ghost,
+    this.members,
   });
 
   final PostRepository repository;
   final AuthService auth;
   final StoreRepository? store;
-  final GhostSessionService? ghost;
+  final MemberService? members;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -110,7 +110,7 @@ class _HomeShellState extends State<HomeShell> {
       PostListScreen(feed: PostFeed.pizza, repository: widget.repository),
       PostListScreen(feed: PostFeed.bikes, repository: widget.repository),
       StoreScreen(repository: widget.store, auth: widget.auth),
-      SettingsScreen(auth: widget.auth, ghost: widget.ghost),
+      SettingsScreen(auth: widget.auth, members: widget.members),
     ];
 
     return Scaffold(

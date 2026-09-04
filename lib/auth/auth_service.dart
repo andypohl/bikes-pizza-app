@@ -13,11 +13,18 @@ class AppUser {
     this.email,
     this.displayName,
     this.emailVerified = false,
+    this.providerIds = const [],
   });
 
   final String uid;
   final String? email;
   final String? displayName;
+
+  /// Firebase provider IDs linked to the account: `password`, `google.com`,
+  /// `apple.com`.
+  final List<String> providerIds;
+
+  bool get hasPassword => providerIds.contains('password');
 
   /// Whether the provider vouched for [email]. Google and Apple accounts are
   /// verified up front; password accounts need [AuthService.sendEmailVerification].
@@ -64,6 +71,12 @@ abstract class AuthService {
   Future<void> createAccount({required String email, required String password});
 
   Future<void> sendPasswordReset(String email);
+
+  /// Replaces the signed-in user's password after checking [current].
+  ///
+  /// Throws an [AuthException] with `badCredentials` set when [current] is
+  /// wrong.
+  Future<void> changePassword({required String current, required String next});
 
   /// Emails the signed-in user a link that marks their address as verified.
   Future<void> sendEmailVerification();
@@ -120,6 +133,22 @@ class FirebaseAuthService implements AuthService {
   @override
   Future<void> sendPasswordReset(String email) =>
       _guard(() => _auth.sendPasswordResetEmail(email: email.trim()));
+
+  @override
+  Future<void> changePassword({
+    required String current,
+    required String next,
+  }) => _guard(() async {
+    final user = _auth.currentUser;
+    final email = user?.email;
+    if (user == null || email == null) throw AuthException('Sign in first.');
+    // Firebase insists on a recent sign-in before a password change;
+    // proving the current password is the cleanest way to give it one.
+    await user.reauthenticateWithCredential(
+      fb.EmailAuthProvider.credential(email: email, password: current),
+    );
+    await user.updatePassword(next);
+  });
 
   @override
   Future<void> sendEmailVerification() => _guard(() async {
@@ -214,6 +243,7 @@ class FirebaseAuthService implements AuthService {
           email: user.email,
           displayName: user.displayName,
           emailVerified: user.emailVerified,
+          providerIds: [for (final p in user.providerData) p.providerId],
         );
 
   static String _randomNonce([int length = 32]) {
