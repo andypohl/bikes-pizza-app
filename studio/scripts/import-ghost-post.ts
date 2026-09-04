@@ -19,7 +19,12 @@ import { schemaTypes } from '../schemaTypes'
 
 const GHOST_API = 'https://pizza-predator.ghost.io'
 const GHOST_SITE = 'https://www.pizzapredator.com'
-const FEED_FOR_TAG: Record<string, string> = { biking: 'bikes', bikes: 'bikes', pizza: 'pizza' }
+const FEED_FOR_TAG: Record<string, string> = {
+  biking: 'bikes',
+  'off-road-biking': 'bikes',
+  bikes: 'bikes',
+  pizza: 'pizza',
+}
 
 const slugs = process.argv.slice(2)
 if (slugs.length === 0) throw new Error('Usage: import-ghost-post.ts <slug> [<slug> ...]')

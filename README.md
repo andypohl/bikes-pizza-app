@@ -73,7 +73,9 @@ renders the Sanity posts as a photo gallery (the Astro Frame Shift theme by
 Ema Suriano, adapted). It is statically built from the public dataset, so
 builds need no token; run `npm run build` in `site/` to produce `dist/`,
 which the `home` Hosting target serves. Content changes appear on the site
-at the next deploy. See `site/README.md`.
+after the "Deploy website" workflow rebuilds it, which a Sanity webhook
+triggers on every publish (setup in `docs/firebase.md`). See
+`site/README.md`.
 
 The site's header has a Sign in / Account button backed by the same
 Firebase Auth users as the app and the Ghost site. The build copies the
