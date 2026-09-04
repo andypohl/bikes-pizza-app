@@ -69,6 +69,46 @@
         <button type="button" class="link" id="signout-verify">Use a different account</button>
       </section>
 
+      <section data-view="account" hidden>
+        <h1>Your account</h1>
+        <p>
+          <strong id="account-email"></strong><br />
+          <span class="muted small" id="account-method"></span>
+        </p>
+
+        <form id="profile-form" novalidate>
+          <label>
+            Name
+            <input type="text" name="name" autocomplete="name" maxlength="191" />
+          </label>
+          <fieldset id="newsletters" hidden>
+            <legend>Newsletters</legend>
+          </fieldset>
+          <button type="submit" class="primary" id="save-profile">Save changes</button>
+        </form>
+
+        <section class="subsection" id="password-section" hidden>
+          <h2>Password</h2>
+          <form id="password-form" novalidate>
+            <label>
+              Current password
+              <input type="password" name="current" autocomplete="current-password" required />
+            </label>
+            <label>
+              New password
+              <input type="password" name="next" autocomplete="new-password" minlength="6" required />
+            </label>
+            <button type="submit" class="secondary" id="change-password">Change password</button>
+          </form>
+          <button type="button" class="link" id="reset-password">Forgotten it? Email me a reset link</button>
+        </section>
+        <p class="muted small" id="no-password" hidden></p>
+
+        <div class="divider"></div>
+        <button type="button" class="secondary" id="go-site">Back to the site</button>
+        <button type="button" class="link" id="signout-account">Sign out</button>
+      </section>
+
       <section data-view="connecting" hidden>
         <h1>Signing you in…</h1>
         <p class="muted">Taking you to the site as a member.</p>

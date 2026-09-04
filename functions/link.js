@@ -16,15 +16,17 @@
  * @param {{uid: string, email: string, name?: string}} user
  * @param {{store: MemberStore, ghost: import('./ghost.js').GhostAdminClient, now?: () => Date}} deps
  * @returns {Promise<{id: string, email: string, created: boolean, linked: boolean}>}
- *   `created` is true when a new Ghost member was made; `linked` is true when
- *   the mapping was written or changed on this call.
+ *   The Ghost member as returned by the Admin API (so `name`, `newsletters`,
+ *   etc. are present too), plus: `created` is true when a new Ghost member was
+ *   made; `linked` is true when the mapping was written or changed on this
+ *   call.
  */
 export async function resolveMember(user, { store, ghost, now = () => new Date() }) {
   const existing = await store.get(user.uid);
   if (existing?.ghostMemberId) {
     const member = await ghost.getMember(existing.ghostMemberId);
     if (member) {
-      return { id: member.id, email: member.email, created: false, linked: false };
+      return { ...member, created: false, linked: false };
     }
     // The member was deleted in Ghost; fall through and re-link.
   }
@@ -36,7 +38,7 @@ export async function resolveMember(user, { store, ghost, now = () => new Date()
     linkedAt: now(),
     ...(existing?.ghostMemberId ? { relinkedFrom: existing.ghostMemberId } : {}),
   });
-  return { id: member.id, email: member.email, created: member.created, linked: true };
+  return { ...member, linked: true };
 }
 
 /** Firestore-backed {@link MemberStore}. */

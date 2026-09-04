@@ -3,10 +3,11 @@
   result, then paste into Ghost Admin > Settings > Code injection > Site
   header.
 
-  Sends Ghost's own "Sign in" / "Subscribe" (Portal) buttons and #/portal/
-  links to the Firebase-backed account page instead, so website sign-ups use
-  the same user base as the app. Portal's account screen for members who are
-  already signed in is left alone.
+  Sends Ghost's own "Sign in" / "Subscribe" / "Account" (Portal) buttons and
+  #/portal/ links to the Firebase-backed account page instead, so website
+  sign-ups use the same user base as the app and members manage their name,
+  newsletters and password in one place. Portal's sign-out route is left
+  alone so it still ends the Ghost session.
 -->
 <script>
   (function () {
@@ -20,7 +21,8 @@
     function modeFor(value) {
       if (value === "signin") return "signin";
       if (value === "" || value === "signup" || value.indexOf("signup/") === 0) return "signup";
-      return null; // account, support, etc. stay with Portal
+      if (value === "account" || value.indexOf("account/") === 0) return "account";
+      return null; // signout, support, etc. stay with Portal
     }
     document.addEventListener(
       "click",
@@ -41,5 +43,6 @@
     var hash = location.hash;
     if (hash.indexOf("#/portal/signin") === 0) go("signin");
     else if (hash.indexOf("#/portal/signup") === 0) go("signup");
+    else if (hash.indexOf("#/portal/account") === 0) go("account");
   })();
 </script>

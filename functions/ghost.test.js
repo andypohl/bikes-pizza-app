@@ -104,3 +104,42 @@ test("surfaces Ghost error messages", async () => {
   const client = new GhostAdminClient({ url: URL_, key: KEY, fetch: fetchImpl });
   await assert.rejects(client.findMember("x"), (e) => e.message === "Bad email" && e.status === 422);
 });
+
+test("getMember asks for newsletters and treats 404 as missing", async () => {
+  const { fetchImpl, calls } = fakeFetch([
+    { status: 200, body: { members: [{ id: "m1", email: "a@b.c", newsletters: [{ id: "n1" }] }] } },
+    { status: 404, body: { errors: [{ message: "Member not found.", type: "NotFoundError" }] } },
+  ]);
+  const client = new GhostAdminClient({ url: URL_, key: KEY, fetch: fetchImpl });
+  const member = await client.getMember("m1");
+  assert.deepEqual(member.newsletters, [{ id: "n1" }]);
+  assert.equal(new URL(calls[0].url).searchParams.get("include"), "newsletters");
+  assert.equal(await client.getMember("gone"), null);
+});
+
+test("updateMember sends only the given fields, with newsletters as id objects", async () => {
+  const { fetchImpl, calls } = fakeFetch([
+    { status: 200, body: { members: [{ id: "m1", name: "Ada", newsletters: [] }] } },
+    { status: 200, body: { members: [{ id: "m1", name: "Ada", newsletters: [{ id: "n1" }] }] } },
+  ]);
+  const client = new GhostAdminClient({ url: URL_, key: KEY, fetch: fetchImpl });
+  await client.updateMember("m1", { name: "Ada" });
+  assert.equal(calls[0].init.method, "PUT");
+  assert.equal(new URL(calls[0].url).pathname, "/ghost/api/admin/members/m1/");
+  assert.deepEqual(JSON.parse(calls[0].init.body), { members: [{ name: "Ada" }] });
+
+  const updated = await client.updateMember("m1", { newsletters: ["n1"] });
+  assert.deepEqual(JSON.parse(calls[1].init.body), { members: [{ newsletters: [{ id: "n1" }] }] });
+  assert.deepEqual(updated.newsletters, [{ id: "n1" }]);
+});
+
+test("listNewsletters returns only active newsletters", async () => {
+  const { fetchImpl, calls } = fakeFetch([
+    { status: 200, body: { newsletters: [{ id: "n1", name: "Weekly" }] } },
+  ]);
+  const client = new GhostAdminClient({ url: URL_, key: KEY, fetch: fetchImpl });
+  assert.deepEqual(await client.listNewsletters(), [{ id: "n1", name: "Weekly" }]);
+  const url = new URL(calls[0].url);
+  assert.equal(url.pathname, "/ghost/api/admin/newsletters/");
+  assert.equal(url.searchParams.get("filter"), "status:active");
+});

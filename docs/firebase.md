@@ -153,9 +153,17 @@ region us-central1). Deploy with `firebase deploy --only functions`.
 
 Current:
 
-- `ghostSignInUrl` (callable, requires a signed-in user with a verified
-  email). Finds or creates the Ghost member with the user's email through
-  the Ghost Admin API, then returns a one-time sign-in URL for the website.
+All callables require a signed-in user with a verified email, and resolve
+the user's Ghost member through the Firestore link (creating the member on
+first use by email).
+
+- `ghostSignInUrl`: returns a one-time sign-in URL for the website.
+- `ghostMember`: the member's profile for the account page (email, name,
+  and the site's active newsletters with the member's subscription state;
+  paid-only newsletters are hidden from free members).
+- `updateGhostMember`: changes the member's name and/or the full list of
+  newsletters they receive, validated against that same profile.
+
   Configuration: a Secret Manager secret holding the Ghost Admin API key
   (name in `functions/index.js`) and a plain parameter with the Ghost API
   URL, kept in the git-ignored `functions/.env` (template:
@@ -178,7 +186,8 @@ Planned:
 
 One site (the project's default), serving `web/public/`: the account page
 that signs people in with Firebase Auth and hands them to the Ghost site as
-a member. It needs a Web app registration on the project so that Hosting's
+a member, and doubles as the members' account screen (name, newsletters,
+password) in place of Ghost Portal's. It needs a Web app registration on the project so that Hosting's
 reserved `/__/firebase/init.json` returns the config. The Ghost site's
 header code injection points at this site's URL (a custom domain such as an
 `account.` subdomain can be attached later in the Hosting console; add it to
