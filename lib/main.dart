@@ -107,8 +107,16 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     final pages = <Widget>[
       PostListScreen(feed: PostFeed.blog, repository: widget.repository),
-      PostListScreen(feed: PostFeed.pizza, repository: widget.repository),
-      PostListScreen(feed: PostFeed.bikes, repository: widget.repository),
+      PostListScreen(
+        feed: PostFeed.pizza,
+        repository: widget.repository,
+        auth: widget.auth,
+      ),
+      PostListScreen(
+        feed: PostFeed.bikes,
+        repository: widget.repository,
+        auth: widget.auth,
+      ),
       StoreScreen(repository: widget.store, auth: widget.auth),
       SettingsScreen(auth: widget.auth, members: widget.members),
     ];
