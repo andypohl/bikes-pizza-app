@@ -148,10 +148,7 @@ export const updateGhostMember = onCall(options, (request) =>
 const submissions = () => getFirestore().collection("submissions");
 
 function reviewUrl() {
-  const configured = reviewPageUrl.value().trim();
-  if (configured) return configured;
-  const project = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
-  return project ? `https://${project}.web.app/review/` : "";
+  return reviewPageUrl.value().trim() || "https://submissions.pizzapredator.com/";
 }
 
 async function notify(submission, user) {

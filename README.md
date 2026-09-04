@@ -71,7 +71,8 @@ long edge, JPEG) and makes a thumbnail, stores both in Cloud Storage under
 status `pending`, and emails a configured address with a link to the review
 page. Nothing reaches the blog at this point.
 
-**Review page**: `web/public/review/` on the Hosting site (`/review/`).
+**Review page**: `web/review/`, its own Hosting site served at
+https://submissions.pizzapredator.com/.
 Only Firebase users with the `admin` custom claim can open it; grant it
 with `tools/grant_admin.py you@example.com` (revoke with `--revoke`). It
 lists submissions as a paginated table with thumbnails and Pending / Posted
@@ -227,8 +228,10 @@ which fills in the account page URL and copies the snippet to the clipboard,
 then paste it into Ghost Admin → Settings → Code injection → Site header
 (replacing any earlier copy between the marker comments) and save.
 
-The page reads its Firebase config from Hosting's reserved
-`/__/firebase/init.json`, so nothing project-specific is committed. Preview
+Both pages read their Firebase config from Hosting's reserved
+`/__/firebase/init.json`, so nothing project-specific is committed. They are
+two Hosting sites (targets `account` and `review` in `firebase.json`, mapped
+to site IDs in `.firebaserc`), so each serves its page from `/`. Preview
 locally with `firebase emulators:start --only hosting` (uses the live
 Firebase project for sign-in) and deploy with `firebase deploy --only hosting`.
 

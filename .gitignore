@@ -49,3 +49,6 @@ app.*.map.json
 
 # Local build-time secrets (see config/local.example.json)
 /config/local.json
+
+# Firebase CLI hosting upload cache
+.firebase/

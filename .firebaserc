@@ -1,5 +1,17 @@
 {
   "projects": {
     "default": "pizzapredator-a445e"
+  },
+  "targets": {
+    "pizzapredator-a445e": {
+      "hosting": {
+        "account": [
+          "pizzapredator-a445e"
+        ],
+        "review": [
+          "pizzapredator-submissions"
+        ]
+      }
+    }
   }
 }
