@@ -163,6 +163,12 @@ first use by email).
   paid-only newsletters are hidden from free members).
 - `updateGhostMember`: changes the member's name and/or the full list of
   newsletters they receive, validated against that same profile.
+- `submitPost`: takes a member's bike or pizza submission (photo as base64,
+  title, from, description), uploads the photo to Ghost, creates a draft
+  post, and emails the author. Needs the `SMTP_URL` secret (an smtps://
+  URL with the sender's credentials) and the `SUBMISSION_NOTIFY_EMAIL`
+  parameter in `functions/.env`; without them the email step is skipped.
+  Runs with 512 MiB and a 2-minute timeout because of the image upload.
 
   Configuration: a Secret Manager secret holding the Ghost Admin API key
   (name in `functions/index.js`) and a plain parameter with the Ghost API

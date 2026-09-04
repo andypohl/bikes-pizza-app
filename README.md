@@ -20,8 +20,7 @@ toolbar button opens the post in the browser.
 
 Signed-in members (verified email) see a "Submit Pizza" / "Submit Bike"
 button under the Pizza and Bikes lists, between the list and the tab bar.
-It is not shown on a post. For now it opens a "Coming soon" screen
-(`lib/screens/submit_screen.dart`); the submission flow comes next.
+It is not shown on a post. See "Member submissions" below.
 
 ## Build-time configuration
 
@@ -60,6 +59,31 @@ flutter build appbundle --dart-define-from-file=config/local.json
 Content API keys grant read-only access to public content, so they are not
 secret in Ghost's model, but the key is still kept out of the repo. Without
 it the app throws on startup with a message naming the missing define.
+
+## Member submissions
+
+The Submit Pizza / Submit Bike form (`lib/screens/submit_screen.dart`) asks
+for a main photo (camera or library, scaled to 2048px on the device), a
+title, who it is from, and a description or story. Submitting calls the
+`submitPost` Cloud Function, which uploads the photo to Ghost, creates a
+**draft** post tagged `pizza` or `biking` plus the internal `#submission`
+tag, with the photo as feature image and the text as body, and then emails
+the blog author. Nothing is published until the author edits and publishes
+the draft in Ghost Admin. The submitter's email is only in the notification
+email (as the reply-to), never in the post.
+
+The email goes out over SMTP. Configure once per Firebase project:
+
+```sh
+# Recipient (not secret): add SUBMISSION_NOTIFY_EMAIL to functions/.env and
+# as a repository variable for the deploy workflow.
+# Credentials (secret), e.g. a Gmail app password:
+firebase functions:secrets:set SMTP_URL
+#   smtps://you%40gmail.com:app-password@smtp.gmail.com:465
+```
+
+Without both, the draft is still created and the email is skipped with a
+warning in the function logs.
 
 ## Store (Shopify)
 

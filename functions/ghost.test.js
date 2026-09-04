@@ -143,3 +143,36 @@ test("listNewsletters returns only active newsletters", async () => {
   assert.equal(url.pathname, "/ghost/api/admin/newsletters/");
   assert.equal(url.searchParams.get("filter"), "status:active");
 });
+
+test("uploadImage posts multipart form data and returns the URL", async () => {
+  const { fetchImpl, calls } = fakeFetch([
+    { status: 201, body: { images: [{ url: "https://cdn.example.com/i.png", ref: "x.png" }] } },
+  ]);
+  const client = new GhostAdminClient({ url: URL_, key: KEY, fetch: fetchImpl });
+  const url = await client.uploadImage({
+    bytes: new Uint8Array([1, 2, 3]),
+    contentType: "image/png",
+    filename: "x.png",
+  });
+  assert.equal(url, "https://cdn.example.com/i.png");
+  assert.equal(new URL(calls[0].url).pathname, "/ghost/api/admin/images/upload/");
+  assert.ok(calls[0].init.body instanceof FormData);
+  assert.equal(calls[0].init.body.get("purpose"), "image");
+  assert.equal(calls[0].init.body.get("file").name, "x.png");
+  assert.equal(calls[0].init.headers["Content-Type"], undefined); // fetch sets the boundary
+});
+
+test("createPost sends HTML source and returns Ghost's post", async () => {
+  const { fetchImpl, calls } = fakeFetch([
+    { status: 201, body: { posts: [{ id: "p1", status: "draft" }] } },
+  ]);
+  const client = new GhostAdminClient({ url: URL_, key: KEY, fetch: fetchImpl });
+  const post = await client.createPost({ title: "T", html: "<p>x</p>", status: "draft" });
+  assert.equal(post.id, "p1");
+  const url = new URL(calls[0].url);
+  assert.equal(url.pathname, "/ghost/api/admin/posts/");
+  assert.equal(url.searchParams.get("source"), "html");
+  assert.deepEqual(JSON.parse(calls[0].init.body), {
+    posts: [{ title: "T", html: "<p>x</p>", status: "draft" }],
+  });
+});

@@ -10,6 +10,8 @@
 // ghostMember:       the member's profile (name, email, newsletter choices)
 //                    for the hosted account page.
 // updateGhostMember: changes the member's name and/or newsletters.
+// submitPost:        turns a member's bike/pizza submission (photo + text)
+//                    into a draft post and emails the author about it.
 
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
@@ -19,6 +21,8 @@ import { logger } from "firebase-functions";
 import { ValidationError, profile, validateUpdate } from "./account.js";
 import { GhostAdminClient, GhostApiError } from "./ghost.js";
 import { firestoreStore, resolveMember } from "./link.js";
+import { isMailConfigured, sendMail } from "./mail.js";
+import { buildPost, notificationEmail, validateSubmission } from "./submission.js";
 
 initializeApp();
 
@@ -26,6 +30,14 @@ initializeApp();
 const ghostAdminApiKey = defineSecret("GHOST_ADMIN_API_KEY");
 // Set in functions/.env (see .env.example); not a secret.
 const ghostAdminApiUrl = defineString("GHOST_ADMIN_API_URL");
+
+// SMTP URL for the notification email (see mail.js); set with
+// `firebase functions:secrets:set SMTP_URL`. Anything that is not an
+// smtp:// or smtps:// URL disables the email.
+const smtpUrl = defineSecret("SMTP_URL");
+// Who to tell about new submissions; set in functions/.env. Empty disables
+// the email.
+const notifyEmail = defineString("SUBMISSION_NOTIFY_EMAIL", { default: "" });
 
 const options = { region: "us-central1", secrets: [ghostAdminApiKey] };
 
@@ -99,4 +111,36 @@ export const updateGhostMember = onCall(options, (request) =>
     logger.info("ghost member updated", { uid: user.uid, fields: Object.keys(patch) });
     return profile(updated, newsletters);
   }),
+);
+
+export const submitPost = onCall(
+  { ...options, secrets: [ghostAdminApiKey, smtpUrl], memory: "512MiB", timeoutSeconds: 120 },
+  (request) =>
+    withMember(request, "send your submission", async ({ user, ghost }) => {
+      const submission = validateSubmission(request.data);
+      const imageUrl = await ghost.uploadImage(submission.image);
+      const post = await ghost.createPost(buildPost({ ...submission, imageUrl }));
+      logger.info("submission drafted", { uid: user.uid, feed: submission.feed, postId: post.id });
+
+      let notified = false;
+      const to = notifyEmail.value().trim();
+      if (to && isMailConfigured(smtpUrl.value())) {
+        try {
+          const mail = notificationEmail({
+            ...submission,
+            userEmail: user.email,
+            post,
+            adminUrl: ghostAdminApiUrl.value(),
+          });
+          await sendMail({ smtpUrl: smtpUrl.value(), to, replyTo: user.email, ...mail });
+          notified = true;
+        } catch (error) {
+          // The draft exists either way; do not fail the submission.
+          logger.warn("submission email failed", { uid: user.uid, message: error.message });
+        }
+      } else {
+        logger.warn("submission email skipped: SMTP_URL or SUBMISSION_NOTIFY_EMAIL not set");
+      }
+      return { postId: post.id, notified };
+    }),
 );

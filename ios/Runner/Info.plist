@@ -79,5 +79,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose a photo of your bike or pizza to submit to the blog.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Take a photo of your bike or pizza to submit to the blog.</string>
 </dict>
 </plist>
