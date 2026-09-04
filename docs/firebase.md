@@ -175,7 +175,7 @@ first use by email).
   title, from, description), normalises the photo and makes a thumbnail
   (sharp), stores both in Cloud Storage and a `submissions` document in
   Firestore, and emails `SUBMISSION_NOTIFY_EMAIL` through Mailgun with a
-  link to the review page (`REVIEW_PAGE_URL`, derived from the project when
+  link to the review page (`REVIEW_PAGE_URL`, the submissions domain when
   empty). Needs the `MAILGUN_API_KEY` secret and `MAILGUN_DOMAIN`; without
   them or the recipient the email step is skipped. `SUBMISSION_FROM_EMAIL`
   optionally sets the sender and `MAILGUN_API_BASE` the API region.
@@ -205,14 +205,26 @@ Planned:
 
 ## Hosting
 
-One site (the project's default), serving `web/public/`: the account page
-that signs people in with Firebase Auth and hands them to the Ghost site as
-a member, and doubles as the members' account screen (name, newsletters,
-password) in place of Ghost Portal's. It needs a Web app registration on the project so that Hosting's
-reserved `/__/firebase/init.json` returns the config. The Ghost site's
-header code injection points at this site's URL (a custom domain such as an
-`account.` subdomain can be attached later in the Hosting console; add it to
-Authentication → Settings → Authorized domains too).
+Two sites on the project, mapped to the `account` and `review` targets in
+`firebase.json` by `.firebaserc` (create the second with
+`firebase hosting:sites:create <site-id>` before the first deploy):
+
+- The project's default site serves `web/public/`: the account page that
+  signs people in with Firebase Auth and hands them to the Ghost site as a
+  member, and doubles as the members' account screen (name, newsletters,
+  password) in place of Ghost Portal's. The Ghost site's header code
+  injection points at this site's URL.
+- The submissions site serves `web/review/`, the review page, at
+  https://submissions.pizzapredator.com/. The custom domain is registered on
+  that site in the Hosting console (or the Hosting REST API), which asks for
+  a CNAME to the site's `web.app` host plus an ACME `TXT` record, both added
+  at the DNS provider as plain records (with Cloudflare, the proxy must be
+  off for that name so Firebase can issue the certificate).
+
+Both need a Web app registration on the project so that Hosting's reserved
+`/__/firebase/init.json` returns the config, and any custom domain must also
+be listed under Authentication → Settings → Authorized domains for sign-in
+to work there.
 
 Sign in with Apple on the web needs, in the Apple Developer portal, a
 Services ID with Sign in with Apple enabled whose website configuration
