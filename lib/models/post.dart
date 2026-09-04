@@ -1,4 +1,6 @@
-/// A single blog post as loaded from the Ghost Content API.
+import '../data/portable_text_html.dart';
+
+/// A single post as loaded from Sanity.
 class Post {
   const Post({
     required this.id,
@@ -27,35 +29,49 @@ class Post {
   /// Thumbnail / hero image URL, if the post has one.
   final String? featureImage;
 
-  /// Tag slugs, e.g. `pizza`, `off-road-biking`.
+  /// Feed values the post belongs to, e.g. `pizza`, `bikes`.
   final List<String> tags;
 
   bool hasTag(String slug) => tags.contains(slug);
 
-  factory Post.fromGhostJson(Map<String, dynamic> json) {
-    final rawTags = json['tags'];
-    final tags = rawTags is List
-        ? rawTags
-              .whereType<Map<String, dynamic>>()
-              .map((t) => t['slug'])
-              .whereType<String>()
-              .toList(growable: false)
-        : const <String>[];
+  /// Image transformation parameters for Sanity's image CDN.
+  static const _imageParams = 'w=1200&auto=format&q=80';
+
+  /// Builds a post from the projection `SanityPostRepository` requests.
+  factory Post.fromSanityJson(
+    Map<String, dynamic> json, {
+    required String siteUrl,
+  }) {
+    final slug = json['slug'] as String? ?? '';
+    final feed = json['feed'] as String?;
+    final rawBody = json['body'];
+    final body = rawBody is List ? rawBody : const <dynamic>[];
+    final image = json['image'] as String?;
+    final custom = (json['excerpt'] as String?)?.trim() ?? '';
 
     return Post(
-      id: json['id'] as String? ?? json['uuid'] as String? ?? '',
+      id: slug.isNotEmpty ? slug : json['_id'] as String? ?? '',
       title: json['title'] as String? ?? '(untitled)',
-      url: json['url'] as String? ?? '',
+      url: slug.isEmpty ? '' : '$siteUrl/post/$slug/',
       publishedAt:
-          DateTime.tryParse(json['published_at'] as String? ?? '') ??
+          DateTime.tryParse(json['publishedAt'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
-      excerpt: (json['custom_excerpt'] as String?)?.trim().isNotEmpty == true
-          ? (json['custom_excerpt'] as String).trim()
-          : (json['excerpt'] as String? ?? '').trim(),
-      html: json['html'] as String? ?? '',
-      featureImage: json['feature_image'] as String?,
-      tags: tags,
+      excerpt: custom.isNotEmpty
+          ? custom
+          : summarize(json['plain'] as String? ?? ''),
+      html: portableTextToHtml(body),
+      featureImage: image == null || image.isEmpty
+          ? null
+          : '$image?$_imageParams',
+      tags: feed == null || feed.isEmpty ? const [] : [feed],
     );
+  }
+
+  /// Shortens plain text to one line of at most [max] characters.
+  static String summarize(String text, {int max = 200}) {
+    final flat = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (flat.length <= max) return flat;
+    return '${flat.substring(0, max - 1).trimRight()}…';
   }
 
   @override

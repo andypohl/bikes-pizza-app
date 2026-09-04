@@ -1,0 +1,115 @@
+import 'dart:convert';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:pizza_predator/data/post_repository.dart';
+import 'package:pizza_predator/data/sanity_post_repository.dart';
+import 'package:pizza_predator/models/post_feed.dart';
+
+Map<String, dynamic> _row(String slug, {String feed = 'pizza'}) => {
+  'slug': slug,
+  'title': 'Post $slug',
+  'feed': feed,
+  'publishedAt': '2025-04-12T04:12:00.000Z',
+  'excerpt': null,
+  'plain': 'Body of $slug',
+  'image': 'https://cdn.sanity.io/images/p/d/$slug-2000x1500.jpg',
+  'body': [
+    {
+      '_type': 'block',
+      '_key': 'k1',
+      'style': 'normal',
+      'markDefs': [],
+      'children': [
+        {'_type': 'span', '_key': 's1', 'marks': [], 'text': 'Body of $slug'},
+      ],
+    },
+  ],
+};
+
+String _result(List<Map<String, dynamic>> rows) =>
+    jsonEncode({'ms': 3, 'query': '', 'result': rows});
+
+void main() {
+  SanityPostRepository repo(MockClient client, {int pageSize = 2}) =>
+      SanityPostRepository(
+        projectId: 'abc123',
+        dataset: 'production',
+        apiVersion: '2025-02-19',
+        siteUrl: 'https://example.com',
+        pageSize: pageSize,
+        client: client,
+      );
+
+  test('queries the API CDN with a paged, ordered GROQ query', () {
+    final uri = repo(
+      MockClient((_) async => http.Response('', 200)),
+      pageSize: 15,
+    ).buildUri(PostFeed.blog, 3);
+
+    expect(uri.host, 'abc123.apicdn.sanity.io');
+    expect(uri.path, '/v2025-02-19/data/query/production');
+    expect(uri.queryParameters['query'], contains('_type == "post"'));
+    expect(uri.queryParameters['query'], contains('order(publishedAt desc)'));
+    expect(uri.queryParameters['query'], isNot(contains('feed in')));
+    expect(uri.queryParameters[r'$start'], '30');
+    expect(uri.queryParameters[r'$end'], '46'); // one extra row
+    expect(uri.queryParameters.containsKey(r'$feeds'), isFalse);
+  });
+
+  test('filters feeds by the feed field', () {
+    final r = repo(MockClient((_) async => http.Response('', 200)));
+    final uri = r.buildUri(PostFeed.bikes, 1);
+    expect(uri.queryParameters['query'], contains(r'feed in $feeds'));
+    expect(uri.queryParameters[r'$feeds'], '["bikes"]');
+    expect(
+      r.buildUri(PostFeed.pizza, 1).queryParameters[r'$feeds'],
+      '["pizza"]',
+    );
+  });
+
+  test('parses posts and detects further pages from the extra row', () async {
+    final client = MockClient(
+      (_) async => http.Response(
+        _result([_row('a'), _row('b'), _row('c')]),
+        200,
+        headers: {'content-type': 'application/json'},
+      ),
+    );
+
+    final page = await repo(client).fetchPosts(PostFeed.pizza);
+
+    expect(page.hasMore, isTrue);
+    expect(page.posts.map((p) => p.id), ['a', 'b']);
+    final first = page.posts.first;
+    expect(first.title, 'Post a');
+    expect(first.url, 'https://example.com/post/a/');
+    expect(
+      first.featureImage,
+      startsWith('https://cdn.sanity.io/images/p/d/a-2000x1500.jpg?'),
+    );
+    expect(first.featureImage, contains('auto=format'));
+    expect(first.tags, ['pizza']);
+    expect(first.excerpt, 'Body of a');
+    expect(first.html, '<p>Body of a</p>');
+    expect(first.publishedAt.toUtc().year, 2025);
+  });
+
+  test('reports no more pages when the page is not full', () async {
+    final client = MockClient(
+      (_) async => http.Response(_result([_row('a')]), 200),
+    );
+    final page = await repo(client).fetchPosts(PostFeed.blog);
+    expect(page.hasMore, isFalse);
+    expect(page.posts.length, 1);
+  });
+
+  test('turns HTTP errors into PostFetchException', () async {
+    final client = MockClient((_) async => http.Response('nope', 500));
+    expect(
+      () => repo(client).fetchPosts(PostFeed.blog),
+      throwsA(isA<PostFetchException>()),
+    );
+  });
+}
