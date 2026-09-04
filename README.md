@@ -60,6 +60,14 @@ Content API keys grant read-only access to public content, so they are not
 secret in Ghost's model, but the key is still kept out of the repo. Without
 it the app throws on startup with a message naming the missing define.
 
+## Sanity (experimental)
+
+`studio/` holds a Sanity Studio with a `post` content model (title, slug,
+feed, main image, excerpt, Portable Text body, and a record of where imported
+posts came from). It is a trial of Sanity as a replacement for Ghost as the
+post store; the app still reads Ghost. See `studio/README.md` for running the
+Studio, deploying the schema, and importing posts from Ghost.
+
 ## Member submissions
 
 The Submit Pizza / Submit Bike form (`lib/screens/submit_screen.dart`) asks
