@@ -1,8 +1,7 @@
 // Review page for member submissions (admins only).
 //
-// Reads the `submissions` collection directly (Firestore rules allow it for
-// users with the `admin` claim) and thumbnails from Storage, and calls the
-// reviewSubmission function to publish, draft or reject.
+// Talks to the REST API at /api/ (see functions/api.js) with the signed-in
+// user's Firebase ID token; the API checks the `admin` claim.
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 import {
@@ -14,41 +13,34 @@ import {
   signInWithPopup,
   signOut,
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
-import {
-  collection,
-  getDocs,
-  getFirestore,
-  limit,
-  orderBy,
-  query,
-  startAfter,
-  where,
-} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
-import {
-  getDownloadURL,
-  getStorage,
-  ref,
-} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
-import {
-  getFunctions,
-  httpsCallable,
-} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-functions.js";
-
 const PAGE_SIZE = 20;
 const $ = (sel) => document.querySelector(sel);
 
 const config = await fetch("/__/firebase/init.json").then((r) => r.json());
 const app = initializeApp(config);
 const auth = getAuth(app);
-const db = getFirestore(app);
-const storage = getStorage(app);
-const reviewSubmission = httpsCallable(getFunctions(app, "us-central1"), "reviewSubmission");
 
 let status = "pending"; // current filter; "" means all
-let cursors = []; // last document of each loaded page, for Previous/Next
+let cursors = []; // next-page cursor returned for each loaded page
 let page = 0;
-let rows = []; // { id, data, thumbUrl }
+let rows = []; // submissions as returned by the API
 let current = null; // the submission open in the dialog
+
+/** Calls the REST API as the signed-in user; throws {code, message} on failure. */
+async function api(path, { method = "GET", body } = {}) {
+  const token = await auth.currentUser.getIdToken();
+  const res = await fetch(path, {
+    method,
+    headers: { Authorization: `Bearer ${token}`, ...(body ? { "Content-Type": "application/json" } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const error = json.error ?? {};
+    throw { code: `api/${error.code ?? "unavailable"}`, message: error.message ?? "Something went wrong." };
+  }
+  return json;
+}
 
 // ---- helpers --------------------------------------------------------------
 
@@ -68,18 +60,8 @@ function busy(on) {
   for (const b of document.querySelectorAll("button")) b.disabled = on;
 }
 
-const urlCache = new Map();
-async function fileUrl(path) {
-  if (!path) return "";
-  if (!urlCache.has(path)) {
-    urlCache.set(path, getDownloadURL(ref(storage, path)).catch(() => ""));
-  }
-  return urlCache.get(path);
-}
-
-function when(ts) {
-  const d = ts?.toDate?.();
-  return d ? d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "";
+function when(iso) {
+  return iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "";
 }
 
 const STATUS_LABEL = { pending: "Pending", approved: "Posted", rejected: "Rejected" };
@@ -94,10 +76,11 @@ function describe(error) {
     case "auth/popup-closed-by-user":
     case "auth/cancelled-popup-request":
       return null;
-    case "functions/permission-denied":
-    case "functions/failed-precondition":
-    case "functions/invalid-argument":
-    case "functions/not-found":
+    case "api/permission-denied":
+    case "api/failed-precondition":
+    case "api/invalid-argument":
+    case "api/not-found":
+    case "api/unauthenticated":
       return error.message;
     default:
       return "Something went wrong. Please try again.";
@@ -106,28 +89,17 @@ function describe(error) {
 
 // ---- list -----------------------------------------------------------------
 
-function buildQuery(after) {
-  const parts = [collection(db, "submissions")];
-  if (status) parts.push(where("status", "==", status));
-  parts.push(orderBy("createdAt", "desc"));
-  if (after) parts.push(startAfter(after));
-  parts.push(limit(PAGE_SIZE + 1)); // one extra to know whether a next page exists
-  return query(...parts);
-}
-
 let hasNext = false;
 
 async function load() {
   busy(true);
   try {
-    const after = page > 0 ? cursors[page - 1] : null;
-    const snap = await getDocs(buildQuery(after));
-    const docs = snap.docs.slice(0, PAGE_SIZE);
-    hasNext = snap.docs.length > PAGE_SIZE;
-    cursors[page] = docs[docs.length - 1] ?? null;
-    rows = await Promise.all(
-      docs.map(async (d) => ({ id: d.id, data: d.data(), thumbUrl: await fileUrl(d.data().image?.thumbPath) })),
-    );
+    const params = new URLSearchParams({ status, limit: String(PAGE_SIZE) });
+    if (page > 0 && cursors[page - 1]) params.set("after", cursors[page - 1]);
+    const { items, nextCursor } = await api(`/api/submissions?${params}`);
+    rows = items;
+    cursors[page] = nextCursor;
+    hasNext = Boolean(nextCursor);
     render();
   } catch (error) {
     say(describe(error) ?? "Could not load submissions.");
@@ -142,9 +114,9 @@ function render() {
   for (const row of rows) {
     const tr = document.createElement("tr");
     tr.className = "row";
-    const d = row.data;
+    const d = row;
     const cells = [
-      row.thumbUrl ? Object.assign(document.createElement("img"), { src: row.thumbUrl, alt: "" }) : "",
+      d.image.thumbUrl ? Object.assign(document.createElement("img"), { src: d.image.thumbUrl, alt: "" }) : "",
       FEED_LABEL[d.feed] ?? d.feed,
       d.title,
       d.from,
@@ -185,15 +157,14 @@ function setFilter(next) {
 
 // ---- detail dialog --------------------------------------------------------
 
-async function openDetail(row) {
+function openDetail(row) {
   current = row;
-  const d = row.data;
+  const d = row;
   $("#d-title").textContent = d.title;
-  $("#d-meta").textContent = `${FEED_LABEL[d.feed] ?? d.feed} · from ${d.from} <${d.email}> · ${when(d.createdAt)}`;
+  $("#d-meta").textContent = `${FEED_LABEL[d.feed] ?? d.feed} · from ${d.from} <${d.submittedBy.email}> · ${when(d.createdAt)}`;
   $("#d-description").textContent = d.description || "(no description)";
-  $("#d-image").src = row.thumbUrl;
-  const full = await fileUrl(d.image?.path);
-  $("#d-image").src = full || row.thumbUrl;
+  const full = d.image.photoUrl;
+  $("#d-image").src = full || d.image.thumbUrl || "";
   $("#d-image-link").href = full || "#";
   const pending = d.status === "pending";
   $("#d-actions").hidden = !pending;
@@ -215,7 +186,10 @@ async function review(action) {
   if (action === "reject" && !confirm("Reject this submission?")) return;
   busy(true);
   try {
-    const { data } = await reviewSubmission({ id: current.id, action, note: $("#d-note").value });
+    const data = await api(`/api/submissions/${encodeURIComponent(current.id)}/review`, {
+      method: "POST",
+      body: { action, note: $("#d-note").value },
+    });
     $("#detail").close();
     if (data.status === "approved") {
       say(

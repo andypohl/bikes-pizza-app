@@ -124,9 +124,10 @@ Current:
   `rejected`), `createdAt`, `image` (`path`, `thumbPath`, `contentType`,
   `width`, `height` in Storage), and `review` (null until reviewed; then
   `action`, `at`, `by`, `byEmail`, `note`, and for approvals `postId`,
-  `postUrl`, `postStatus`). Written only by functions; readable by users
-  with the `admin` custom claim (the review page). One composite index:
-  `status` ascending + `createdAt` descending.
+  `postUrl`, `postStatus`). `image.token` is the download token that the
+  API's photo links carry. Written and read only by functions; clients go
+  through the REST API (`docs/api.md`). One composite index: `status`
+  ascending + `createdAt` descending.
 
 Planned additions for the bike photo feature:
 
@@ -149,8 +150,9 @@ The default bucket, in the same region as the functions. Rules live in
 `storage.rules` and deploy with `firebase deploy --only storage`.
 
 - `submissions/{id}/photo.jpg` and `thumb.jpg`: a submission's normalised
-  photo and its thumbnail, written by the `submitPost` function. Readable
-  by users with the `admin` custom claim; no client writes. Approved photos
+  photo and its thumbnail, written by the `submitPost` function with a
+  download token that the REST API's photo links carry; no rule-based
+  client access. Approved photos
   are copied into Ghost's media library on publish, so the bucket is not
   referenced by the blog.
 
@@ -184,6 +186,10 @@ first use by email).
   `functions/templates/`, attributed to `SUBMISSION_AUTHOR_EMAIL`, or
   rejects it. Records the outcome on the submission document.
   Runs with 512 MiB and a 2-minute timeout because of the image upload.
+- `api` (HTTPS, not a callable): the REST API in `functions/api.js`, which
+  wraps the same submission logic (list, fetch, review, create) for the
+  review page and the app. Served through the submissions Hosting site's
+  `/api/**` rewrite; see `docs/api.md`.
 
   Configuration: a Secret Manager secret holding the Ghost Admin API key
   (name in `functions/index.js`) and a plain parameter with the Ghost API
@@ -215,7 +221,8 @@ Two sites on the project, mapped to the `account` and `review` targets in
   password) in place of Ghost Portal's. The Ghost site's header code
   injection points at this site's URL.
 - The submissions site serves `web/review/`, the review page, at
-  https://submissions.pizzapredator.com/. The custom domain is registered on
+  https://submissions.pizzapredator.com/, and rewrites `/api/**` to the
+  `api` function so the REST API shares the origin. The custom domain is registered on
   that site in the Hosting console (or the Hosting REST API), which asks for
   a CNAME to the site's `web.app` host plus an ACME `TXT` record, both added
   at the DNS provider as plain records (with Cloudflare, the proxy must be

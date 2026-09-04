@@ -72,7 +72,9 @@ status `pending`, and emails a configured address with a link to the review
 page. Nothing reaches the blog at this point.
 
 **Review page**: `web/review/`, its own Hosting site served at
-https://submissions.pizzapredator.com/.
+https://submissions.pizzapredator.com/. It works through the REST API at
+`/api/` on the same site (`functions/api.js`, documented in `docs/api.md`),
+which the app can use too.
 Only Firebase users with the `admin` custom claim can open it; grant it
 with `tools/grant_admin.py you@example.com` (revoke with `--revoke`). It
 lists submissions as a paginated table with thumbnails and Pending / Posted

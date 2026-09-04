@@ -107,7 +107,16 @@
           ]
         }
       ],
-      "cleanUrls": true
+      "cleanUrls": true,
+      "rewrites": [
+        {
+          "source": "/api/**",
+          "function": {
+            "functionId": "api",
+            "region": "us-central1"
+          }
+        }
+      ]
     }
   ],
   "emulators": {
