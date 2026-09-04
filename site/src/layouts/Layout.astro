@@ -1,5 +1,6 @@
 ---
 import { ClientRouter } from 'astro:transitions';
+import AccountButton from '../components/AccountButton.astro';
 import ThemeToggle from '../components/ThemeToggle.astro';
 import '../styles/global.css';
 
@@ -64,7 +65,8 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     class="min-h-screen flex flex-col bg-stone-50 dark:bg-slate-900 font-inter transition-colors duration-300"
     transition:animate="initial"
   >
-    <div class="fixed top-6 right-6 z-50">
+    <div class="fixed top-6 right-6 z-50 flex items-center gap-3">
+      <AccountButton />
       <ThemeToggle />
     </div>
 

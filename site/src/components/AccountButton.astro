@@ -1,0 +1,28 @@
+---
+// Sends people to the Firebase-backed account page shared with the app and
+// the Ghost site: it shows the sign-in form when signed out and the account
+// screen when signed in, the same page pizzapredator.com's header buttons
+// use. The page's own origin is used when PUBLIC_ACCOUNT_URL is not set.
+const base = import.meta.env.PUBLIC_ACCOUNT_URL || 'https://pizzapredator-a445e.web.app/';
+const href = new URL(base);
+href.searchParams.set('mode', 'account');
+---
+
+<a
+  href={href.toString()}
+  class="inline-flex items-center gap-2 px-4 py-3 rounded-full bg-stone-200 dark:bg-slate-700 hover:bg-stone-300 dark:hover:bg-slate-600 text-stone-800 dark:text-stone-100 text-sm font-medium tracking-wide transition-colors duration-200"
+>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    class="h-5 w-5"
+    viewBox="0 0 20 20"
+    fill="currentColor"
+    aria-hidden="true"
+  >
+    <path
+      fill-rule="evenodd"
+      d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
+      clip-rule="evenodd"></path>
+  </svg>
+  Account
+</a>
