@@ -236,7 +236,21 @@ targets in `firebase.json` by `.firebaserc` (create the extra sites with
   into `dist/account/`, so https://bikes.pizza/account/ is the same page as
   the account site, sharing the website's origin (and so its Firebase Auth
   session); the apex domain is on the Auth authorized-domains list for that
-  reason. Its custom domains are the apex (Firebase
+  reason.
+
+  The site is static, so content changes need a rebuild. The "Deploy
+  website" workflow (`.github/workflows/deploy-site.yml`) builds `site/`
+  from `main` and deploys only the home target; it runs on a
+  `repository_dispatch` event of type `sanity-content-changed`, or by hand.
+  Sanity sends that event through a webhook (Manage → API → Webhooks on the
+  project): URL `https://api.github.com/repos/<owner>/<repo>/dispatches`,
+  method POST, dataset `production`, trigger on create, update and delete,
+  filter `_type == "post"`, projection `{"event_type": "sanity-content-changed"}`,
+  and two HTTP headers: `Accept: application/vnd.github+json` and
+  `Authorization: Bearer <token>`, where the token is a fine-grained GitHub
+  personal access token for this repository with "Contents: read and write"
+  (the permission `repository_dispatch` requires). Sanity fires once per
+  publish, and the workflow's concurrency setting collapses bursts. Its custom domains are the apex (Firebase
   asks for an `A` record to its IP plus a `hosting-site=<site-id>` `TXT`
   record) and `www`, which is registered as a redirect to the apex (a CNAME
   to the site's `web.app` host).
