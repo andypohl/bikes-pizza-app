@@ -11,8 +11,9 @@
 // ghostMember:       the member's profile (name, email, newsletter choices)
 //                    for the hosted account page.
 // updateGhostMember: changes the member's name and/or newsletters.
-// submitPost:        stores a bike/pizza submission (photo + text) in
-//                    Firestore and Storage and emails the reviewer.
+// submitPost:        checks a bike/pizza submission's photo with Google
+//                    SafeSearch, stores it (photo + text) in Firestore and
+//                    Storage and emails the reviewer.
 // reviewSubmission:  admin only; publishes or drafts an approved submission
 //                    to Ghost from the Markdown template, or rejects it.
 // api:               HTTPS; the REST API behind /api/ on the submissions
@@ -20,6 +21,7 @@
 // postBikesQueue,    scheduled; post the oldest queued submission of the
 // postPizzaQueue:    feed at its posting times (schedule.js).
 
+import { GoogleAuth } from "google-auth-library";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
@@ -35,6 +37,7 @@ import { GhostAdminClient, GhostApiError } from "./ghost.js";
 import { processImage } from "./images.js";
 import { firestoreStore, resolveMember } from "./link.js";
 import { isMailConfigured, sendMail } from "./mail.js";
+import { inspectImage } from "./safesearch.js";
 import { TIME_ZONE, cronFor } from "./schedule.js";
 import { notificationEmail } from "./submission.js";
 import { firestoreSubmissionStore } from "./submission_store.js";
@@ -173,10 +176,14 @@ async function notify(submission, user) {
   }
 }
 
-/** The submission operations, bound to Firestore, Storage, Ghost and Mailgun. */
+// Cloud Vision is called with the function's own service account.
+const googleAuth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
+const safeSearch = (bytes) => inspectImage(bytes, { getToken: () => googleAuth.getAccessToken() });
+
+/** The submission operations, bound to Firestore, Storage, Vision, Ghost and Mailgun. */
 const service = {
   create: (data, user) =>
-    subs.createSubmission(data, user, { store: store(), processImage, notify, log: logger.info }),
+    subs.createSubmission(data, user, { store: store(), processImage, safeSearch, notify, log: logger.info }),
   review: (input, admin) =>
     subs.reviewSubmission(subs.parseReview(input), admin, {
       store: store(),

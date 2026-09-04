@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import { ValidationError } from "./account.js";
 import { AppError } from "./errors.js";
+import { SAFE_SEARCH_MESSAGE } from "./safesearch.js";
 import {
   createSubmission,
   dequeue,
@@ -104,13 +105,16 @@ const processImage = async () => ({
   full: { bytes: Buffer.from("full"), width: 20, height: 10 },
   thumb: { bytes: Buffer.from("thumb"), width: 4, height: 2 },
 });
+const CLEAN = { adult: "VERY_UNLIKELY", spoof: "UNLIKELY", medical: "VERY_UNLIKELY", violence: "VERY_UNLIKELY", racy: "UNLIKELY" };
+const safeSearch = async () => ({ ok: true, flagged: [], likelihoods: CLEAN });
 
 async function seeded() {
   const store = memoryStore();
-  await createSubmission(body, user, { store, processImage, notify: async () => true });
+  await createSubmission(body, user, { store, processImage, safeSearch, notify: async () => true });
   await createSubmission({ ...body, feed: "pizza", title: "Slice" }, user, {
     store,
     processImage,
+    safeSearch,
     notify: async () => false,
   });
   return store;
@@ -122,6 +126,7 @@ test("createSubmission stores the photos, the record and a download token", asyn
   const result = await createSubmission(body, user, {
     store,
     processImage,
+    safeSearch,
     notify: async (s, u) => notified.push([s.title, u.uid]) && true,
   });
   assert.deepEqual(result, { submissionId: "s1", notified: true });
@@ -134,10 +139,44 @@ test("createSubmission stores the photos, the record and a download token", asyn
   assert.deepEqual(notified, [["Trek 970", "u1"]]);
 });
 
+test("createSubmission inspects the processed photo and records the result", async () => {
+  const store = memoryStore();
+  const inspected = [];
+  await createSubmission(body, user, {
+    store,
+    processImage,
+    safeSearch: async (bytes) => inspected.push(bytes.toString()) && { ok: true, flagged: [], likelihoods: CLEAN },
+    notify: async () => true,
+  });
+  assert.deepEqual(inspected, ["full"]);
+  assert.deepEqual(store.docs.get("s1").safeSearch, CLEAN);
+  const item = (await listSubmissions({ status: "", limit: 5, afterId: "" }, { store })).items[0];
+  assert.deepEqual(item.safeSearch, CLEAN);
+});
+
+test("createSubmission stores nothing when the photo fails SafeSearch", async () => {
+  const store = memoryStore();
+  let notified = false;
+  await assert.rejects(
+    createSubmission(body, user, {
+      store,
+      processImage,
+      safeSearch: async () => {
+        throw new AppError("invalid-argument", SAFE_SEARCH_MESSAGE);
+      },
+      notify: async () => (notified = true),
+    }),
+    (e) => e.code === "invalid-argument" && e.message === SAFE_SEARCH_MESSAGE,
+  );
+  assert.equal(store.docs.size, 0);
+  assert.equal(store.files.size, 0);
+  assert.equal(notified, false);
+});
+
 test("createSubmission rejects invalid input before touching the store", async () => {
   const store = memoryStore();
   await assert.rejects(
-    createSubmission({ ...body, feed: "blog" }, user, { store, processImage, notify: async () => true }),
+    createSubmission({ ...body, feed: "blog" }, user, { store, processImage, safeSearch, notify: async () => true }),
     ValidationError,
   );
   assert.equal(store.docs.size, 0);
@@ -227,7 +266,7 @@ test("enqueue and dequeue check the feed and the status", async () => {
 
 test("queueInfo and queueItems describe the queue in order", async () => {
   const store = await seeded();
-  await createSubmission({ ...body, title: "Third" }, user, { store, processImage, notify: async () => true });
+  await createSubmission({ ...body, title: "Third" }, user, { store, processImage, safeSearch, notify: async () => true });
   await enqueue({ feed: "bikes", id: "s3", note: "" }, admin, { store, now: NOW });
   await enqueue({ feed: "bikes", id: "s1", note: "" }, admin, { store, now: NOW });
   const info = await queueInfo("bikes", { store, now: NOW });
@@ -248,7 +287,7 @@ test("queueInfo and queueItems describe the queue in order", async () => {
 
 test("submitNext posts the oldest entry and leaves the rest queued", async () => {
   const store = await seeded();
-  await createSubmission({ ...body, title: "Third" }, user, { store, processImage, notify: async () => true });
+  await createSubmission({ ...body, title: "Third" }, user, { store, processImage, safeSearch, notify: async () => true });
   await enqueue({ feed: "bikes", id: "s1", note: "first" }, admin, { store, now: NOW });
   await enqueue({ feed: "bikes", id: "s3", note: "" }, admin, { store, now: NOW });
   const posts = [];

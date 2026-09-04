@@ -181,6 +181,12 @@ function openDetail(row) {
   $("#d-title").textContent = d.title;
   $("#d-meta").textContent = `${FEED_LABEL[d.feed] ?? d.feed} · from ${d.from} <${d.submittedBy.email}> · ${when(d.createdAt)}`;
   $("#d-description").textContent = d.description || "(no description)";
+  const ss = d.safeSearch;
+  $("#d-safesearch").hidden = !ss;
+  if (ss) {
+    const pretty = (v) => (v ?? "unknown").toLowerCase().replace("_", " ");
+    $("#d-safesearch").textContent = `SafeSearch: adult ${pretty(ss.adult)} · racy ${pretty(ss.racy)} · violence ${pretty(ss.violence)}`;
+  }
   const full = d.image.photoUrl;
   $("#d-image").src = full || d.image.thumbUrl || "";
   $("#d-image-link").href = full || "#";
