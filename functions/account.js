@@ -1,5 +1,6 @@
-// Pure helpers for the account page's callables: shaping a Ghost member into
-// the profile the page shows, and validating the changes it sends back.
+// Pure helpers for the account callables: shaping a member record into the
+// profile the account page and the app show, and validating the changes
+// they send back.
 
 export class ValidationError extends Error {
   constructor(message) {
@@ -8,36 +9,33 @@ export class ValidationError extends Error {
   }
 }
 
-const MAX_NAME_LENGTH = 191; // Ghost's own limit on member names
+const MAX_NAME_LENGTH = 191;
 
 /**
  * The profile the account page shows: contact details plus every newsletter
  * the member could receive, flagged with whether they currently do.
  *
- * @param {{email: string, name?: string|null, status?: string, newsletters?: {id: string}[]}} member
- * @param {{id: string, name: string, description?: string|null, visibility?: string}[]} newsletters
+ * @param {{email: string, name?: string|null, newsletters?: string[]}} member
+ * @param {{id: string, name: string, description?: string|null}[]} newsletters
  */
 export function profile(member, newsletters) {
-  const subscribed = new Set((member.newsletters ?? []).map((n) => n.id));
-  const paidMember = member.status === "paid" || member.status === "comped";
+  const subscribed = new Set(member.newsletters ?? []);
   return {
     email: member.email,
     name: member.name ?? "",
-    newsletters: newsletters
-      .filter((n) => n.visibility !== "paid" || paidMember)
-      .map((n) => ({
-        id: n.id,
-        name: n.name,
-        description: n.description ?? "",
-        subscribed: subscribed.has(n.id),
-      })),
+    newsletters: newsletters.map((n) => ({
+      id: n.id,
+      name: n.name,
+      description: n.description ?? "",
+      subscribed: subscribed.has(n.id),
+    })),
   };
 }
 
 /**
- * Turns the account page's request into the patch `GhostAdminClient.updateMember`
- * accepts, refusing anything malformed. Newsletter IDs must be ones the
- * member is allowed to choose (see {@link profile}).
+ * Turns the account page's request into a patch for the member record,
+ * refusing anything malformed. Newsletter IDs must be ones the member may
+ * choose.
  *
  * @param {unknown} data  The callable's request data
  * @param {{id: string}[]} allowed  Newsletters the member may pick from

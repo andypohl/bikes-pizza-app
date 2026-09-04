@@ -62,11 +62,10 @@ class MemberProfile {
   }
 }
 
-/// Reads and updates the Ghost member behind the signed-in Firebase user.
+/// Reads and updates the member profile behind the signed-in Firebase user.
 ///
-/// The work happens in the `ghostMember` and `updateGhostMember` Cloud
-/// Functions, which resolve the member through the Firestore link and talk
-/// to the Ghost Admin API.
+/// The work happens in the `member` and `updateMember` Cloud Functions,
+/// which keep the profile in Firestore.
 abstract class MemberService {
   Future<MemberProfile> load();
 
@@ -84,11 +83,11 @@ class CloudFunctionsMemberService implements MemberService {
   final FirebaseFunctions _functions;
 
   @override
-  Future<MemberProfile> load() => _call('ghostMember', const {});
+  Future<MemberProfile> load() => _call('member', const {});
 
   @override
   Future<MemberProfile> update({String? name, List<String>? newsletters}) =>
-      _call('updateGhostMember', {'name': ?name, 'newsletters': ?newsletters});
+      _call('updateMember', {'name': ?name, 'newsletters': ?newsletters});
 
   Future<MemberProfile> _call(String name, Map<String, Object?> data) async {
     try {

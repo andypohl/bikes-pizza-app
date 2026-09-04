@@ -186,78 +186,43 @@ wraps all three providers. Sign in with Apple is offered on iOS only.
 See `docs/firebase.md` for an outline of how the Firebase project is
 structured and the console steps needed to rebuild it.
 
-## Ghost members (same accounts as the app)
+## Members
 
-Every Firebase user is also a Ghost member, so signing up in the app
-subscribes people to the newsletter just like signing up on the website.
-Ghost cannot verify Firebase users itself, so Cloud Functions bridge the two
-(`functions/index.js`, `functions/ghost.js`), all requiring a signed-in user
-with a verified email:
+Every Firebase user has a member profile in Firestore (`members/{uid}`,
+server-only): name and newsletter choices. Two Cloud Functions, both
+requiring a signed-in user with a verified email, are the only way in:
 
-- `ghostMember` / `updateGhostMember` read and change the member's name and
-  newsletter subscriptions. The app's Settings → Account → Manage account
-  screen (`lib/account/`) uses them, and adds a password change for
-  email/password accounts.
-- `ghostSignInUrl` returns a one-time Ghost sign-in URL. Only the website's
-  account page uses it (below); the app does not link to the website, since
-  it shows the same public content itself.
+- `member` returns the profile (email, name, and every newsletter with a
+  subscribed flag), creating it with defaults on first use. New members
+  start subscribed to the one newsletter (`functions/members.js`).
+- `updateMember` changes the name and/or the set of newsletters.
 
-The Firebase user ↔ Ghost member link is stored in Firestore (`users/{uid}`,
-server-only) after the first sign-in, so the two are matched by ID from then
-on and an email change on either side does not create a duplicate member.
+The app's Settings → Account → Manage account screen (`lib/account/`) and
+the website's account page use them; the app adds a password change for
+email/password accounts. Password accounts must verify their email first
+(Settings shows a "Verify your email" tile); Google and Apple accounts are
+verified already. Newsletter sending is not part of this app yet; the flag
+records the choice.
 
-Password accounts must verify their email first (Settings shows a
-"Verify your email" tile); Google and Apple accounts are verified already.
-Newsletter subscription for members created this way follows the Ghost
-site's defaults, the same as signing up on the website.
-
-Setup, once per Firebase project:
-
-```sh
-cd functions && npm install && cd ..
-cp functions/.env.example functions/.env   # set GHOST_ADMIN_API_URL
-firebase functions:secrets:set GHOST_ADMIN_API_KEY   # paste the Admin API key
-firebase deploy --only functions
-```
-
-The Ghost Admin API key and URL come from a custom integration in Ghost
-Admin (Settings → Integrations). The key is a secret and lives only in
-Secret Manager; the same integration's Content API key goes in
-`config/local.json` for the app.
-
-Run the function's unit tests with `npm test` inside `functions/`.
+Run the functions' unit tests with `npm test` inside `functions/`.
 
 ## Website sign-up (same accounts as the app)
 
-Ghost Pro cannot run code, so website sign-ups are routed through a small
-account page hosted on Firebase Hosting (`web/public/`). It signs people in
-with Firebase Auth (email/password, Google, or Apple once a Services ID is
-configured; see `docs/firebase.md`), then calls the same
-`ghostSignInUrl` function and sends the browser to the resulting URL, so
-they land on pizzapredator.com as a member. New email accounts must verify
-their address before that hand-off happens.
+Website sign-ups go through the account page (`web/public/`), which the
+website serves at https://bikes.pizza/account/ (see the Sanity section) and
+which is also its own Hosting site. It signs people in with Firebase Auth
+(email/password, Google, or Apple once a Services ID is configured; see
+`docs/firebase.md`) and sends them back to the site. New email accounts must
+verify their address first.
 
 The same page is the members' account screen (`?mode=account`): it shows the
 email and sign-in method, lets them edit their name and newsletter choices
-(through the `ghostMember` and `updateGhostMember` functions, which update
-the Ghost member), and, for email/password accounts, change their password
-or request a reset email. Sign out ends both the Firebase session and, via
-Portal's own sign-out route, the Ghost one.
+(through the `member` and `updateMember` functions) and, for email/password
+accounts, change their password or request a reset email.
 
-`web/ghost-code-injection.html` is a snippet for Ghost Admin → Settings →
-Code injection → Site header. It redirects Ghost's own Sign in / Subscribe /
-Account buttons and `#/portal/signin|signup|account` links to the account
-page (with a `mode` and a return path `r`), so Portal's own account screen
-is never shown; only its sign-out route is left to Portal. Ghost does not
-let integration keys edit settings, so it is pasted by hand: run
-
-```sh
-tools/ghost_code_injection.py
-```
-
-which fills in the account page URL and copies the snippet to the clipboard,
-then paste it into Ghost Admin → Settings → Code injection → Site header
-(replacing any earlier copy between the marker comments) and save.
+`web/ghost-code-injection.html` and `tools/ghost_code_injection.py` are the
+snippet that used to redirect the Ghost site's Portal buttons here; they are
+kept only until the Ghost site is retired.
 
 Both pages read their Firebase config from Hosting's reserved
 `/__/firebase/init.json`, so nothing project-specific is committed. They are

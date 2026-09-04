@@ -3,30 +3,20 @@ import { test } from "node:test";
 
 import { ValidationError, profile, validateUpdate } from "./account.js";
 
-const weekly = { id: "n1", name: "Weekly", description: "Every Friday", visibility: "members" };
-const paidOnly = { id: "n2", name: "Insiders", description: null, visibility: "paid" };
-const newsletters = [weekly, paidOnly];
+const weekly = { id: "n1", name: "Weekly", description: "Every Friday" };
+const extra = { id: "n2", name: "Extras", description: null };
+const newsletters = [weekly, extra];
 
-test("profile flags subscriptions and hides paid newsletters from free members", () => {
-  const member = { email: "a@b.c", name: null, status: "free", newsletters: [{ id: "n1" }] };
+test("profile flags the newsletters the member receives", () => {
+  const member = { email: "a@b.c", name: null, newsletters: ["n1"] };
   assert.deepEqual(profile(member, newsletters), {
     email: "a@b.c",
     name: "",
-    newsletters: [{ id: "n1", name: "Weekly", description: "Every Friday", subscribed: true }],
-  });
-});
-
-test("profile offers paid newsletters to paid and comped members", () => {
-  const member = { email: "a@b.c", name: "Ada", status: "comped", newsletters: [] };
-  const p = profile(member, newsletters);
-  assert.deepEqual(
-    p.newsletters.map((n) => [n.id, n.subscribed]),
-    [
-      ["n1", false],
-      ["n2", false],
+    newsletters: [
+      { id: "n1", name: "Weekly", description: "Every Friday", subscribed: true },
+      { id: "n2", name: "Extras", description: "", subscribed: false },
     ],
-  );
-  assert.equal(p.newsletters[1].description, "");
+  });
 });
 
 test("validateUpdate trims the name and de-duplicates newsletter IDs", () => {

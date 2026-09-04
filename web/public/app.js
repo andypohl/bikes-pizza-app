@@ -1,9 +1,8 @@
-// Pizza Predator account page.
+// bikes.pizza account page.
 //
 // Signs people in with Firebase Auth (the same user base as the app), then
-// either asks the ghostSignInUrl Cloud Function for a one-time Ghost sign-in
-// URL and sends the browser there, so they land on the website as a member,
-// or (mode=account) shows their account: name, newsletters and password.
+// either sends them on to the website (the Firebase session covers it) or
+// (mode=account) shows their account: name, newsletters and password.
 //
 // Query parameters:
 //   mode=signin|signup   which tab to open first (default signin)
@@ -31,7 +30,7 @@ import {
   httpsCallable,
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-functions.js";
 
-const SITE = "https://www.pizzapredator.com";
+const SITE = "https://bikes.pizza";
 // The same page is served at /account/ on the bikes.pizza site. There the
 // session lives on the site's own origin, so sign-in returns to the site
 // instead of handing off to Ghost, and sign-out goes back to the site.
@@ -49,9 +48,8 @@ const config = await fetch("/__/firebase/init.json").then((r) => r.json());
 const firebase = initializeApp(config);
 const auth = getAuth(firebase);
 const functions = getFunctions(firebase, "us-central1");
-const ghostSignInUrl = httpsCallable(functions, "ghostSignInUrl");
-const ghostMember = httpsCallable(functions, "ghostMember");
-const updateGhostMember = httpsCallable(functions, "updateGhostMember");
+const loadMember = httpsCallable(functions, "member");
+const updateMember = httpsCallable(functions, "updateMember");
 
 // What to do once someone is signed in: hand them to the site, or show the
 // account screen.
@@ -95,16 +93,9 @@ function setMode(next) {
   // The email is kept across modes so a member who subscribed before
   // passwords existed can go straight to creating one for that address.
   $("input[name=password]").value = "";
-  $("#legacy-notice").hidden = signup;
-  $("#signup-note").hidden = !signup;
-  emphasiseLegacyNotice(false);
   hideMessage();
 }
 
-function emphasiseLegacyNotice(on) {
-  $("#legacy-notice").classList.toggle("emphasised", on);
-  $("#legacy-title").textContent = on ? "Subscribed before we had passwords?" : "Subscribed before?";
-}
 
 function sanitizePath(value) {
   if (!value || !value.startsWith("/") || value.startsWith("//")) return "/";
@@ -175,17 +166,13 @@ function fail(error) {
   show("error");
 }
 
-// ---- the hand-off to Ghost -------------------------------------------------
+// ---- back to the site -----------------------------------------------------
 
-async function connectToSite() {
-  if (ON_SITE) return location.replace(redirectTo);
-  show("connecting");
-  try {
-    const { data } = await ghostSignInUrl({ redirectTo });
-    location.replace(data.url);
-  } catch (error) {
-    fail(error);
-  }
+function connectToSite() {
+  // Served from the site itself, return to where the person came from;
+  // otherwise the site's front page. The Firebase session already covers
+  // the site, so there is nothing to hand off.
+  location.replace(ON_SITE ? redirectTo : `${SITE}/`);
 }
 
 // ---- the account screen ---------------------------------------------------
@@ -204,7 +191,7 @@ function hasPassword(user) {
 async function showAccount(user) {
   show("loading");
   try {
-    const { data } = await ghostMember();
+    const { data } = await loadMember();
     renderProfile(user, data);
     show("account");
   } catch (error) {
@@ -256,7 +243,7 @@ $("#profile-form").addEventListener("submit", async (event) => {
   const newsletters = [...form.querySelectorAll("input[name=newsletter]:checked")].map((i) => i.value);
   busy(true);
   try {
-    const { data } = await updateGhostMember({ name: form.name.value, newsletters });
+    const { data } = await updateMember({ name: form.name.value, newsletters });
     renderProfile(auth.currentUser, data);
     say("Saved.", true);
   } catch (error) {
@@ -314,8 +301,7 @@ $("#go-site").addEventListener("click", () => connectToSite());
 $("#signout-account").addEventListener("click", async () => {
   handled = false;
   await signOut(auth);
-  // Portal's sign-out route ends the Ghost session too.
-  location.replace(ON_SITE ? "/" : `${SITE}/#/portal/signout`);
+  location.replace(ON_SITE ? "/" : `${SITE}/`);
 });
 
 // ---- events ---------------------------------------------------------------
@@ -345,13 +331,11 @@ $("#auth-form").addEventListener("submit", async (event) => {
   } catch (error) {
     const text = describe(error);
     if (text) say(text);
-    if (mode === "signin" && BAD_CREDENTIAL_CODES.has(error?.code)) emphasiseLegacyNotice(true);
   } finally {
     busy(false);
   }
 });
 
-$("#create-password").addEventListener("click", () => setMode("signup"));
 
 $("#forgot").addEventListener("click", async () => {
   const email = $("input[name=email]").value.trim();
@@ -436,8 +420,7 @@ for (const id of ["#signout-verify", "#signout-error"]) {
 
 // ---- start ----------------------------------------------------------------
 
-$("#site-link").href = ON_SITE ? redirectTo : SITE + redirectTo;
-if (ON_SITE) $("#site-link").textContent = "bikes.pizza";
+$("#site-link").href = ON_SITE ? redirectTo : `${SITE}/`;
 setMode(mode);
 
 onAuthStateChanged(auth, (user) => {

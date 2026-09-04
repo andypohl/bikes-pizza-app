@@ -1,16 +1,13 @@
 // Cloud Functions for the PizzaPredator app.
 //
-// All entry points require a Firebase user with a verified email. The member
-// callables work on the Ghost member linked to that user (users/{uid} in
-// Firestore; see link.js). Submissions are stored for review and, on
-// approval, posted to Ghost (submissions.js); they are reachable both as
-// callables and through the REST API in api.js.
+// All entry points require a Firebase user with a verified email. Member
+// profiles live in Firestore (members/{uid}; see members.js). Submissions
+// are stored for review and, on approval, posted to Ghost (submissions.js);
+// they are reachable both as callables and through the REST API in api.js.
 //
-// ghostSignInUrl:    one-time URL that opens the Ghost site as a signed-in
-//                    member, without a magic-link email.
-// ghostMember:       the member's profile (name, email, newsletter choices)
-//                    for the hosted account page.
-// updateGhostMember: changes the member's name and/or newsletters.
+// member:            the member's profile (name, email, newsletter choices)
+//                    for the account page and the app.
+// updateMember:      changes the member's name and/or newsletters.
 // submitPost:        checks a bike/pizza submission's photo with Google
 //                    SafeSearch, stores it (photo + text) in Firestore and
 //                    Storage and emails the reviewer.
@@ -35,7 +32,7 @@ import { createApi } from "./api.js";
 import { AppError, adminFromClaims, userFromClaims } from "./errors.js";
 import { GhostAdminClient, GhostApiError } from "./ghost.js";
 import { processImage } from "./images.js";
-import { firestoreStore, resolveMember } from "./link.js";
+import { NEWSLETTERS, firestoreMemberStore, loadMember, updateMember as applyMemberUpdate } from "./members.js";
 import { isMailConfigured, sendMail } from "./mail.js";
 import { inspectImage } from "./safesearch.js";
 import { TIME_ZONE, cronFor } from "./schedule.js";
@@ -98,44 +95,28 @@ async function guarded(uid, what, work) {
   }
 }
 
-/** Runs `work` with the caller's Ghost member. */
+/** Runs `work` with the caller's member record. */
 function withMember(request, what, work) {
   return guarded(request.auth?.uid, what, async () => {
     const user = verifiedUser(request);
-    const ghost = ghostClient();
-    const member = await resolveMember(user, { store: firestoreStore(getFirestore()), ghost });
-    return work({ user, ghost, member });
+    const store = firestoreMemberStore(getFirestore());
+    const member = await loadMember(user, { store });
+    return work({ user, store, member });
   });
 }
 
-export const ghostSignInUrl = onCall(options, (request) =>
-  withMember(request, "sign you in on the website", async ({ user, ghost, member }) => {
-    const redirectTo =
-      typeof request.data?.redirectTo === "string" ? request.data.redirectTo : undefined;
-    const url = await ghost.signInUrl(member.id, { redirectTo });
-    logger.info("ghost sign-in url issued", {
-      uid: user.uid,
-      created: member.created,
-      linked: member.linked,
-    });
-    return { url, created: member.created };
-  }),
+const memberOptions = { region: "us-central1" };
+
+export const member = onCall(memberOptions, (request) =>
+  withMember(request, "load your account", async ({ member }) => profile(member, NEWSLETTERS)),
 );
 
-export const ghostMember = onCall(options, (request) =>
-  withMember(request, "load your account", async ({ ghost, member }) => {
-    return profile(member, await ghost.listNewsletters());
-  }),
-);
-
-export const updateGhostMember = onCall(options, (request) =>
-  withMember(request, "save your changes", async ({ user, ghost, member }) => {
-    const newsletters = await ghost.listNewsletters();
-    const allowed = profile(member, newsletters).newsletters;
-    const patch = validateUpdate(request.data, allowed);
-    const updated = await ghost.updateMember(member.id, patch);
-    logger.info("ghost member updated", { uid: user.uid, fields: Object.keys(patch) });
-    return profile(updated, newsletters);
+export const updateMember = onCall(memberOptions, (request) =>
+  withMember(request, "save your changes", async ({ user, store }) => {
+    const patch = validateUpdate(request.data, NEWSLETTERS);
+    const updated = await applyMemberUpdate(user, patch, { store });
+    logger.info("member updated", { uid: user.uid, fields: Object.keys(patch) });
+    return profile(updated, NEWSLETTERS);
   }),
 );
 
