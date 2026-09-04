@@ -1,26 +1,30 @@
-/// Static configuration for talking to the Ghost site behind pizzapredator.com.
+/// Where posts come from: the public Sanity dataset behind bikes.pizza.
 ///
-/// The Ghost Content API key is supplied at build time so it never has to be
-/// committed to source control:
-///
-///   flutter run --dart-define-from-file=config/local.json
-///
-/// Create a key in Ghost Admin: Settings -> Integrations -> Add custom
-/// integration, then copy the "Content API key". The key is required; see
-/// [PostRepository.forConfig].
-class GhostConfig {
-  GhostConfig._();
+/// The dataset is public, so reads need no token. The identifiers are not
+/// secrets; they can still be overridden at build time with
+/// `--dart-define=SANITY_PROJECT_ID=...` / `SANITY_DATASET=...` to point a
+/// build at another project or dataset.
+class SanityConfig {
+  SanityConfig._();
 
-  /// Canonical site origin. The apex domain 301-redirects here.
-  static const String siteUrl = 'https://www.pizzapredator.com';
-
-  static const String contentApiKey = String.fromEnvironment(
-    'GHOST_CONTENT_API_KEY',
+  static const String projectId = String.fromEnvironment(
+    'SANITY_PROJECT_ID',
+    defaultValue: 'nva9b0ia',
   );
 
-  static bool get hasContentApiKey => contentApiKey.isNotEmpty;
+  static const String dataset = String.fromEnvironment(
+    'SANITY_DATASET',
+    defaultValue: 'production',
+  );
 
-  /// Posts fetched per page from the Content API.
+  /// Sanity API version (a date), see
+  /// https://www.sanity.io/docs/api-versioning
+  static const String apiVersion = '2025-02-19';
+
+  /// Canonical origin of the website that renders the same posts.
+  static const String siteUrl = 'https://bikes.pizza';
+
+  /// Posts fetched per page.
   static const int pageSize = 15;
 }
 

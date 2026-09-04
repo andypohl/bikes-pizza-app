@@ -1,16 +1,16 @@
 /// The three content feeds surfaced by the bottom navigation bar.
 enum PostFeed {
-  blog(label: 'Blog', tagSlugs: []),
+  blog(label: 'Blog', feeds: []),
   pizza(
     label: 'Pizza',
-    tagSlugs: ['pizza'],
+    feeds: ['pizza'],
     submitLabel: 'Submit Pizza',
     submitNoun: 'pizza',
     submitTitleHint: "(e.g. Domino's 14-inch Pepperoni)",
   ),
   bikes(
     label: 'Bikes',
-    tagSlugs: ['biking', 'off-road-biking'],
+    feeds: ['bikes'],
     submitLabel: 'Submit Bike',
     submitNoun: 'bike',
     submitTitleHint: '(e.g. 1991 Trek 970 mountain bike!)',
@@ -18,7 +18,7 @@ enum PostFeed {
 
   const PostFeed({
     required this.label,
-    required this.tagSlugs,
+    required this.feeds,
     this.submitLabel,
     this.submitNoun = 'submission',
     this.submitTitleHint,
@@ -36,8 +36,9 @@ enum PostFeed {
   /// Grey example text in the submission form's Title field.
   final String? submitTitleHint;
 
-  /// Ghost tag slugs that make up this feed. Empty means "every post".
-  final List<String> tagSlugs;
+  /// Values of the posts' `feed` field that make up this tab. Empty means
+  /// "every post".
+  final List<String> feeds;
 
-  bool get isFiltered => tagSlugs.isNotEmpty;
+  bool get isFiltered => feeds.isNotEmpty;
 }

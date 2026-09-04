@@ -34,57 +34,24 @@ flutter run --dart-define-from-file=config/local.json
 
 | Key                        | Purpose                                            |
 |----------------------------|----------------------------------------------------|
-| `GHOST_CONTENT_API_KEY`    | Full blog archive via the Ghost Content API        |
 | `SHOPIFY_STORE_DOMAIN`     | Store host for the Storefront API (see below)      |
 | `SHOPIFY_STOREFRONT_TOKEN` | Public Storefront API access token                 |
 
-`GHOST_CONTENT_API_KEY` is required; the app refuses to start without it.
 Leave the Shopify values empty to disable the store (the Store tab then
 shows a placeholder).
 
 ## Data sources
 
-The blog runs on Ghost (Ghost Pro). The app reads it through the **Ghost
-Content API**: full archive, paging, infinite scroll, and server-side tag
-filtering. Create a key in Ghost Admin (Settings → Integrations → Add
-custom integration → copy *Content API key*), put it in `config/local.json`
-as `GHOST_CONTENT_API_KEY`, and pass the file at build/run time:
-
-```sh
-flutter run --dart-define-from-file=config/local.json
-flutter build ipa --dart-define-from-file=config/local.json
-flutter build appbundle --dart-define-from-file=config/local.json
-```
-
-Content API keys grant read-only access to public content, so they are not
-secret in Ghost's model, but the key is still kept out of the repo. Without
-it the app throws on startup with a message naming the missing define.
-
-## Sanity (experimental)
-
-`studio/` holds a Sanity Studio with a `post` content model (title, slug,
-feed, main image, excerpt, Portable Text body, and a record of where imported
-posts came from). It is a trial of Sanity as a replacement for Ghost as the
-post store; the app still reads Ghost. See `studio/README.md` for running the
-Studio, deploying the schema, and importing posts from Ghost.
-
-`site/` is the public website at https://bikes.pizza/, an Astro site that
-renders the Sanity posts as a photo gallery (the Astro Frame Shift theme by
-Ema Suriano, adapted). It is statically built from the public dataset, so
-builds need no token; run `npm run build` in `site/` to produce `dist/`,
-which the `home` Hosting target serves. Content changes appear on the site
-after the "Deploy website" workflow rebuilds it, which a Sanity webhook
-triggers on every publish (setup in `docs/firebase.md`). See
-`site/README.md`.
-
-The site's header has a Sign in / Account button backed by the same
-Firebase Auth users as the app and the Ghost site. The build copies the
-account page (`web/public/`) into `dist/account/`, so the site and the
-account page share one origin and therefore one Firebase session: the
-button reads "Sign in" or "Account" accordingly, signing in returns to the
-page you came from, and signing out returns to the site. Served from
-`/account/`, the page skips the Ghost hand-off; served from its own Hosting
-site it behaves as before.
+Posts live in Sanity (see the Sanity section below). The app reads the public
+dataset directly through Sanity's API CDN with a GROQ query
+(`lib/data/sanity_post_repository.dart`): newest first, paged, and filtered
+by the `feed` field for the Pizza and Bikes tabs (the Blog tab is every
+post). Post bodies are Portable Text and are converted to HTML on the device
+(`lib/data/portable_text_html.dart`) for the existing HTML renderer; images
+come from Sanity's image CDN with size and format parameters. The project
+and dataset identifiers are in `lib/config.dart` and can be overridden with
+`--dart-define=SANITY_PROJECT_ID=...` / `SANITY_DATASET=...`. No key is
+needed because the dataset is public.
 
 ## Member submissions
 

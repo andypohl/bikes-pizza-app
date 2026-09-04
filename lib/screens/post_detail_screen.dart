@@ -30,7 +30,7 @@ class PostDetailScreen extends StatelessWidget {
         actions: [
           if (post.url.isNotEmpty)
             IconButton(
-              tooltip: 'Open on pizzapredator.com',
+              tooltip: 'Open on bikes.pizza',
               icon: const Icon(Icons.open_in_browser),
               onPressed: () => _open(post.url),
             ),
