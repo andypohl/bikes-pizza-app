@@ -48,7 +48,10 @@ class FakeAuthService implements AuthService {
   @override
   Future<void> signIn({required String email, required String password}) async {
     if (password != 'correct-horse') {
-      throw AuthException('Email or password is incorrect.');
+      throw AuthException(
+        'Email or password is incorrect.',
+        badCredentials: true,
+      );
     }
     _set(AppUser(uid: 'u1', email: email));
   }
@@ -416,9 +419,39 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('legacy members are pointed at creating a password', (
+    tester,
+  ) async {
+    await openSignIn(tester);
+    expect(find.byKey(const Key('legacy-notice')), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).at(0), 'old@example.com');
+    await tester.enterText(find.byType(TextField).at(1), 'guessing');
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
+    await tester.pumpAndSettle();
+    expect(find.text('Subscribed before we had passwords?'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('create-password')));
+    await tester.pumpAndSettle();
+
+    // Now in create-account mode with the email kept and the password cleared.
+    expect(find.widgetWithText(FilledButton, 'Create account'), findsOneWidget);
+    expect(find.byKey(const Key('legacy-notice')), findsNothing);
+    expect(
+      tester.widget<TextField>(find.byType(TextField).at(0)).controller?.text,
+      'old@example.com',
+    );
+    expect(
+      tester.widget<TextField>(find.byType(TextField).at(1)).controller?.text,
+      '',
+    );
+    expect(find.textContaining('subscription carries over'), findsOneWidget);
+  });
+
   testWidgets('Google button signs in and returns to Settings', (tester) async {
     await openSignIn(tester);
 
+    await tester.ensureVisible(find.byKey(const Key('google-sign-in')));
     await tester.tap(find.byKey(const Key('google-sign-in')));
     await tester.pumpAndSettle();
 
@@ -431,6 +464,7 @@ void main() {
     await openSignIn(tester);
     auth.cancelProviders = true;
 
+    await tester.ensureVisible(find.byKey(const Key('google-sign-in')));
     await tester.tap(find.byKey(const Key('google-sign-in')));
     await tester.pumpAndSettle();
 
@@ -466,6 +500,7 @@ void main() {
   ) async {
     ghost = FakeGhostSessionService();
     await openSignIn(tester);
+    await tester.ensureVisible(find.byKey(const Key('google-sign-in')));
     await tester.tap(find.byKey(const Key('google-sign-in')));
     await tester.pumpAndSettle();
 
@@ -480,6 +515,7 @@ void main() {
   testWidgets('member-site errors surface as a snackbar', (tester) async {
     ghost = FakeGhostSessionService()..fail = true;
     await openSignIn(tester);
+    await tester.ensureVisible(find.byKey(const Key('google-sign-in')));
     await tester.tap(find.byKey(const Key('google-sign-in')));
     await tester.pumpAndSettle();
 
@@ -517,6 +553,7 @@ void main() {
     tester,
   ) async {
     await openSignIn(tester);
+    await tester.ensureVisible(find.byKey(const Key('google-sign-in')));
     await tester.tap(find.byKey(const Key('google-sign-in')));
     await tester.pumpAndSettle();
 
