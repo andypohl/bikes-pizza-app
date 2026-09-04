@@ -124,7 +124,8 @@ Current:
   `rejected`), `createdAt`, `image` (`path`, `thumbPath`, `contentType`,
   `width`, `height` in Storage), and `review` (null until reviewed; then
   `action`, `at`, `by`, `byEmail`, `note`, and for approvals `postId`,
-  `postUrl`, `postStatus`). `status` moves `pending` → `queued` → `posting`
+  `postUrl`, `postStatus`), `safeSearch` (Vision's likelihood per category,
+  shown to reviewers). `status` moves `pending` → `queued` → `posting`
   → `approved` for publishing (or `pending` → `approved` for drafts and
   `pending` → `rejected`); `queue` (`at`, `by`, `byEmail`, `note`, and after
   posting `postedAt`, or `lastError` if a scheduled post failed) records the
@@ -179,8 +180,11 @@ first use by email).
   newsletters they receive, validated against that same profile.
 - `submitPost`: takes a member's bike or pizza submission (photo as base64,
   title, from, description), normalises the photo and makes a thumbnail
-  (sharp), stores both in Cloud Storage and a `submissions` document in
-  Firestore, and emails `SUBMISSION_NOTIFY_EMAIL` through Mailgun with a
+  (sharp), runs the photo through Cloud Vision SafeSearch (the request is
+  refused with a user-facing message when `adult` or `violence` is
+  LIKELY or above, or `racy` is VERY_LIKELY; thresholds in
+  `functions/safesearch.js`), stores both images in Cloud Storage and a
+  `submissions` document in Firestore, and emails `SUBMISSION_NOTIFY_EMAIL` through Mailgun with a
   link to the review page (`REVIEW_PAGE_URL`, the submissions domain when
   empty). Needs the `MAILGUN_API_KEY` secret and `MAILGUN_DOMAIN`; without
   them or the recipient the email step is skipped. `SUBMISSION_FROM_EMAIL`
@@ -273,19 +277,22 @@ Keep this list current. It is the checklist for rebuilding the project.
    `firebase apps:create WEB` (used by Hosting's reserved config URL).
 5. Create the Firestore database (choose a region close to Chicago; the
    Ghost site's timezone is America/Chicago) and the default Storage bucket.
-6. Deploy rules, indexes, and functions from the repo with `firebase deploy`.
-7. Install the Resize Images extension and point it at the bucket.
-8. Set Functions secrets with the CLI (`firebase functions:secrets:set`),
+6. Enable the Cloud Vision API (`vision.googleapis.com`) for the SafeSearch
+   check; the functions call it with their own service account, so no key
+   is needed.
+7. Deploy rules, indexes, and functions from the repo with `firebase deploy`.
+8. Install the Resize Images extension and point it at the bucket.
+9. Set Functions secrets with the CLI (`firebase functions:secrets:set`),
    currently the Ghost Admin API key, and create `functions/.env` from the
    example file.
-9. For deploys from GitHub Actions, create a service account in the Google
+10. For deploys from GitHub Actions, create a service account in the Google
    Cloud console (IAM & Admin → Service Accounts) used only for deploys, with
    these roles: Cloud Functions Admin, Cloud Run Admin, Cloud Build Editor,
    Artifact Registry Administrator, Service Account User, Secret Manager
    Viewer, Service Usage Consumer, Cloud Scheduler Admin, Firebase Hosting Admin, Firebase Rules
    Admin, Cloud Datastore Index Admin, Cloud Storage for Firebase Admin. Do
    not create a key for it.
-10. Set up keyless access for GitHub Actions (Workload Identity Federation):
+11. Set up keyless access for GitHub Actions (Workload Identity Federation):
     enable the IAM Credentials and STS APIs; create a workload identity pool
     with an OIDC provider whose issuer is
     `https://token.actions.githubusercontent.com`, mapping

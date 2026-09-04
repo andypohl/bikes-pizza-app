@@ -15,10 +15,14 @@ export const REVIEW_ACTIONS = ["publish", "draft", "reject"];
 export const DEFAULT_PAGE = 20;
 export const MAX_PAGE = 50;
 
-/** Stores a validated submission with its processed photo. */
-export async function createSubmission(data, user, { store, processImage, notify, log = () => {} }) {
+/**
+ * Stores a validated submission with its processed photo. `safeSearch`
+ * inspects the photo first (see safesearch.js) and throws when it fails.
+ */
+export async function createSubmission(data, user, { store, processImage, safeSearch, notify, log = () => {} }) {
   const submission = validateSubmission(data);
   const { full, thumb } = await processImage(submission.image.bytes);
+  const inspection = await safeSearch(full.bytes);
 
   const id = store.newId();
   const token = store.newToken();
@@ -38,7 +42,10 @@ export async function createSubmission(data, user, { store, processImage, notify
     store.putImage(image.path, full.bytes, options),
     store.putImage(image.thumbPath, thumb.bytes, options),
   ]);
-  await store.create(id, submissionRecord(submission, { uid: user.uid, email: user.email, image }));
+  await store.create(id, {
+    ...submissionRecord(submission, { uid: user.uid, email: user.email, image }),
+    safeSearch: inspection.likelihoods ?? null,
+  });
   log("submission stored", { uid: user.uid, feed: submission.feed, id });
 
   const notified = await notify(submission, user);
@@ -260,6 +267,7 @@ export async function serialise(item, store) {
       photoUrl: image.path ? store.imageUrl(image.path, token) : null,
       thumbUrl: image.thumbPath ? store.imageUrl(image.thumbPath, token) : null,
     },
+    safeSearch: item.safeSearch ?? null,
     queue: item.queue
       ? {
           at: iso(item.queue.at),

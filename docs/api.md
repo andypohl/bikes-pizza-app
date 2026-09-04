@@ -89,9 +89,12 @@ Creates a submission for the signed-in member (the same body the
 }
 ```
 
-The image may be up to 8 MB before encoding. Returns
-`{ "submissionId", "notified" }`, where `notified` says whether the
-reviewer email went out.
+The image may be up to 8 MB before encoding. The photo is checked with
+Google Cloud Vision SafeSearch before anything is stored; one that fails
+answers `400` with the message "Your photo failed Google SafeSearch
+inspection. Please choose a different photo." (see `functions/safesearch.js`
+for the thresholds). Returns `{ "submissionId", "notified" }`, where
+`notified` says whether the reviewer email went out.
 
 ## Queues
 
@@ -171,6 +174,7 @@ the schedule. Returns `{ "posted": Submission | null, ...countdown fields }`;
   "createdAt": "2026-09-04T16:00:00.000Z",
   "submittedBy": { "uid": "…", "email": "…" },
   "image": { "width": 2048, "height": 1536, "photoUrl": "https://…", "thumbUrl": "https://…" },
+  "safeSearch": { "adult": "VERY_UNLIKELY", "spoof": "UNLIKELY", "medical": "VERY_UNLIKELY", "violence": "VERY_UNLIKELY", "racy": "UNLIKELY" },
   "queue": null | {
     "at": "…", "by": "<uid>", "byEmail": "…", "note": "…",
     "postedAt": "…" | null, "lastError": "…" | null
