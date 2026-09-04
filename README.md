@@ -68,15 +68,22 @@ title, who it is from, and a description or story. Submitting calls the
 `submitPost` Cloud Function, which uploads the photo to Ghost, creates a
 **draft** post tagged `pizza` or `biking` plus the internal `#submission`
 tag, with the photo as feature image and the text as body, and then emails
-the blog author. Nothing is published until the author edits and publishes
-the draft in Ghost Admin. The submitter's email is only in the notification
-email (as the reply-to), never in the post.
+a configured address. Nothing is published until someone edits and
+publishes the draft in Ghost Admin. The submitter's email is only in the
+notification email (as the reply-to), never in the post.
+
+Drafts are attributed to a dedicated Ghost staff account (its email in
+`SUBMISSION_AUTHOR_EMAIL`), so they are easy to tell apart from the owner's
+own drafts; if that account does not exist, Ghost's default author is used
+and a warning is logged. The staff account is a Ghost login only; it has
+nothing to do with Firebase, which only handles members.
 
 The email goes out over SMTP. Configure once per Firebase project:
 
 ```sh
-# Recipient (not secret): add SUBMISSION_NOTIFY_EMAIL to functions/.env and
-# as a repository variable for the deploy workflow.
+# Not secret: add SUBMISSION_NOTIFY_EMAIL (recipient) and
+# SUBMISSION_AUTHOR_EMAIL (staff account) to functions/.env and as
+# repository variables for the deploy workflow.
 # Credentials (secret), e.g. a Gmail app password:
 firebase functions:secrets:set SMTP_URL
 #   smtps://you%40gmail.com:app-password@smtp.gmail.com:465

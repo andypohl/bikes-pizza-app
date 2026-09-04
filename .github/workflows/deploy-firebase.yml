@@ -12,6 +12,7 @@
 #   GCP_DEPLOY_SERVICE_ACCOUNT      deploy service account email
 #   GHOST_ADMIN_API_URL             Ghost API URL for functions/.env
 #   SUBMISSION_NOTIFY_EMAIL         (optional) who to email about submissions
+#   SUBMISSION_AUTHOR_EMAIL         (optional) Ghost staff account for drafts
 name: Deploy to Firebase
 
 on:
@@ -57,6 +58,7 @@ jobs:
           test -n "${{ vars.GHOST_ADMIN_API_URL }}" || { echo "GHOST_ADMIN_API_URL variable is not set"; exit 1; }
           echo "GHOST_ADMIN_API_URL=${{ vars.GHOST_ADMIN_API_URL }}" > .env
           echo "SUBMISSION_NOTIFY_EMAIL=${{ vars.SUBMISSION_NOTIFY_EMAIL }}" >> .env
+          echo "SUBMISSION_AUTHOR_EMAIL=${{ vars.SUBMISSION_AUTHOR_EMAIL }}" >> .env
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2

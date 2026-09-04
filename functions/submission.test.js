@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { ValidationError } from "./account.js";
+import { GhostApiError } from "./ghost.js";
 import { isMailConfigured, sendMail, senderFrom } from "./mail.js";
 import {
   buildPost,
+  createDraft,
   notificationEmail,
   paragraphs,
   validateSubmission,
@@ -63,6 +65,52 @@ test("buildPost makes a tagged draft with the photo as feature image", () => {
   assert.deepEqual(post.tags, [{ name: "pizza" }, { name: "#submission" }]);
   assert.equal(post.html, "<p><em>Submitted by Ada &lt;script&gt;</em></p>\n<p>Tasty</p>");
   assert.equal(post.title, "Pepperoni");
+  assert.equal("authors" in post, false);
+});
+
+test("buildPost attributes the draft to the configured staff account", () => {
+  const post = buildPost({
+    feed: "bikes",
+    title: "T",
+    from: "A",
+    description: "",
+    imageUrl: "https://example.com/i.jpg",
+    authorEmail: "staff@example.com",
+  });
+  assert.deepEqual(post.authors, [{ email: "staff@example.com" }]);
+});
+
+test("createDraft retries without the author when Ghost rejects it", async () => {
+  const attempts = [];
+  const ghost = {
+    async createPost(post) {
+      attempts.push(post);
+      if (post.authors) {
+        throw new GhostApiError("Validation error, cannot edit post.", {
+          status: 422,
+          type: "ValidationError",
+        });
+      }
+      return { id: "p1" };
+    },
+  };
+  const warnings = [];
+  const post = { title: "T", authors: [{ email: "nobody@example.com" }] };
+  const result = await createDraft(ghost, post, (m) => warnings.push(m));
+  assert.equal(result.id, "p1");
+  assert.equal(attempts.length, 2);
+  assert.equal("authors" in attempts[1], false);
+  assert.equal(warnings.length, 1);
+
+  // Other failures propagate untouched, and no retry without an author.
+  const failing = { async createPost() { throw new GhostApiError("down", { status: 503 }); } };
+  await assert.rejects(createDraft(failing, post), /down/);
+  const rejecting = {
+    async createPost() {
+      throw new GhostApiError("bad", { status: 422, type: "ValidationError" });
+    },
+  };
+  await assert.rejects(createDraft(rejecting, { title: "T" }), /bad/);
 });
 
 test("notificationEmail names the submitter and links the editor", () => {

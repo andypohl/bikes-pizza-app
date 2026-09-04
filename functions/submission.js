@@ -2,6 +2,7 @@
 // draft post, and wording the notification email.
 
 import { ValidationError } from "./account.js";
+import { GhostApiError } from "./ghost.js";
 
 /** Feeds that accept submissions, keyed by the app's PostFeed name. */
 export const FEEDS = {
@@ -90,9 +91,10 @@ export function paragraphs(value) {
 /**
  * The draft post for Ghost. The submitter's email is deliberately left out
  * of the post (it goes in the notification email) so it cannot be published
- * by accident.
+ * by accident. `authorEmail`, if given, names the staff account the draft
+ * is attributed to.
  */
-export function buildPost({ feed, title, from, description, imageUrl }) {
+export function buildPost({ feed, title, from, description, imageUrl, authorEmail }) {
   const html = [
     `<p><em>Submitted by ${escapeHtml(from)}</em></p>`,
     paragraphs(description),
@@ -105,7 +107,26 @@ export function buildPost({ feed, title, from, description, imageUrl }) {
     status: "draft",
     feature_image: imageUrl,
     tags: [{ name: FEEDS[feed].tag }, { name: SUBMISSION_TAG }],
+    ...(authorEmail ? { authors: [{ email: authorEmail }] } : {}),
   };
+}
+
+/**
+ * Creates the draft. If Ghost rejects the configured author (no staff user
+ * with that email), the draft is created without one rather than losing the
+ * submission; `warn` is told about it.
+ */
+export async function createDraft(ghost, post, warn = () => {}) {
+  try {
+    return await ghost.createPost(post);
+  } catch (error) {
+    if (post.authors && error instanceof GhostApiError && error.type === "ValidationError") {
+      warn(`Ghost rejected the submission author (${error.message}); using the default author.`);
+      const { authors: _authors, ...withoutAuthor } = post;
+      return ghost.createPost(withoutAuthor);
+    }
+    throw error;
+  }
 }
 
 /** Subject and body for the email that tells the author about a new draft. */

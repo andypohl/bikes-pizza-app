@@ -165,9 +165,11 @@ first use by email).
   newsletters they receive, validated against that same profile.
 - `submitPost`: takes a member's bike or pizza submission (photo as base64,
   title, from, description), uploads the photo to Ghost, creates a draft
-  post, and emails the author. Needs the `SMTP_URL` secret (an smtps://
-  URL with the sender's credentials) and the `SUBMISSION_NOTIFY_EMAIL`
-  parameter in `functions/.env`; without them the email step is skipped.
+  post attributed to the staff account in `SUBMISSION_AUTHOR_EMAIL`, and
+  emails `SUBMISSION_NOTIFY_EMAIL`. Needs the `SMTP_URL` secret (an
+  smtps:// URL with the sender's credentials) for the email; without it or
+  the recipient the email step is skipped. Both email parameters live in
+  `functions/.env`.
   Runs with 512 MiB and a 2-minute timeout because of the image upload.
 
   Configuration: a Secret Manager secret holding the Ghost Admin API key

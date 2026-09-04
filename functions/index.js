@@ -22,7 +22,7 @@ import { ValidationError, profile, validateUpdate } from "./account.js";
 import { GhostAdminClient, GhostApiError } from "./ghost.js";
 import { firestoreStore, resolveMember } from "./link.js";
 import { isMailConfigured, sendMail } from "./mail.js";
-import { buildPost, notificationEmail, validateSubmission } from "./submission.js";
+import { buildPost, createDraft, notificationEmail, validateSubmission } from "./submission.js";
 
 initializeApp();
 
@@ -38,6 +38,9 @@ const smtpUrl = defineSecret("SMTP_URL");
 // Who to tell about new submissions; set in functions/.env. Empty disables
 // the email.
 const notifyEmail = defineString("SUBMISSION_NOTIFY_EMAIL", { default: "" });
+// Email of the Ghost staff account that submission drafts are attributed
+// to; set in functions/.env. Empty leaves Ghost's default author.
+const authorEmail = defineString("SUBMISSION_AUTHOR_EMAIL", { default: "" });
 
 const options = { region: "us-central1", secrets: [ghostAdminApiKey] };
 
@@ -119,8 +122,17 @@ export const submitPost = onCall(
     withMember(request, "send your submission", async ({ user, ghost }) => {
       const submission = validateSubmission(request.data);
       const imageUrl = await ghost.uploadImage(submission.image);
-      const post = await ghost.createPost(buildPost({ ...submission, imageUrl }));
-      logger.info("submission drafted", { uid: user.uid, feed: submission.feed, postId: post.id });
+      const post = await createDraft(
+        ghost,
+        buildPost({ ...submission, imageUrl, authorEmail: authorEmail.value().trim() }),
+        (message) => logger.warn(message),
+      );
+      logger.info("submission drafted", {
+        uid: user.uid,
+        feed: submission.feed,
+        postId: post.id,
+        author: post.primary_author?.email ?? null,
+      });
 
       let notified = false;
       const to = notifyEmail.value().trim();
