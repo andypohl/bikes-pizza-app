@@ -1,0 +1,128 @@
+// REST API for submissions, served at https://submissions.pizzapredator.com/api/
+// through a Hosting rewrite to the `api` function (see index.js). Every
+// request carries a Firebase ID token as `Authorization: Bearer <token>`.
+//
+//   GET  /api/me                        who the token belongs to
+//   GET  /api/submissions               admin; ?status=&limit=&after=
+//   GET  /api/submissions/:id           admin
+//   POST /api/submissions/:id/review    admin; {action, note}
+//   POST /api/submissions               verified user; same body as submitPost
+//
+// Errors are JSON: {"error": {"code": "...", "message": "..."}}.
+
+import cors from "cors";
+import express from "express";
+
+import { ValidationError } from "./account.js";
+import { AppError, adminFromClaims, userFromClaims } from "./errors.js";
+import { GhostApiError } from "./ghost.js";
+
+export const STATUS_FOR_CODE = {
+  "invalid-argument": 400,
+  unauthenticated: 401,
+  "permission-denied": 403,
+  "not-found": 404,
+  "failed-precondition": 409,
+  unavailable: 503,
+};
+
+// Base64 of an 8 MB photo plus the text fields.
+export const BODY_LIMIT = "12mb";
+
+/**
+ * Builds the Express app.
+ *
+ * `verifyToken(idToken)` resolves to the token's claims or rejects.
+ * `service` exposes create(data, user), list(query), get(id) and
+ * review(input, admin); see index.js for the wiring.
+ */
+export function createApi({ verifyToken, service, log = () => {} }) {
+  const app = express();
+  app.disable("x-powered-by");
+  app.set("trust proxy", true);
+  app.use(cors({ origin: true, methods: ["GET", "POST"], allowedHeaders: ["Authorization", "Content-Type"] }));
+  app.use(express.json({ limit: BODY_LIMIT }));
+
+  const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).then((body) => res.json(body), next);
+
+  const api = express.Router();
+  api.use(authMiddleware(verifyToken));
+
+  api.get("/me", wrap((req) => userFromClaims(req.claims)));
+
+  api.get(
+    "/submissions",
+    wrap((req) => {
+      adminFromClaims(req.claims);
+      return service.list(req.query);
+    }),
+  );
+
+  api.post(
+    "/submissions",
+    wrap((req) => service.create(req.body, userFromClaims(req.claims))),
+  );
+
+  api.get(
+    "/submissions/:id",
+    wrap((req) => {
+      adminFromClaims(req.claims);
+      return service.get(req.params.id);
+    }),
+  );
+
+  api.post(
+    "/submissions/:id/review",
+    wrap((req) => service.review({ ...req.body, id: req.params.id }, adminFromClaims(req.claims))),
+  );
+
+  app.use("/api", api);
+
+  app.use((req, res) => {
+    res.status(404).json({ error: { code: "not-found", message: "No such endpoint." } });
+  });
+
+  // eslint-disable-next-line no-unused-vars
+  app.use((error, req, res, next) => {
+    const { code, message } = describe(error);
+    if (code === "unavailable") log("api request failed", { path: req.path, message: error.message });
+    res.status(STATUS_FOR_CODE[code]).json({ error: { code, message } });
+  });
+
+  return app;
+}
+
+function authMiddleware(verifyToken) {
+  return async (req, res, next) => {
+    try {
+      const [scheme, token] = (req.get("authorization") ?? "").split(" ");
+      if (scheme !== "Bearer" || !token) throw new AppError("unauthenticated", "Sign in first.");
+      try {
+        req.claims = await verifyToken(token);
+      } catch {
+        throw new AppError("unauthenticated", "Your session has expired. Sign in again.");
+      }
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+}
+
+/** Maps any error to an API code and a message safe to show. */
+export function describe(error) {
+  if (error instanceof AppError && error.code in STATUS_FOR_CODE) {
+    return { code: error.code, message: error.message };
+  }
+  if (error instanceof ValidationError) return { code: "invalid-argument", message: error.message };
+  if (error instanceof GhostApiError && error.type === "ValidationError") {
+    return { code: "invalid-argument", message: error.message };
+  }
+  if (error?.type === "entity.too.large") {
+    return { code: "invalid-argument", message: `The request is too large (limit ${BODY_LIMIT}).` };
+  }
+  if (error?.type === "entity.parse.failed") {
+    return { code: "invalid-argument", message: "The request body is not valid JSON." };
+  }
+  return { code: "unavailable", message: "Something went wrong. Please try again." };
+}

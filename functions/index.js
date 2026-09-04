@@ -1,9 +1,10 @@
 // Cloud Functions for the PizzaPredator app.
 //
-// All callables require a Firebase user with a verified email. The member
-// ones work on the Ghost member linked to that user (users/{uid} in
-// Firestore; see link.js). The submission ones store member submissions
-// for review and, on approval, post them to Ghost.
+// All entry points require a Firebase user with a verified email. The member
+// callables work on the Ghost member linked to that user (users/{uid} in
+// Firestore; see link.js). Submissions are stored for review and, on
+// approval, posted to Ghost (submissions.js); they are reachable both as
+// callables and through the REST API in api.js.
 //
 // ghostSignInUrl:    one-time URL that opens the Ghost site as a signed-in
 //                    member, without a magic-link email.
@@ -14,20 +15,26 @@
 //                    Firestore and Storage and emails the reviewer.
 // reviewSubmission:  admin only; publishes or drafts an approved submission
 //                    to Ghost from the Markdown template, or rejects it.
+// api:               HTTPS; the REST API behind /api/ on the submissions
+//                    Hosting site (list, fetch, review, create).
 
 import { initializeApp } from "firebase-admin/app";
-import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
+import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
-import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import { defineSecret, defineString } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import { ValidationError, profile, validateUpdate } from "./account.js";
+import { createApi } from "./api.js";
+import { AppError, adminFromClaims, userFromClaims } from "./errors.js";
 import { GhostAdminClient, GhostApiError } from "./ghost.js";
 import { processImage } from "./images.js";
 import { firestoreStore, resolveMember } from "./link.js";
 import { isMailConfigured, sendMail } from "./mail.js";
-import { createPost, loadTemplate, renderPost, templateView } from "./post.js";
-import { notificationEmail, submissionRecord, validateSubmission } from "./submission.js";
+import { notificationEmail } from "./submission.js";
+import { firestoreSubmissionStore } from "./submission_store.js";
+import * as subs from "./submissions.js";
 
 initializeApp();
 
@@ -50,35 +57,16 @@ const fromEmail = defineString("SUBMISSION_FROM_EMAIL", { default: "" });
 // Email of the Ghost staff account that approved posts are attributed to;
 // empty leaves Ghost's default author.
 const authorEmail = defineString("SUBMISSION_AUTHOR_EMAIL", { default: "" });
-// Link put in the notification email; empty derives it from the project's
-// default Hosting site.
+// Link put in the notification email; empty means the submissions site.
 const reviewPageUrl = defineString("REVIEW_PAGE_URL", { default: "" });
 
 const options = { region: "us-central1", secrets: [ghostAdminApiKey] };
+const heavy = { memory: "512MiB", timeoutSeconds: 120 };
 
 /** The signed-in, verified user behind a callable request, or throws. */
-function verifiedUser(request) {
-  const auth = request.auth;
-  if (!auth) throw new HttpsError("unauthenticated", "Sign in first.");
-
-  const { email, email_verified: emailVerified, name } = auth.token;
-  if (!email) {
-    throw new HttpsError("failed-precondition", "Your account has no email address.");
-  }
-  // Without this check anyone could claim an existing member's email with a
-  // password account and act as them.
-  if (!emailVerified) {
-    throw new HttpsError("failed-precondition", "Verify your email address first.");
-  }
-  return { uid: auth.uid, email, name, admin: auth.token.admin === true };
-}
-
+const verifiedUser = (request) => userFromClaims(request.auth && { uid: request.auth.uid, ...request.auth.token });
 /** A verified user who also carries the `admin` custom claim. */
-function adminUser(request) {
-  const user = verifiedUser(request);
-  if (!user.admin) throw new HttpsError("permission-denied", "Admins only.");
-  return user;
-}
+const adminUser = (request) => adminFromClaims(request.auth && { uid: request.auth.uid, ...request.auth.token });
 
 function ghostClient() {
   return new GhostAdminClient({
@@ -93,6 +81,7 @@ async function guarded(uid, what, work) {
     return await work();
   } catch (error) {
     if (error instanceof HttpsError) throw error;
+    if (error instanceof AppError) throw new HttpsError(error.code, error.message);
     if (error instanceof ValidationError) throw new HttpsError("invalid-argument", error.message);
     if (error instanceof GhostApiError && error.type === "ValidationError") {
       throw new HttpsError("invalid-argument", error.message);
@@ -104,8 +93,8 @@ async function guarded(uid, what, work) {
 
 /** Runs `work` with the caller's Ghost member. */
 function withMember(request, what, work) {
-  const user = verifiedUser(request);
-  return guarded(user.uid, what, async () => {
+  return guarded(request.auth?.uid, what, async () => {
+    const user = verifiedUser(request);
     const ghost = ghostClient();
     const member = await resolveMember(user, { store: firestoreStore(getFirestore()), ghost });
     return work({ user, ghost, member });
@@ -145,7 +134,7 @@ export const updateGhostMember = onCall(options, (request) =>
 
 // ---- submissions -----------------------------------------------------------
 
-const submissions = () => getFirestore().collection("submissions");
+const store = () => firestoreSubmissionStore(getFirestore(), getStorage().bucket());
 
 function reviewUrl() {
   return reviewPageUrl.value().trim() || "https://submissions.pizzapredator.com/";
@@ -180,102 +169,41 @@ async function notify(submission, user) {
   }
 }
 
+/** The submission operations, bound to Firestore, Storage, Ghost and Mailgun. */
+const service = {
+  create: (data, user) =>
+    subs.createSubmission(data, user, { store: store(), processImage, notify, log: logger.info }),
+  review: (input, admin) =>
+    subs.reviewSubmission(subs.parseReview(input), admin, {
+      store: store(),
+      ghost: ghostClient(),
+      authorEmail: authorEmail.value().trim(),
+      warn: (message) => logger.warn(message),
+      log: logger.info,
+    }),
+  list: (query) => subs.listSubmissions(subs.parseListQuery(query), { store: store() }),
+  get: (id) => subs.getSubmission(id, { store: store() }),
+};
+
 export const submitPost = onCall(
-  { region: "us-central1", secrets: [mailgunApiKey], memory: "512MiB", timeoutSeconds: 120 },
-  (request) => {
-    const user = verifiedUser(request);
-    return guarded(user.uid, "send your submission", async () => {
-      const submission = validateSubmission(request.data);
-      const { full, thumb } = await processImage(submission.image.bytes);
-
-      const doc = submissions().doc();
-      const bucket = getStorage().bucket();
-      const image = {
-        path: `submissions/${doc.id}/photo.jpg`,
-        thumbPath: `submissions/${doc.id}/thumb.jpg`,
-        contentType: "image/jpeg",
-        width: full.width,
-        height: full.height,
-      };
-      const save = (path, bytes) =>
-        bucket.file(path).save(bytes, {
-          contentType: "image/jpeg",
-          resumable: false,
-          metadata: { metadata: { submissionId: doc.id, uid: user.uid } },
-        });
-      await Promise.all([save(image.path, full.bytes), save(image.thumbPath, thumb.bytes)]);
-
-      await doc.set({
-        ...submissionRecord(submission, { uid: user.uid, email: user.email, image }),
-        createdAt: FieldValue.serverTimestamp(),
-      });
-      logger.info("submission stored", { uid: user.uid, feed: submission.feed, id: doc.id });
-
-      const notified = await notify(submission, user);
-      return { submissionId: doc.id, notified };
-    });
-  },
+  { region: "us-central1", secrets: [mailgunApiKey], ...heavy },
+  (request) =>
+    guarded(request.auth?.uid, "send your submission", () =>
+      service.create(request.data, verifiedUser(request)),
+    ),
 );
 
-const REVIEW_ACTIONS = new Set(["publish", "draft", "reject"]);
+export const reviewSubmission = onCall({ ...options, ...heavy }, (request) =>
+  guarded(request.auth?.uid, "review the submission", () =>
+    service.review(request.data, adminUser(request)),
+  ),
+);
 
-export const reviewSubmission = onCall(
-  { ...options, memory: "512MiB", timeoutSeconds: 120 },
-  (request) => {
-    const admin = adminUser(request);
-    return guarded(admin.uid, "review the submission", async () => {
-      const { id, action } = request.data ?? {};
-      const note = typeof request.data?.note === "string" ? request.data.note.trim().slice(0, 1000) : "";
-      if (typeof id !== "string" || !id) throw new ValidationError("Submission id is required.");
-      if (!REVIEW_ACTIONS.has(action)) throw new ValidationError("Unknown review action.");
-
-      const ref = submissions().doc(id);
-      const snap = await ref.get();
-      if (!snap.exists) throw new HttpsError("not-found", "That submission no longer exists.");
-      const data = snap.data();
-      if (data.status === "approved") {
-        throw new HttpsError("failed-precondition", "That submission was already posted.");
-      }
-
-      const reviewedBy = { by: admin.uid, byEmail: admin.email, note };
-      if (action === "reject") {
-        await ref.update({
-          status: "rejected",
-          review: { ...reviewedBy, action, at: FieldValue.serverTimestamp() },
-        });
-        logger.info("submission rejected", { id, by: admin.uid });
-        return { status: "rejected" };
-      }
-
-      const ghost = ghostClient();
-      const [bytes] = await getStorage().bucket().file(data.image.path).download();
-      const imageUrl = await ghost.uploadImage({
-        bytes,
-        contentType: data.image.contentType ?? "image/jpeg",
-        filename: `${data.feed}-submission.jpg`,
-      });
-      const view = templateView({ ...data, createdAt: data.createdAt?.toDate?.() }, { imageUrl });
-      const rendered = renderPost(loadTemplate(), view);
-      const status = action === "publish" ? "published" : "draft";
-      const post = await createPost(
-        ghost,
-        rendered,
-        { status, authorEmail: authorEmail.value().trim() },
-        (message) => logger.warn(message),
-      );
-      await ref.update({
-        status: "approved",
-        review: {
-          ...reviewedBy,
-          action,
-          at: FieldValue.serverTimestamp(),
-          postId: post.id,
-          postUrl: post.url ?? null,
-          postStatus: post.status ?? status,
-        },
-      });
-      logger.info("submission posted", { id, by: admin.uid, postId: post.id, status: post.status });
-      return { status: "approved", postId: post.id, postUrl: post.url ?? null, postStatus: post.status };
-    });
-  },
+export const api = onRequest(
+  { region: "us-central1", secrets: [ghostAdminApiKey, mailgunApiKey], ...heavy },
+  createApi({
+    verifyToken: (token) => getAuth().verifyIdToken(token),
+    service,
+    log: (message, data) => logger.error(message, data),
+  }),
 );
