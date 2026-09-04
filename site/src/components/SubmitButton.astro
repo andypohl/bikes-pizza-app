@@ -1,11 +1,16 @@
 ---
 // "Submit a bike or pizza": goes to the submission form, or, for someone
 // who is not signed in, to the sign-in page with the form as the return path.
+// Shown only while the site setting `submitButton` is on (the API's
+// /api/site/settings, toggled from the review page), so submissions can be
+// steered to the app; it stays hidden until the setting is known and follows
+// changes live.
 ---
 
 <a
   id="submit-button"
   href="/submit/"
+  hidden
   class="inline-flex items-center gap-2 px-4 py-3 rounded-full bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-400 text-white dark:text-slate-900 text-sm font-medium tracking-wide transition-colors duration-200"
 >
   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -17,15 +22,23 @@
 
 <script>
   import { onAuth, signInHref } from '../scripts/auth';
+  import { watchSettings } from '../scripts/site-settings';
 
   let signedIn: boolean | null = null;
+  let enabled: boolean | null = null;
 
   function render() {
     const link = document.getElementById('submit-button') as HTMLAnchorElement | null;
-    if (!link || signedIn === null) return;
-    link.href = signedIn ? '/submit/' : signInHref('/submit/');
+    if (!link) return;
+    link.hidden = enabled !== true;
+    if (signedIn !== null) link.href = signedIn ? '/submit/' : signInHref('/submit/');
   }
 
+  render();
+  watchSettings((settings) => {
+    enabled = settings.submitButton;
+    render();
+  });
   onAuth((user, known) => {
     if (!known) return;
     signedIn = Boolean(user);

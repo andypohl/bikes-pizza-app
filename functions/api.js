@@ -13,6 +13,8 @@
 //   POST /api/queue/:feed/add           admin; {id, note}
 //   POST /api/queue/:feed/remove        admin; {id}
 //   POST /api/queue/:feed/submit-next   admin; posts the oldest entry now
+//   GET  /api/site/settings             public (no token); {submitButton}
+//   POST /api/site/settings             admin; {submitButton: boolean}
 //
 // Errors are JSON: {"error": {"code": "...", "message": "..."}}.
 
@@ -40,8 +42,9 @@ export const BODY_LIMIT = "12mb";
  * `verifyToken(idToken)` resolves to the token's claims or rejects.
  * `service` exposes create(data, user), list(query), get(id),
  * review(input, admin) and a `queue` with info(feed), items(feed),
- * add(input, admin), remove(input, admin) and submitNext(feed); see
- * index.js for the wiring.
+ * add(input, admin), remove(input, admin) and submitNext(feed), and a
+ * `site` with settings() and updateSettings(data, admin); see index.js for
+ * the wiring.
  */
 export function createApi({ verifyToken, service, log = () => {} }) {
   const app = express();
@@ -52,8 +55,22 @@ export function createApi({ verifyToken, service, log = () => {} }) {
 
   const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).then((body) => res.json(body), next);
 
+  // Read by the website at page load, so it needs no token and no caching.
+  app.get(
+    "/api/site/settings",
+    wrap(async (req, res) => {
+      res.set("Cache-Control", "no-store");
+      return service.site.settings();
+    }),
+  );
+
   const api = express.Router();
   api.use(authMiddleware(verifyToken));
+
+  api.post(
+    "/site/settings",
+    wrap((req) => service.site.updateSettings(req.body, adminFromClaims(req.claims))),
+  );
 
   api.get("/me", wrap((req) => userFromClaims(req.claims)));
 

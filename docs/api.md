@@ -191,3 +191,26 @@ the schedule. Returns `{ "posted": Submission | null, ...countdown fields }`;
 per-submission token, so they work in an `<img>` or an image widget without
 further authentication. Treat them as private: anyone holding the link can
 open the photo.
+
+## Site settings
+
+Settings the website reads when a page loads. Reading needs no token;
+changing them needs the `admin` claim.
+
+### `GET /api/site/settings`
+
+```json
+{ "submitButton": true }
+```
+
+`submitButton` says whether bikes.pizza shows the "Submit a bike or pizza"
+button and accepts submissions on `/submit/` (when off, that page explains
+that website submissions are closed and points at the app). Served with
+`Cache-Control: no-store`.
+
+### `POST /api/site/settings`
+
+Body: any subset of the settings, each with a value of the right type, for
+example `{ "submitButton": false }`. Returns the full settings. Unknown keys
+or wrong types answer `400`. The review page has a "Website submit button"
+checkbox in its header that calls this.

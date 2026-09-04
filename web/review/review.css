@@ -411,3 +411,21 @@ button.danger {
 #d-queue-actions {
   margin-top: 0.5rem;
 }
+
+/* Site settings toggle in the header */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.toggle input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: #d62828;
+}
+.toggle input:disabled + span {
+  opacity: 0.6;
+}

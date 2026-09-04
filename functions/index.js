@@ -15,7 +15,8 @@
 // reviewSubmission:  admin only; queues, drafts (in Sanity) or rejects a
 //                    pending submission.
 // api:               HTTPS; the REST API behind /api/ on the submissions
-//                    Hosting site (list, fetch, review, create, queues).
+//                    Hosting site (list, fetch, review, create, queues,
+//                    site settings such as the website's submit button).
 // postBikesQueue,    scheduled; post the oldest queued submission of the
 // postPizzaQueue:    feed at its posting times (schedule.js).
 
@@ -38,6 +39,7 @@ import { inspectImage } from "./safesearch.js";
 import { TIME_ZONE, cronFor } from "./schedule.js";
 import { notificationEmail } from "./submission.js";
 import { SanityClient } from "./sanity.js";
+import { firestoreSiteSettings, getSettings, updateSettings } from "./site_settings.js";
 import { firestoreSubmissionStore } from "./submission_store.js";
 import * as subs from "./submissions.js";
 
@@ -177,6 +179,11 @@ const service = {
     }),
   list: (query) => subs.listSubmissions(subs.parseListQuery(query), { store: store() }),
   get: (id) => subs.getSubmission(id, { store: store() }),
+  site: {
+    settings: () => getSettings({ store: firestoreSiteSettings(getFirestore()) }),
+    updateSettings: (data, admin) =>
+      updateSettings(data, admin, { store: firestoreSiteSettings(getFirestore()), log: logger.info }),
+  },
   queue: {
     info: (feed) => subs.queueInfo(feed, { store: store() }),
     items: (feed) => subs.queueItems(feed, { store: store() }),

@@ -1,8 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
-
-// The REST API behind the review site (docs/api.md). Same one the app uses.
-const apiUrl = import.meta.env.PUBLIC_API_URL || 'https://submissions.bikes.pizza';
+import { API_URL as apiUrl } from '../lib/api';
 ---
 
 <Layout title="Submit a bike or pizza | bikes.pizza" description="Send in a bike or a pizza for bikes.pizza.">
@@ -21,6 +19,13 @@ const apiUrl = import.meta.env.PUBLIC_API_URL || 'https://submissions.bikes.pizz
 
     <div id="submit-state" data-state="checking" data-api={apiUrl}>
       <p data-view="checking" class="text-stone-600 dark:text-slate-400 font-light">Checking your sign-in…</p>
+
+      <div data-view="closed" hidden>
+        <p class="text-stone-700 dark:text-gray-200 font-light mb-6">
+          Submissions on the website are closed right now. You can still send in a bike or a pizza from the bikes.pizza app.
+        </p>
+        <a href="/" class="px-5 py-3 rounded-full bg-stone-200 dark:bg-slate-700 hover:bg-stone-300 dark:hover:bg-slate-600 text-stone-800 dark:text-stone-100 text-sm font-medium">Back to bikes.pizza</a>
+      </div>
 
       <form id="submit-form" data-view="form" hidden class="space-y-8" novalidate>
         <fieldset>
@@ -138,6 +143,7 @@ const apiUrl = import.meta.env.PUBLIC_API_URL || 'https://submissions.bikes.pizz
 
 <script>
   import { onAuth, signInHref, type SiteUser } from '../scripts/auth';
+  import { watchSettings } from '../scripts/site-settings';
 
   const MAX_EDGE = 2048; // downscale photos before upload; the API's ceiling is 8 MB
 
@@ -150,6 +156,7 @@ const apiUrl = import.meta.env.PUBLIC_API_URL || 'https://submissions.bikes.pizz
   const preview = document.getElementById('photo-preview') as HTMLImageElement;
   const title = form.elements.namedItem('title') as HTMLInputElement;
   let user: SiteUser = null;
+  let open: boolean | null = null; // the site's submitButton setting
 
   function show(view: string) {
     root.dataset.state = view;
@@ -161,16 +168,35 @@ const apiUrl = import.meta.env.PUBLIC_API_URL || 'https://submissions.bikes.pizz
     error.hidden = !message;
   }
 
-  onAuth((next, known) => {
-    if (!known) return;
-    user = next;
+  function settle() {
+    // Both the setting and the sign-in state are needed before choosing a view.
+    if (open === null || root.dataset.state !== 'checking') return;
+    if (!open) {
+      show('closed');
+      return;
+    }
+    if (user === undefined) return;
     if (!user) {
       location.replace(signInHref('/submit/'));
       return;
     }
     const from = form.elements.namedItem('from') as HTMLInputElement;
     if (!from.value && user.displayName) from.value = user.displayName;
-    if (root.dataset.state === 'checking') show('form');
+    show('form');
+  }
+
+  let authKnown = false;
+  watchSettings((settings) => {
+    open = settings.submitButton;
+    if (root.dataset.state === 'closed' && open) root.dataset.state = 'checking';
+    if (root.dataset.state === 'form' && !open) show('closed');
+    if (authKnown) settle();
+  });
+  onAuth((next, known) => {
+    if (!known) return;
+    user = next;
+    authKnown = true;
+    settle();
   });
 
   for (const radio of form.querySelectorAll<HTMLInputElement>('input[name=feed]')) {

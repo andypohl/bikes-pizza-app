@@ -1,7 +1,7 @@
-// Shared Firebase Auth state for the site's client scripts. The web config
-// comes from Firebase Hosting's reserved URL, so nothing project-specific is
-// bundled; on a plain `astro preview` there is no config and `known` stays
-// false. The SDK is loaded from Google's CDN only when the config exists.
+// Shared Firebase Auth state for the site's client scripts (see firebase.ts
+// for how the app is initialised). On a plain `astro preview` there is no
+// config and `known` stays false.
+import { firebaseApp, sdk } from './firebase';
 
 export type SiteUser = {
   uid: string;
@@ -25,14 +25,10 @@ function notify() {
 async function start() {
   started = true;
   try {
-    const res = await fetch('/__/firebase/init.json');
-    if (!res.ok) return;
-    const config = await res.json();
-    const [{ initializeApp }, { getAuth, onAuthStateChanged }] = await Promise.all([
-      import('https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js'),
-      import('https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js'),
-    ]);
-    onAuthStateChanged(getAuth(initializeApp(config)), (next: SiteUser) => {
+    const app = await firebaseApp();
+    if (!app) return;
+    const { getAuth, onAuthStateChanged } = await sdk('auth');
+    onAuthStateChanged(getAuth(app), (next: SiteUser) => {
       user = next;
       known = true;
       notify();

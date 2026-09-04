@@ -119,6 +119,7 @@ async function load() {
     hasNext = Boolean(nextCursor);
     render();
     loadQueues();
+    loadSiteSettings();
   } catch (error) {
     say(describe(error) ?? "Could not load submissions.");
   } finally {
@@ -307,6 +308,34 @@ $("#auth-form").addEventListener("submit", async (event) => {
   }
 });
 $("#signout").addEventListener("click", () => signOut(auth));
+
+// ---- site settings (the website's submit button) ---------------------------
+
+const settingBox = $("#submit-button-setting");
+
+async function loadSiteSettings() {
+  try {
+    const settings = await api("/api/site/settings");
+    settingBox.checked = settings.submitButton;
+    settingBox.disabled = false;
+  } catch (error) {
+    settingBox.disabled = true;
+    console.warn("site settings unavailable", error);
+  }
+}
+
+settingBox.addEventListener("change", async () => {
+  settingBox.disabled = true;
+  try {
+    const settings = await api("/api/site/settings", { method: "POST", body: { submitButton: settingBox.checked } });
+    settingBox.checked = settings.submitButton;
+  } catch (error) {
+    settingBox.checked = !settingBox.checked;
+    alert(error.message ?? "Could not change the setting.");
+  } finally {
+    settingBox.disabled = false;
+  }
+});
 
 // ---- start ----------------------------------------------------------------
 
