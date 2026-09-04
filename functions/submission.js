@@ -1,5 +1,5 @@
 // Pure helpers for member submissions: checking the request, shaping the
-// stored record, and wording the notification email. Posting to Ghost
+// stored record, and wording the notification email. Publishing to Sanity
 // happens later, on approval; see post.js.
 
 import { ValidationError } from "./account.js";
@@ -10,11 +10,10 @@ export const FEEDS = {
   bikes: { noun: "bike" },
 };
 
-/** Internal Ghost tag (the # prefix keeps it off the public site). */
 
 export const IMAGE_TYPES = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-const MAX_TITLE = 255; // Ghost's limit
+const MAX_TITLE = 255;
 const MAX_FROM = 100;
 const MAX_DESCRIPTION = 10_000;
 

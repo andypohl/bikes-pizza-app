@@ -1,6 +1,6 @@
 # Firebase setup outline
 
-This is a plain-language record of how the PizzaPredator app's Firebase
+This is a plain-language record of how the bikes.pizza app's Firebase
 backend is put together, so the same structure could be rebuilt from scratch.
 It deliberately leaves out secrets, keys, and exact resource identifiers.
 Exact app and project identifiers live in `firebase.json` and
@@ -14,7 +14,7 @@ the intended shape and have not been created yet.
 - One Firebase project, used for both development and production. There is
   no separate dev project yet; if that changes, use Flutter flavors and run
   `flutterfire configure` once per project.
-- Owned by a dedicated Google account created for Pizza Predator, separate
+- Owned by a dedicated Google account created for this project, separate
   from personal accounts.
 - Billing: started on the free plan. Cloud Storage requires the
   pay-as-you-go plan, so expect to upgrade when the photo feature lands.
@@ -284,7 +284,7 @@ Apple sign-in does not need any of this.
 
 Keep this list current. It is the checklist for rebuilding the project.
 
-1. Create the Firebase project under the Pizza Predator Google account.
+1. Create the Firebase project under the project's Google account.
 2. Upgrade to the Blaze (pay-as-you-go) plan. Cloud Functions require it;
    Storage will too. Usage at this project's scale stays inside the free
    allowances.
@@ -295,15 +295,15 @@ Keep this list current. It is the checklist for rebuilding the project.
    from the repo root with the FlutterFire CLI installed, and a Web app with
    `firebase apps:create WEB` (used by Hosting's reserved config URL).
 5. Create the Firestore database (choose a region close to Chicago; the
-   Ghost site's timezone is America/Chicago) and the default Storage bucket.
+   posting schedule runs in America/Chicago) and the default Storage bucket.
 6. Enable the Cloud Vision API (`vision.googleapis.com`) for the SafeSearch
    check; the functions call it with their own service account, so no key
    is needed.
 7. Deploy rules, indexes, and functions from the repo with `firebase deploy`.
 8. Install the Resize Images extension and point it at the bucket.
-9. Set Functions secrets with the CLI (`firebase functions:secrets:set`),
-   currently the Ghost Admin API key, and create `functions/.env` from the
-   example file.
+9. Set Functions secrets with the CLI (`firebase functions:secrets:set`):
+   `SANITY_WRITE_TOKEN` (an Editor token for the Sanity project) and
+   `MAILGUN_API_KEY`; create `functions/.env` from the example file.
 10. For deploys from GitHub Actions, create a service account in the Google
    Cloud console (IAM & Admin → Service Accounts) used only for deploys, with
    these roles: Cloud Functions Admin, Cloud Run Admin, Cloud Build Editor,
@@ -322,8 +322,9 @@ Keep this list current. It is the checklist for rebuilding the project.
     account. Record the provider resource name and the service account email
     as GitHub repository variables `GCP_WORKLOAD_IDENTITY_PROVIDER` and
     `GCP_DEPLOY_SERVICE_ACCOUNT`. Also create a `production` GitHub
-    environment (optionally with required reviewers) and the repository
-    variable `GHOST_ADMIN_API_URL`.
+    environment (optionally with required reviewers); the other repository
+    variables the workflows read are listed at the top of each workflow
+    file.
 
 ## Rebuilding the app config
 

@@ -63,7 +63,7 @@ export function parseReview(data) {
 
 /**
  * Reviews a pending submission: `reject` records the decision, `draft`
- * creates a Ghost draft right away, and `publish` puts it in its feed's
+ * creates a Sanity draft right away, and `publish` puts it in its feed's
  * queue to be posted at the next scheduled time.
  */
 export async function reviewSubmission({ id, action, note }, admin, deps) {

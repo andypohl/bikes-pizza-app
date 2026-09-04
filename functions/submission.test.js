@@ -89,7 +89,7 @@ test("sendMail posts a Mailgun message with basic auth and reply-to", async () =
     {
       apiKey: "key-1",
       domain: "mg.x.com",
-      from: "Pizza Predator <submissions@x.com>",
+      from: "bikes.pizza <submissions@x.com>",
       to: "robot@x.com",
       subject: "s",
       text: "t",
@@ -105,7 +105,7 @@ test("sendMail posts a Mailgun message with basic auth and reply-to", async () =
     `Basic ${Buffer.from("api:key-1").toString("base64")}`,
   );
   const body = calls[0].init.body;
-  assert.equal(body.get("from"), "Pizza Predator <submissions@x.com>");
+  assert.equal(body.get("from"), "bikes.pizza <submissions@x.com>");
   assert.equal(body.get("to"), "robot@x.com");
   assert.equal(body.get("h:Reply-To"), "member@y.com");
 

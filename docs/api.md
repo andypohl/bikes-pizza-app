@@ -34,7 +34,7 @@ Failures are JSON with an HTTP status and a stable code:
 | 403    | `permission-denied`   | Admin endpoint without the claim                  |
 | 404    | `not-found`           | Unknown submission or endpoint                    |
 | 409    | `failed-precondition` | Unverified email; submission already posted       |
-| 503    | `unavailable`         | Ghost, Storage or another dependency failed       |
+| 503    | `unavailable`         | Sanity, Storage or another dependency failed      |
 
 Messages are safe to show to the person.
 
@@ -68,7 +68,7 @@ Body: `{ "action": "publish" | "draft" | "reject", "note": "optional, ≤1000 ch
 - `publish` puts the submission at the back of its feed's queue (see
   Queues) and returns `{ "status": "queued", "id", "position", "feed",
   "length", "nextPostAt", "seconds", "countdown", "clock" }`.
-- `draft` creates a Ghost draft right away from the Markdown template and
+- `draft` creates a Sanity draft right away and
   returns `{ "status": "approved", "postId", "postUrl", "postStatus" }`.
 - `reject` returns `{ "status": "rejected" }`.
 
@@ -158,7 +158,7 @@ Body `{ "id" }`. Takes a queued submission back to pending. Returns
 
 Posts the oldest queued submission to the blog now, without waiting for
 the schedule. Returns `{ "posted": Submission | null, ...countdown fields }`;
-`posted` is `null` when the queue was empty. A failure at Ghost answers
+`posted` is `null` when the queue was empty. A failure at Sanity answers
 `503` and leaves the entry queued.
 
 ## Submission

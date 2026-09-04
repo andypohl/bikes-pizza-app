@@ -227,7 +227,7 @@ async function review(action) {
     } else if (data.status === "approved") {
       say(
         data.postStatus === "draft"
-          ? "Saved as a draft in Ghost."
+          ? "Saved as a draft in Sanity."
           : `Published: ${data.postUrl ?? data.postId}`,
         true,
       );
