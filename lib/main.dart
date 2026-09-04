@@ -58,7 +58,7 @@ class BikesPizzaApp extends StatelessWidget {
   final SubmissionService? submissions;
   final PhotoPicker? photos;
 
-  static const _seed = Color(0xFFD62828); // tomato-sauce red
+  static const _seed = Color(0xFF80C6C4); // teal from the app icon
 
   @override
   Widget build(BuildContext context) {
