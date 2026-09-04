@@ -236,7 +236,7 @@ Two sites on the project, mapped to the `account` and `review` targets in
   password) in place of Ghost Portal's. The Ghost site's header code
   injection points at this site's URL.
 - The submissions site serves `web/review/`, the review page, at
-  https://submissions.pizzapredator.com/, and rewrites `/api/**` to the
+  https://submissions.bikes.pizza/, and rewrites `/api/**` to the
   `api` function so the REST API shares the origin. The custom domain is registered on
   that site in the Hosting console (or the Hosting REST API), which asks for
   a CNAME to the site's `web.app` host plus an ACME `TXT` record, both added

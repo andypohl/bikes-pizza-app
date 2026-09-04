@@ -226,7 +226,7 @@ class _SubmitScreenState extends State<SubmitScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Submissions go to Pizza Predator for review before anything '
+            'Submissions go to bikes.pizza for review before anything '
             'is published.',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall,
@@ -260,7 +260,7 @@ class _ThankYou extends StatelessWidget {
             Text('Thanks!', style: theme.textTheme.headlineSmall),
             const SizedBox(height: 8),
             Text(
-              'Your ${feed.submitNoun} is on its way to Pizza Predator. '
+              'Your ${feed.submitNoun} is on its way to bikes.pizza. '
               'Keep an eye on the blog.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium,

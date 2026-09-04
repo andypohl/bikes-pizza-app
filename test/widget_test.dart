@@ -336,7 +336,7 @@ void main() {
       PostFeed.bikes: [],
     });
     await tester.pumpWidget(
-      PizzaPredatorApp(
+      BikesPizzaApp(
         settings: AppSettings(),
         repository: repo,
         auth: auth,
@@ -368,7 +368,7 @@ void main() {
   testWidgets('Blog tab lists posts with thumbnails', (tester) async {
     await pumpApp(tester);
 
-    expect(find.text('Pizza Predator'), findsOneWidget);
+    expect(find.text('bikes.pizza'), findsOneWidget);
     expect(find.byType(PostTile), findsNWidgets(2));
     expect(find.byType(PostThumbnail), findsNWidgets(2));
 

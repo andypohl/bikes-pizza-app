@@ -1,7 +1,7 @@
 # Submissions REST API
 
 The review page and, in future, the app talk to submissions through a small
-REST API served at `https://submissions.pizzapredator.com/api/`. It is the
+REST API served at `https://submissions.bikes.pizza/api/`. It is the
 `api` Cloud Function (`functions/api.js`), reached through a Hosting rewrite
 on the submissions site, and shares its logic with the `submitPost` and
 `reviewSubmission` callables (`functions/submissions.js`).

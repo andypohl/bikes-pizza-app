@@ -60,7 +60,7 @@ class SubmissionResult {
   final bool notified;
 }
 
-/// Sends a member's submission to Pizza Predator for review.
+/// Sends a member's submission to bikes.pizza for review.
 abstract class SubmissionService {
   Future<SubmissionResult> submit(Submission submission);
 }

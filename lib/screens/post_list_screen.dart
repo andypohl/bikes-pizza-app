@@ -150,7 +150,7 @@ class _PostListScreenState extends State<PostListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.feed == PostFeed.blog ? 'Pizza Predator' : widget.feed.label,
+          widget.feed == PostFeed.blog ? 'bikes.pizza' : widget.feed.label,
         ),
       ),
       body: _buildBody(context),

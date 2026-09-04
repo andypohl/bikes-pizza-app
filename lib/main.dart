@@ -19,7 +19,7 @@ Future<void> main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   final settings = await AppSettings.load();
   runApp(
-    PizzaPredatorApp(
+    BikesPizzaApp(
       settings: settings,
       repository: PostRepository.forConfig(),
       store: StoreRepository.forConfig(),
@@ -31,8 +31,8 @@ Future<void> main() async {
   );
 }
 
-class PizzaPredatorApp extends StatelessWidget {
-  const PizzaPredatorApp({
+class BikesPizzaApp extends StatelessWidget {
+  const BikesPizzaApp({
     super.key,
     required this.settings,
     required this.repository,
@@ -67,7 +67,7 @@ class PizzaPredatorApp extends StatelessWidget {
       child: ListenableBuilder(
         listenable: settings,
         builder: (context, _) => MaterialApp(
-          title: 'Pizza Predator',
+          title: 'bikes.pizza',
           debugShowCheckedModeBanner: false,
           themeMode: settings.themeMode,
           theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: _seed)),
