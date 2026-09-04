@@ -1,6 +1,8 @@
 // Sends the submission notification over SMTP. The SMTP_URL secret looks
-// like smtps://user%40example.com:app-password@smtp.example.com:465; the
-// sender address is the URL's user name.
+// like smtps://user%40example.com:password@smtp.example.com:465 (Gmail with
+// an app password, Mailgun's SMTP credentials, etc.). The sender address
+// defaults to the URL's user name; pass `from` to use another address the
+// provider allows.
 
 import nodemailer from "nodemailer";
 
@@ -13,10 +15,10 @@ export function senderFrom(smtpUrl) {
 }
 
 /**
- * @param {{smtpUrl: string, to: string, subject: string, text: string, replyTo?: string}} options
+ * @param {{smtpUrl: string, to: string, subject: string, text: string, replyTo?: string, from?: string}} options
  * @param {(url: string) => {sendMail: Function}} [createTransport]
  */
-export async function sendMail({ smtpUrl, to, subject, text, replyTo }, createTransport) {
+export async function sendMail({ smtpUrl, to, subject, text, replyTo, from }, createTransport) {
   const transport = (createTransport ?? nodemailer.createTransport)(smtpUrl);
-  await transport.sendMail({ from: senderFrom(smtpUrl), to, subject, text, replyTo });
+  await transport.sendMail({ from: from || senderFrom(smtpUrl), to, subject, text, replyTo });
 }

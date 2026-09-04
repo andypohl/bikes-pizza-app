@@ -38,6 +38,8 @@ const smtpUrl = defineSecret("SMTP_URL");
 // Who to tell about new submissions; set in functions/.env. Empty disables
 // the email.
 const notifyEmail = defineString("SUBMISSION_NOTIFY_EMAIL", { default: "" });
+// Sender address for the notification; empty means the SMTP user name.
+const fromEmail = defineString("SUBMISSION_FROM_EMAIL", { default: "" });
 // Email of the Ghost staff account that submission drafts are attributed
 // to; set in functions/.env. Empty leaves Ghost's default author.
 const authorEmail = defineString("SUBMISSION_AUTHOR_EMAIL", { default: "" });
@@ -144,7 +146,13 @@ export const submitPost = onCall(
             post,
             adminUrl: ghostAdminApiUrl.value(),
           });
-          await sendMail({ smtpUrl: smtpUrl.value(), to, replyTo: user.email, ...mail });
+          await sendMail({
+            smtpUrl: smtpUrl.value(),
+            to,
+            from: fromEmail.value().trim() || undefined,
+            replyTo: user.email,
+            ...mail,
+          });
           notified = true;
         } catch (error) {
           // The draft exists either way; do not fail the submission.

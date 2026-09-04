@@ -146,4 +146,10 @@ test("mail helpers parse the SMTP URL and pass the message through", async () =>
       { from: "u@x.com", to: "o@x.com", subject: "s", text: "t", replyTo: "r@x.com" },
     ],
   ]);
+
+  await sendMail(
+    { smtpUrl: "smtps://postmaster%40mg.x.com:p@smtp.mailgun.org:465", to: "o@x.com", subject: "s", text: "t", from: "submissions@x.com" },
+    (url) => ({ sendMail: async (m) => sent.push([url, m]) }),
+  );
+  assert.equal(sent[1][1].from, "submissions@x.com");
 });

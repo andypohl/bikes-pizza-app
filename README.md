@@ -78,15 +78,18 @@ own drafts; if that account does not exist, Ghost's default author is used
 and a warning is logged. The staff account is a Ghost login only; it has
 nothing to do with Firebase, which only handles members.
 
-The email goes out over SMTP. Configure once per Firebase project:
+The email goes out over SMTP, so any provider with SMTP credentials works
+(Mailgun's per-domain SMTP login, a Gmail app password, ...). Configure
+once per Firebase project:
 
 ```sh
-# Not secret: add SUBMISSION_NOTIFY_EMAIL (recipient) and
-# SUBMISSION_AUTHOR_EMAIL (staff account) to functions/.env and as
+# Not secret: add SUBMISSION_NOTIFY_EMAIL (recipient), SUBMISSION_AUTHOR_EMAIL
+# (staff account) and optionally SUBMISSION_FROM_EMAIL (sender, when the SMTP
+# login is not the address you want to send from) to functions/.env and as
 # repository variables for the deploy workflow.
-# Credentials (secret), e.g. a Gmail app password:
+# Credentials (secret):
 firebase functions:secrets:set SMTP_URL
-#   smtps://you%40gmail.com:app-password@smtp.gmail.com:465
+#   smtps://user%40example.com:password@smtp.example.com:465
 ```
 
 Without both, the draft is still created and the email is skipped with a

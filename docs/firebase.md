@@ -167,8 +167,9 @@ first use by email).
   title, from, description), uploads the photo to Ghost, creates a draft
   post attributed to the staff account in `SUBMISSION_AUTHOR_EMAIL`, and
   emails `SUBMISSION_NOTIFY_EMAIL`. Needs the `SMTP_URL` secret (an
-  smtps:// URL with the sender's credentials) for the email; without it or
-  the recipient the email step is skipped. Both email parameters live in
+  smtps:// URL with the provider's SMTP credentials) for the email; without
+  it or the recipient the email step is skipped. `SUBMISSION_FROM_EMAIL`
+  optionally overrides the sender address. The email parameters live in
   `functions/.env`.
   Runs with 512 MiB and a 2-minute timeout because of the image upload.
 
