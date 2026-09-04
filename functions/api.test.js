@@ -12,6 +12,8 @@ const TOKENS = {
 };
 
 const calls = [];
+const settingsState = { submitButton: true };
+
 const service = {
   list: async (query) => {
     calls.push(["list", { ...query }]);
@@ -31,6 +33,15 @@ const service = {
   create: async (data, user) => {
     calls.push(["create", data.title, user.uid]);
     return { submissionId: "s9", notified: false };
+  },
+  site: {
+    settings: async () => ({ submitButton: settingsState.submitButton }),
+    updateSettings: async (data, admin) => {
+      calls.push(["settings", data, admin.uid]);
+      if (typeof data?.submitButton !== "boolean") throw new ValidationError("Nothing to update.");
+      settingsState.submitButton = data.submitButton;
+      return { submitButton: settingsState.submitButton };
+    },
   },
   queue: {
     info: async (feed) => {
@@ -172,4 +183,21 @@ test("describe hides unexpected errors", () => {
     message: "Something went wrong. Please try again.",
   });
   assert.equal(describe(new AppError("weird-code", "x")).code, "unavailable");
+});
+
+test("site settings: public read, admin-only write, validated", async () => {
+  const anonRes = await fetch(base + "/api/site/settings");
+  assert.equal(anonRes.status, 200);
+  assert.equal(anonRes.headers.get("cache-control"), "no-store");
+  assert.deepEqual(await anonRes.json(), { submitButton: true });
+
+  const user = await call("/api/site/settings", { token: "member", method: "POST", body: { submitButton: false } });
+  assert.equal(user.status, 403);
+  const bad = await call("/api/site/settings", { token: "admin", method: "POST", body: { submitButton: "no" } });
+  assert.equal(bad.status, 400);
+  const off = await call("/api/site/settings", { token: "admin", method: "POST", body: { submitButton: false } });
+  assert.equal(off.status, 200);
+  assert.deepEqual(off.body, { submitButton: false });
+  assert.deepEqual((await call("/api/site/settings")).body, { submitButton: false });
+  await call("/api/site/settings", { token: "admin", method: "POST", body: { submitButton: true } });
 });

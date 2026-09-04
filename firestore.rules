@@ -1,10 +1,17 @@
 rules_version = '2';
 
-// Firestore is read and written only by Cloud Functions through the Admin
-// SDK, which bypasses these rules. The review page and the app reach
-// submissions through the REST API, so no client access is allowed.
+// Firestore is written only by Cloud Functions through the Admin SDK, which
+// bypasses these rules. The review page and the app reach submissions
+// through the REST API. The one exception is the website's settings
+// document, which the site listens to in real time so a change (such as
+// hiding the submit button) shows without a reload; it holds nothing
+// private.
 service cloud.firestore {
   match /databases/{database}/documents {
+    match /settings/site {
+      allow read: if true;
+      allow write: if false;
+    }
     match /{document=**} {
       allow read, write: if false;
     }
