@@ -6,12 +6,11 @@ import { ValidationError } from "./account.js";
 
 /** Feeds that accept submissions, keyed by the app's PostFeed name. */
 export const FEEDS = {
-  pizza: { tag: "pizza", noun: "pizza" },
-  bikes: { tag: "biking", noun: "bike" },
+  pizza: { noun: "pizza" },
+  bikes: { noun: "bike" },
 };
 
 /** Internal Ghost tag (the # prefix keeps it off the public site). */
-export const SUBMISSION_TAG = "#submission";
 
 export const IMAGE_TYPES = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;

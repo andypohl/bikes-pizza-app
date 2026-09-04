@@ -21,7 +21,6 @@ import express from "express";
 
 import { ValidationError } from "./account.js";
 import { AppError, adminFromClaims, userFromClaims } from "./errors.js";
-import { GhostApiError } from "./ghost.js";
 
 export const STATUS_FOR_CODE = {
   "invalid-argument": 400,
@@ -162,9 +161,6 @@ export function describe(error) {
     return { code: error.code, message: error.message };
   }
   if (error instanceof ValidationError) return { code: "invalid-argument", message: error.message };
-  if (error instanceof GhostApiError && error.type === "ValidationError") {
-    return { code: "invalid-argument", message: error.message };
-  }
   if (error?.type === "entity.too.large") {
     return { code: "invalid-argument", message: `The request is too large (limit ${BODY_LIMIT}).` };
   }

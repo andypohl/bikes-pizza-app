@@ -156,9 +156,8 @@ The default bucket, in the same region as the functions. Rules live in
 - `submissions/{id}/photo.jpg` and `thumb.jpg`: a submission's normalised
   photo and its thumbnail, written by the `submitPost` function with a
   download token that the REST API's photo links carry; no rule-based
-  client access. Approved photos
-  are copied into Ghost's media library on publish, so the bucket is not
-  referenced by the blog.
+  client access. Approved photos are uploaded to Sanity as image assets on
+  publish, so the bucket is not referenced by the website.
 
 ## Cloud Functions
 
@@ -186,11 +185,11 @@ defaults on first use.
   empty). Needs the `MAILGUN_API_KEY` secret and `MAILGUN_DOMAIN`; without
   them or the recipient the email step is skipped. `SUBMISSION_FROM_EMAIL`
   optionally sets the sender and `MAILGUN_API_BASE` the API region.
-- `reviewSubmission` (admins only, i.e. the `admin` custom claim): publishes
-  or drafts a pending submission to Ghost from the Markdown template in
-  `functions/templates/`, attributed to `SUBMISSION_AUTHOR_EMAIL`, or
-  rejects it. Records the outcome on the submission document.
-  Runs with 512 MiB and a 2-minute timeout because of the image upload.
+- `reviewSubmission` (admins only, i.e. the `admin` custom claim): queues a
+  pending submission for posting, creates it as a Sanity draft
+  (`functions/post.js`), or rejects it. Records the outcome on the
+  submission document. Runs with 512 MiB and a 2-minute timeout because of
+  the image upload.
 - `api` (HTTPS, not a callable): the REST API in `functions/api.js`, which
   wraps the same submission logic (list, fetch, review, create, queues) for
   the review page and the app. Served through the submissions Hosting
@@ -201,25 +200,24 @@ defaults on first use.
   America/Chicago so daylight saving is followed). They are Cloud Scheduler
   jobs, so deploying them needs the Cloud Scheduler API enabled and the
   deployer to hold Cloud Scheduler Admin. Approving a submission (`publish`)
-  queues it rather than posting it; drafts still go to Ghost immediately.
+  queues it rather than posting it; drafts are created in Sanity
+  immediately.
 
-  Configuration: a Secret Manager secret holding the Ghost Admin API key
-  (name in `functions/index.js`) and a plain parameter with the Ghost API
-  URL, kept in the git-ignored `functions/.env` (template:
-  `functions/.env.example`). The Admin API key comes from a custom
-  integration in Ghost Admin.
+  Configuration: a Secret Manager secret holding a Sanity API token with
+  the Editor role (`SANITY_WRITE_TOKEN`; create it with `npx sanity tokens
+  add` in `studio/` or in Sanity Manage), plus optional plain parameters
+  for the project, dataset and site URL in the git-ignored
+  `functions/.env` (template: `functions/.env.example`), which default to
+  the repo's values.
 
 Planned:
 
 - Moderation trigger on Storage upload: runs a SafeSearch check, creates or
   updates the matching `bikePhotos` document, and leaves it `pending` for
   manual approval.
-- Ghost sync: on member or customer events (Ghost and Shopify webhooks),
-  reconcile by email. Any Ghost Admin API key or Shopify token used here is
-  stored as a Functions secret with `firebase functions:secrets:set`, never
-  in the repo.
-- Optional: a function that turns a batch of approved photos into a draft
-  Ghost post via the Admin API.
+- Shopify sync: on customer events (Shopify webhooks), reconcile by email.
+  Any Shopify token used here is stored as a Functions secret with
+  `firebase functions:secrets:set`, never in the repo.
 
 ## Hosting
 

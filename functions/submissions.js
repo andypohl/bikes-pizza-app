@@ -4,7 +4,7 @@
 
 import { ValidationError } from "./account.js";
 import { AppError } from "./errors.js";
-import { createPost, loadTemplate, renderPost, templateView } from "./post.js";
+import { buildPost, createPost } from "./post.js";
 import { countdown } from "./schedule.js";
 import { FEEDS, submissionRecord, validateSubmission } from "./submission.js";
 
@@ -81,7 +81,7 @@ export async function reviewSubmission({ id, action, note }, admin, deps) {
     return { status: "rejected" };
   }
 
-  const result = await postToGhost(data, deps, "draft");
+  const result = await publishSubmission(data, deps, "draft");
   await store.setReview(id, { status: "approved", review: { ...reviewedBy, ...result } });
   log("submission drafted", { id, by: admin.uid, ...result });
   return { status: "approved", ...result };
@@ -96,17 +96,16 @@ function notPending(status) {
   }[status] ?? "That submission is not pending.";
 }
 
-/** Uploads the photo and creates the Ghost post; `status` is published or draft. */
-async function postToGhost(data, { store, ghost, authorEmail = "", warn = () => {} }, status) {
+/** Uploads the photo and creates the Sanity post; `status` is published or draft. */
+async function publishSubmission(data, { store, sanity, siteUrl, now }, status) {
   const bytes = await store.readImage(data.image.path);
-  const imageUrl = await ghost.uploadImage({
+  const imageAssetId = await sanity.uploadImage({
     bytes,
     contentType: data.image.contentType ?? "image/jpeg",
     filename: `${data.feed}-submission.jpg`,
   });
-  const rendered = renderPost(loadTemplate(), templateView(data, { imageUrl }));
-  const post = await createPost(ghost, rendered, { status, authorEmail }, warn);
-  return { postId: post.id, postUrl: post.url ?? null, postStatus: post.status ?? status };
+  const doc = buildPost(data, { imageAssetId, now: now instanceof Date ? now : new Date() });
+  return createPost(sanity, doc, { status, siteUrl });
 }
 
 // ---- queues ----------------------------------------------------------------
@@ -186,7 +185,7 @@ export async function submitNext(feed, deps) {
   });
   let result;
   try {
-    result = await postToGhost(head, deps, "published");
+    result = await publishSubmission(head, deps, "published");
   } catch (error) {
     await store.transition(head.id, {
       from: ["posting"],

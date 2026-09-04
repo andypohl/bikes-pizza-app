@@ -80,20 +80,20 @@ per-feed queue and go live one at a time on a fixed schedule (bikes at
 scheduled functions; the page shows each queue's length and the time to
 its next post, and the API exposes the queues under `/api/queue/`.
 
-**Publishing** renders `functions/templates/submission_post.md`, a Markdown
-file with a front-matter block (`title`, `tags`, `feature_image`) and
-Mustache placeholders, uploads the photo to Ghost, and creates the post as
-published or as a draft. Available placeholders: `title`, `from`,
-`description`, `feed` (`pizza`/`bikes`), `noun` (`pizza`/`bike`), `tag`
-(`pizza`/`biking`), `image_url`, `submitted_on` (YYYY-MM-DD). Body text is
-HTML-escaped so a member cannot inject markup; the front matter is not,
-since it fills plain fields. The `#submission` tag is always added. The
-submitter's email is never available to the template.
+**Publishing** (`functions/post.js`) uploads the photo to Sanity as an
+image asset and creates a `post` document: title, a slug made from the title
+plus a suffix from the submission id, the feed, the description as Portable
+Text paragraphs, `submittedBy` (the name the member gave), and
+`source: {system: "submission", id}`. "Queue to post" publishes it when its
+turn comes; "Save as draft" creates it as a Sanity draft for editing in the
+Studio. The submitter's email never reaches the post. The website's Sanity
+webhook then rebuilds bikes.pizza so the post appears.
 
-Posts are attributed to a dedicated Ghost staff account (its email in
-`SUBMISSION_AUTHOR_EMAIL`); if that account does not exist, Ghost's default
-author is used and a warning is logged. The staff account is a Ghost login
-only; it has nothing to do with Firebase, which only handles members.
+Configure once per Firebase project: an Editor API token for the Sanity
+project, stored as the `SANITY_WRITE_TOKEN` secret
+(`firebase functions:secrets:set SANITY_WRITE_TOKEN`). The project, dataset
+and site URL default to the repo's; `functions/.env.example` lists the
+overrides.
 
 The email goes out through Mailgun's HTTP API. Configure once per
 Firebase project:
@@ -103,9 +103,9 @@ Firebase project:
 firebase functions:secrets:set MAILGUN_API_KEY
 # Not secret, in functions/.env and as repository variables for the deploy
 # workflow: MAILGUN_DOMAIN (a verified sending domain, or the sandbox domain
-# for tests), SUBMISSION_NOTIFY_EMAIL (recipient), SUBMISSION_AUTHOR_EMAIL
-# (staff account), optionally SUBMISSION_FROM_EMAIL (sender),
-# MAILGUN_API_BASE (EU-region accounts only) and REVIEW_PAGE_URL.
+# for tests), SUBMISSION_NOTIFY_EMAIL (recipient), optionally
+# SUBMISSION_FROM_EMAIL (sender), MAILGUN_API_BASE (EU-region accounts only)
+# and REVIEW_PAGE_URL.
 ```
 
 Without a key, domain and recipient, the submission is still stored and the
@@ -204,8 +204,8 @@ Deploys also happen automatically when a GitHub release is published (or by
 running the "Deploy to Firebase" workflow by hand). The workflow authenticates
 without any stored key: GitHub's OIDC token is exchanged for a deploy-only
 service account via Workload Identity Federation. It needs a `production`
-environment and three repository variables (`GCP_WORKLOAD_IDENTITY_PROVIDER`,
-`GCP_DEPLOY_SERVICE_ACCOUNT`, `GHOST_ADMIN_API_URL`). See `docs/firebase.md`
+environment and two repository variables (`GCP_WORKLOAD_IDENTITY_PROVIDER`,
+`GCP_DEPLOY_SERVICE_ACCOUNT`). See `docs/firebase.md`
 for the cloud-side setup.
 
 ## Project layout

@@ -194,10 +194,10 @@ test("parseReview validates id, action and trims the note", () => {
   assert.throws(() => parseReview(null), ValidationError);
 });
 
-test("reviewSubmission rejects without touching Ghost", async () => {
+test("reviewSubmission rejects without touching Sanity", async () => {
   const store = await seeded();
-  const ghost = { uploadImage: () => assert.fail("uploaded") };
-  const result = await reviewSubmission({ id: "s1", action: "reject", note: "no" }, admin, { store, ghost });
+  const sanity = { uploadImage: () => assert.fail("uploaded") };
+  const result = await reviewSubmission({ id: "s1", action: "reject", note: "no" }, admin, { store, sanity });
   assert.deepEqual(result, { status: "rejected" });
   const doc = store.docs.get("s1");
   assert.equal(doc.status, "rejected");
@@ -205,36 +205,36 @@ test("reviewSubmission rejects without touching Ghost", async () => {
   assert.equal(doc.review.note, "no");
 });
 
-test("reviewSubmission drafts to Ghost and records the post", async () => {
+test("reviewSubmission drafts to Sanity and records the post", async () => {
   const store = await seeded();
   const calls = [];
-  const ghost = {
-    uploadImage: async ({ bytes, filename }) => calls.push(["upload", bytes.toString(), filename]) && "https://cdn/x.jpg",
-    createPost: async (post) => calls.push(["post", post.status, post.title]) && { id: "p1", url: null, status: "draft" },
+  const sanity = {
+    uploadImage: async ({ bytes, filename }) => calls.push(["upload", bytes.toString(), filename]) && "image-x",
+    createDocument: async (doc, { draft }) => calls.push(["create", draft, doc.title, doc.mainImage.asset._ref]) && "drafts.p1",
   };
   const result = await reviewSubmission({ id: "s2", action: "draft", note: "" }, admin, {
     store,
-    ghost,
-    authorEmail: "robot@example.com",
+    sanity,
+    siteUrl: "https://example.com",
   });
-  assert.deepEqual(result, { status: "approved", postId: "p1", postUrl: null, postStatus: "draft" });
+  assert.deepEqual(result, { status: "approved", postId: "drafts.p1", postUrl: null, postStatus: "draft" });
   assert.deepEqual(calls, [
     ["upload", "full", "pizza-submission.jpg"],
-    ["post", "draft", "Slice"],
+    ["create", true, "Slice", "image-x"],
   ]);
-  assert.equal(store.docs.get("s2").review.postId, "p1");
+  assert.equal(store.docs.get("s2").review.postId, "drafts.p1");
 });
 
 const NOW = new Date("2026-09-04T15:30:00Z"); // 10:30 CDT
 
 test("reviewSubmission publish queues instead of posting, and refuses re-review", async () => {
   const store = await seeded();
-  const ghost = { uploadImage: () => assert.fail("posted immediately") };
+  const sanity = { uploadImage: () => assert.fail("posted immediately") };
   await assert.rejects(
-    reviewSubmission({ id: "nope", action: "reject", note: "" }, admin, { store, ghost }),
+    reviewSubmission({ id: "nope", action: "reject", note: "" }, admin, { store, sanity }),
     (e) => e instanceof AppError && e.code === "not-found",
   );
-  const result = await reviewSubmission({ id: "s1", action: "publish", note: "nice" }, admin, { store, ghost, now: NOW });
+  const result = await reviewSubmission({ id: "s1", action: "publish", note: "nice" }, admin, { store, sanity, now: NOW });
   assert.equal(result.status, "queued");
   assert.equal(result.position, 1);
   assert.equal(result.length, 1);
@@ -244,7 +244,7 @@ test("reviewSubmission publish queues instead of posting, and refuses re-review"
   assert.equal(doc.queue.byEmail, "admin@example.com");
   assert.equal(doc.queue.note, "nice");
   await assert.rejects(
-    reviewSubmission({ id: "s1", action: "reject", note: "" }, admin, { store, ghost }),
+    reviewSubmission({ id: "s1", action: "reject", note: "" }, admin, { store, sanity }),
     (e) => e.code === "failed-precondition" && /already queued/.test(e.message),
   );
 });
@@ -291,19 +291,20 @@ test("submitNext posts the oldest entry and leaves the rest queued", async () =>
   await enqueue({ feed: "bikes", id: "s1", note: "first" }, admin, { store, now: NOW });
   await enqueue({ feed: "bikes", id: "s3", note: "" }, admin, { store, now: NOW });
   const posts = [];
-  const ghost = {
-    uploadImage: async () => "https://cdn/x.jpg",
-    createPost: async (post) => posts.push([post.status, post.title]) && { id: "p1", url: "https://blog/trek", status: "published" },
+  const sanity = {
+    uploadImage: async () => "image-x",
+    createDocument: async (doc, { draft }) => posts.push([draft, doc.title, doc.slug.current]) && "p1",
   };
-  const empty = await submitNext("pizza", { store, ghost, now: NOW });
+  const deps = { store, sanity, siteUrl: "https://example.com", now: NOW };
+  const empty = await submitNext("pizza", deps);
   assert.equal(empty.posted, null);
   assert.equal(empty.length, 0);
 
-  const result = await submitNext("bikes", { store, ghost, now: NOW });
-  assert.deepEqual(posts, [["published", "Trek 970"]]);
+  const result = await submitNext("bikes", deps);
+  assert.deepEqual(posts, [[false, "Trek 970", "trek-970-s1"]]);
   assert.equal(result.posted.id, "s1");
   assert.equal(result.posted.status, "approved");
-  assert.equal(result.posted.review.postUrl, "https://blog/trek");
+  assert.equal(result.posted.review.postUrl, "https://example.com/post/trek-970-s1/");
   assert.equal(result.posted.review.note, "first");
   assert.equal(result.posted.review.byEmail, "admin@example.com");
   assert.match(result.posted.queue.postedAt, /^2026-/);
@@ -311,14 +312,14 @@ test("submitNext posts the oldest entry and leaves the rest queued", async () =>
   assert.equal((await store.queueHead("bikes")).id, "s3");
 });
 
-test("submitNext puts the entry back in the queue when Ghost fails", async () => {
+test("submitNext puts the entry back in the queue when Sanity fails", async () => {
   const store = await seeded();
   await enqueue({ feed: "bikes", id: "s1", note: "" }, admin, { store, now: NOW });
-  const ghost = { uploadImage: async () => { throw new Error("ghost down"); } };
-  await assert.rejects(submitNext("bikes", { store, ghost, now: NOW }), /ghost down/);
+  const sanity = { uploadImage: async () => { throw new Error("sanity down"); } };
+  await assert.rejects(submitNext("bikes", { store, sanity, siteUrl: "https://example.com", now: NOW }), /sanity down/);
   const doc = store.docs.get("s1");
   assert.equal(doc.status, "queued");
-  assert.equal(doc.queue.lastError, "ghost down");
+  assert.equal(doc.queue.lastError, "sanity down");
   assert.equal(await store.queueLength("bikes"), 1);
 });
 

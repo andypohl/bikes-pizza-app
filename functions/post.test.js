@@ -1,76 +1,67 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { GhostApiError } from "./ghost.js";
-import { createPost, loadTemplate, renderPost, splitTemplate, templateView } from "./post.js";
+import { buildPost, createPost, slugify, textToBlocks } from "./post.js";
 
 const submission = {
+  id: "AbC123xyz",
   feed: "bikes",
-  title: "Domino's <b>Trek</b>",
-  from: "Ada & Co",
-  description: "First line\nsecond line\n\nNew <paragraph>",
-  createdAt: new Date("2026-09-04T12:00:00Z"),
+  title: "Trek 970: a Classic!",
+  from: "Ada",
+  email: "ada@example.com",
+  description: "First paragraph.\n\nSecond one,\nwith a line break.",
 };
-const view = templateView(submission, { imageUrl: "https://cdn.example.com/i.jpg" });
 
-test("templateView exposes the submission without the member's email", () => {
-  assert.equal(view.noun, "bike");
-  assert.equal(view.tag, "biking");
-  assert.equal(view.submitted_on, "2026-09-04");
-  assert.equal("email" in view, false);
+test("slugify makes URL-safe slugs", () => {
+  assert.equal(slugify("Trek 970: a Classic!"), "trek-970-a-classic");
+  assert.equal(slugify("  Crème Brûlée  "), "creme-brulee");
+  assert.equal(slugify("!!!"), "");
 });
 
-test("splitTemplate separates front matter from the body", () => {
-  const { frontMatter, body } = splitTemplate("---\ntitle: x\n---\nbody here\n");
-  assert.equal(frontMatter, "title: x");
-  assert.equal(body, "body here\n");
-  assert.deepEqual(splitTemplate("no front matter"), { frontMatter: "", body: "no front matter" });
+test("textToBlocks makes one paragraph block per blank-line-separated paragraph", () => {
+  const blocks = textToBlocks(submission.description);
+  assert.equal(blocks.length, 2);
+  assert.equal(blocks[0]._type, "block");
+  assert.equal(blocks[0].children[0].text, "First paragraph.");
+  assert.equal(blocks[1].children[0].text, "Second one,\nwith a line break.");
+  assert.ok(blocks[0]._key && blocks[0].children[0]._key);
+  assert.deepEqual(textToBlocks(""), []);
 });
 
-test("renderPost fills the repo template: raw title, escaped body, tags", () => {
-  const post = renderPost(loadTemplate(), view);
-  assert.equal(post.title, "Domino's <b>Trek</b>");
-  assert.equal(post.feature_image, "https://cdn.example.com/i.jpg");
-  assert.deepEqual(post.tags, [{ name: "biking" }, { name: "#submission" }]);
-  assert.match(post.html, /<em>Submitted by Ada &amp; Co<\/em>/);
-  assert.match(post.html, /First line<br>second line/);
-  assert.match(post.html, /<p>New &lt;paragraph&gt;<\/p>/);
-  assert.doesNotMatch(post.html, /<paragraph>/);
+test("buildPost shapes the document without the member's email", () => {
+  const now = new Date("2026-09-04T17:00:00Z");
+  const doc = buildPost(submission, { imageAssetId: "image-abc-2000x1500-jpg", now });
+  assert.equal(doc._type, "post");
+  assert.equal(doc.title, submission.title);
+  assert.equal(doc.slug.current, "trek-970-a-classic-abc123");
+  assert.equal(doc.feed, "bikes");
+  assert.equal(doc.publishedAt, "2026-09-04T17:00:00.000Z");
+  assert.equal(doc.mainImage.asset._ref, "image-abc-2000x1500-jpg");
+  assert.equal(doc.mainImage.alt, submission.title);
+  assert.equal(doc.submittedBy, "Ada");
+  assert.deepEqual(doc.source, { system: "submission", id: "AbC123xyz" });
+  assert.equal(doc.body.length, 2);
+  assert.ok(!JSON.stringify(doc).includes("ada@example.com"));
 });
 
-test("renderPost always adds the #submission tag and falls back to the title", () => {
-  const post = renderPost("---\ntags: pizza\n---\n{{description}}", { ...view, description: "x" });
-  assert.equal(post.title, view.title);
-  assert.deepEqual(post.tags, [{ name: "pizza" }, { name: "#submission" }]);
-  assert.equal("feature_image" in post, false);
+test("buildPost falls back to the feed when the title has no slug", () => {
+  const doc = buildPost({ ...submission, title: "!!!" }, { imageAssetId: "image-x" });
+  assert.equal(doc.slug.current, "bikes-abc123");
 });
 
-test("createPost sets status and author, retrying without a rejected author", async () => {
-  const attempts = [];
-  const ghost = {
-    async createPost(post) {
-      attempts.push(post);
-      if (post.authors) {
-        throw new GhostApiError("bad author", { status: 422, type: "ValidationError" });
-      }
-      return { id: "p1", status: post.status };
-    },
-  };
-  const warnings = [];
-  const rendered = { title: "T", html: "<p>x</p>", tags: [] };
-  const result = await createPost(ghost, rendered, { status: "published", authorEmail: "s@x.com" }, (m) =>
-    warnings.push(m),
-  );
-  assert.equal(result.id, "p1");
-  assert.equal(attempts[0].status, "published");
-  assert.deepEqual(attempts[0].authors, [{ email: "s@x.com" }]);
-  assert.equal("authors" in attempts[1], false);
-  assert.equal(warnings.length, 1);
-
-  const draft = await createPost({ async createPost(p) { return p; } }, rendered, { status: "draft" });
-  assert.equal(draft.status, "draft");
-  assert.equal("authors" in draft, false);
-
-  const failing = { async createPost() { throw new GhostApiError("down", { status: 503 }); } };
-  await assert.rejects(createPost(failing, rendered, { status: "draft" }), /down/);
+test("createPost publishes with a site URL, or drafts without one", async () => {
+  const calls = [];
+  const sanity = { createDocument: async (doc, opts) => calls.push([doc.slug.current, opts]) && "p1" };
+  const doc = buildPost(submission, { imageAssetId: "image-x" });
+  assert.deepEqual(await createPost(sanity, doc, { status: "published", siteUrl: "https://example.com/" }), {
+    postId: "p1",
+    postUrl: "https://example.com/post/trek-970-a-classic-abc123/",
+    postStatus: "published",
+  });
+  assert.deepEqual(await createPost(sanity, doc, { status: "draft", siteUrl: "https://example.com" }), {
+    postId: "p1",
+    postUrl: null,
+    postStatus: "draft",
+  });
+  assert.deepEqual(calls.map(([, o]) => o.draft), [false, true]);
 });
