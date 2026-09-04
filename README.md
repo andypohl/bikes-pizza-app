@@ -1,6 +1,6 @@
 # bikes.pizza
 
-Companion iPhone/Android app for [pizzapredator.com](https://www.pizzapredator.com),
+Companion iPhone/Android app for [bikes.pizza](https://bikes.pizza/),
 built with Flutter.
 
 ## What it does
@@ -210,10 +210,6 @@ email and sign-in method, lets them edit their name and newsletter choices
 (through the `member` and `updateMember` functions) and, for email/password
 accounts, change their password or request a reset email.
 
-`web/ghost-code-injection.html` and `tools/ghost_code_injection.py` are the
-snippet that used to redirect the Ghost site's Portal buttons here; they are
-kept only until the Ghost site is retired.
-
 Both pages read their Firebase config from Hosting's reserved
 `/__/firebase/init.json`, so nothing project-specific is committed. They are
 Hosting sites (targets `account` and `review` in `firebase.json`, mapped
@@ -242,7 +238,8 @@ lib/
   models/post.dart              normalised Post model
   models/post_feed.dart         Blog / Pizza / Bikes feed definitions
   data/post_repository.dart     PostRepository interface + backend selection
-  data/ghost_content_api_repository.dart
+  data/sanity_post_repository.dart
+  data/portable_text_html.dart      Portable Text to HTML for the renderer
   screens/post_list_screen.dart list with pull-to-refresh + infinite scroll
   screens/post_detail_screen.dart
   screens/settings_screen.dart

@@ -25,7 +25,7 @@ const service = {
     calls.push(["review", input, admin.uid]);
     if (input.action === "again") throw new AppError("failed-precondition", "Already posted.");
     if (input.action === "bad") throw new ValidationError("Unknown review action.");
-    if (input.action === "boom") throw new Error("ghost down");
+    if (input.action === "boom") throw new Error("publisher down");
     return { status: "rejected" };
   },
   create: async (data, user) => {

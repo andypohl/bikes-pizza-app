@@ -32,8 +32,8 @@ import {
 
 const SITE = "https://bikes.pizza";
 // The same page is served at /account/ on the bikes.pizza site. There the
-// session lives on the site's own origin, so sign-in returns to the site
-// instead of handing off to Ghost, and sign-out goes back to the site.
+// session lives on the site's own origin, so sign-in returns to the page the
+// person came from, and sign-out goes back to the site.
 const ON_SITE = location.pathname.startsWith("/account");
 const params = new URLSearchParams(location.search);
 const redirectTo = sanitizePath(params.get("r"));

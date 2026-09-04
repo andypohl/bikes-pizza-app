@@ -1,4 +1,4 @@
-// Cloud Functions for the PizzaPredator app.
+// Cloud Functions for the bikes.pizza app.
 //
 // All entry points require a Firebase user with a verified email. Member
 // profiles live in Firestore (members/{uid}; see members.js). Submissions
