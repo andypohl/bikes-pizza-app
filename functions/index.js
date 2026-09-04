@@ -47,11 +47,13 @@ initializeApp();
 // for the project) is set with `firebase functions:secrets:set
 // SANITY_WRITE_TOKEN`; the identifiers are plain parameters with defaults.
 const sanityWriteToken = defineSecret("SANITY_WRITE_TOKEN");
-const sanityProjectId = defineString("SANITY_PROJECT_ID", { default: "nva9b0ia" });
-const sanityDataset = defineString("SANITY_DATASET", { default: "production" });
+const sanityProjectId = defineString("SANITY_PROJECT_ID", { default: "" });
+const sanityDataset = defineString("SANITY_DATASET", { default: "" });
 const SANITY_API_VERSION = "2025-02-19";
+const SANITY_DEFAULTS = { projectId: "nva9b0ia", dataset: "production" };
 // The website that renders the posts; published posts link there.
-const siteUrl = defineString("SITE_URL", { default: "https://bikes.pizza" });
+const siteUrlParam = defineString("SITE_URL", { default: "" });
+const siteUrl = () => siteUrlParam.value().trim() || "https://bikes.pizza";
 
 // Mailgun sends the notification email (see mail.js). The API key is set
 // with `firebase functions:secrets:set MAILGUN_API_KEY`; the rest lives in
@@ -76,8 +78,8 @@ const adminUser = (request) => adminFromClaims(request.auth && { uid: request.au
 
 function sanityClient() {
   return new SanityClient({
-    projectId: sanityProjectId.value(),
-    dataset: sanityDataset.value(),
+    projectId: sanityProjectId.value().trim() || SANITY_DEFAULTS.projectId,
+    dataset: sanityDataset.value().trim() || SANITY_DEFAULTS.dataset,
     apiVersion: SANITY_API_VERSION,
     token: sanityWriteToken.value(),
   });
@@ -170,7 +172,7 @@ const service = {
     subs.reviewSubmission(subs.parseReview(input), admin, {
       store: store(),
       sanity: sanityClient(),
-      siteUrl: siteUrl.value(),
+      siteUrl: siteUrl(),
       log: logger.info,
     }),
   list: (query) => subs.listSubmissions(subs.parseListQuery(query), { store: store() }),
@@ -184,7 +186,7 @@ const service = {
       subs.submitNext(feed, {
         store: store(),
         sanity: sanityClient(),
-        siteUrl: siteUrl.value(),
+        siteUrl: siteUrl(),
         log: logger.info,
       }),
   },
