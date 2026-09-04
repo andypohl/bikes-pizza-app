@@ -53,6 +53,27 @@ and dataset identifiers are in `lib/config.dart` and can be overridden with
 `--dart-define=SANITY_PROJECT_ID=...` / `SANITY_DATASET=...`. No key is
 needed because the dataset is public.
 
+## Website and Studio
+
+`studio/` is the Sanity Studio for the `post` content model (title, slug,
+feed, main image, excerpt, Portable Text body, `submittedBy`, and a record
+of where a post came from), hosted at https://bikes-pizza.sanity.studio/.
+See `studio/README.md` for running it, deploying the schema, and importing
+posts from the old Ghost site.
+
+`site/` is the public website at https://bikes.pizza/, an Astro site that
+renders the posts as a photo gallery (the Astro Frame Shift theme by Ema
+Suriano, adapted). It is statically built from the public dataset (no
+token) and served by the `home` Hosting target; the "Deploy website"
+workflow rebuilds it when Sanity content changes (setup in
+`docs/firebase.md`). Its header has a "Submit a bike or pizza" button that
+opens the same submission flow as the app (`/submit/`, posting to the REST
+API; signed-out visitors are sent to sign in first) and a Sign in / Account
+button backed by the same Firebase Auth users as the app. The build copies
+the account page (`web/public/`) into `dist/account/` so the site and the
+account page share one origin and one Firebase session. See
+`site/README.md`.
+
 ## Member submissions
 
 The Submit Pizza / Submit Bike form (`lib/screens/submit_screen.dart`) asks

@@ -26,3 +26,11 @@ the Firebase web config from Hosting's `/__/firebase/init.json`, so it only
 becomes session-aware when served by Firebase Hosting (locally:
 `firebase emulators:start --only hosting` from the repo root, home site on
 port 5055); under `astro preview` it stays on its neutral label.
+
+`/submit/` is the website's submission form ("Submit a bike or pizza" in the
+header). It needs a signed-in member: signed-out visitors are sent to the
+sign-in page and brought back afterwards. The form posts to the submissions
+REST API (`PUBLIC_API_URL`, default `https://submissions.bikes.pizza`) with
+the member's Firebase ID token, downscaling the photo to at most 2048 px on
+its long side first; API errors, including the SafeSearch rejection, are
+shown inline.

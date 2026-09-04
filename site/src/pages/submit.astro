@@ -1,0 +1,265 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+// The REST API behind the review site (docs/api.md). Same one the app uses.
+const apiUrl = import.meta.env.PUBLIC_API_URL || 'https://submissions.bikes.pizza';
+---
+
+<Layout title="Submit a bike or pizza | bikes.pizza" description="Send in a bike or a pizza for bikes.pizza.">
+  <main class="container mx-auto px-6 py-16 max-w-2xl">
+    <a href="/" class="inline-flex items-center mb-12 text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-stone-200 transition-colors duration-300 font-light">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+      </svg>
+      Back to bikes.pizza
+    </a>
+
+    <h1 class="text-4xl font-light tracking-wide mb-3 text-stone-900 dark:text-stone-100">Submit a bike or pizza</h1>
+    <p class="mb-10 text-stone-600 dark:text-slate-400 font-light">
+      Submissions go to bikes.pizza for review before anything is published.
+    </p>
+
+    <div id="submit-state" data-state="checking" data-api={apiUrl}>
+      <p data-view="checking" class="text-stone-600 dark:text-slate-400 font-light">Checking your sign-in…</p>
+
+      <form id="submit-form" data-view="form" hidden class="space-y-8" novalidate>
+        <fieldset>
+          <legend class="text-sm font-medium mb-3 text-stone-700 dark:text-slate-300">What is it?</legend>
+          <div class="flex gap-3">
+            <label class="feed-chip">
+              <input type="radio" name="feed" value="bikes" checked class="sr-only" />
+              <span>Bike</span>
+            </label>
+            <label class="feed-chip">
+              <input type="radio" name="feed" value="pizza" class="sr-only" />
+              <span>Pizza</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <label class="field">
+          <span>Title</span>
+          <input name="title" type="text" required maxlength="255" placeholder="(e.g. 1991 Trek 970 mountain bike!)" data-hint-bikes="(e.g. 1991 Trek 970 mountain bike!)" data-hint-pizza="(e.g. Domino's 14-inch Pepperoni)" />
+        </label>
+
+        <label class="field">
+          <span>Your name</span>
+          <input name="from" type="text" required maxlength="100" placeholder="How you'd like to be credited" />
+        </label>
+
+        <label class="field">
+          <span>Description <span class="font-light text-stone-500 dark:text-slate-400">(optional)</span></span>
+          <textarea name="description" rows="5" maxlength="10000" placeholder="Anything you want to say about it"></textarea>
+        </label>
+
+        <div class="field">
+          <span>Photo</span>
+          <input id="photo" name="photo" type="file" accept="image/*" required class="block w-full text-sm text-stone-600 dark:text-slate-300 file:mr-4 file:rounded-full file:border-0 file:bg-stone-200 dark:file:bg-slate-700 file:px-4 file:py-2 file:text-sm file:font-medium file:text-stone-800 dark:file:text-stone-100" />
+          <img id="photo-preview" alt="" hidden class="mt-4 max-h-80 rounded-lg" />
+        </div>
+
+        <p id="submit-error" role="alert" hidden class="text-red-700 dark:text-red-300"></p>
+
+        <button id="submit-send" type="submit" class="inline-flex items-center justify-center px-6 py-3 rounded-full bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-400 text-white dark:text-slate-900 font-medium tracking-wide transition-colors duration-200 disabled:opacity-50">
+          Send it in
+        </button>
+      </form>
+
+      <div data-view="done" hidden>
+        <h2 class="text-2xl font-light tracking-wide mb-3 text-stone-900 dark:text-stone-100">Thanks!</h2>
+        <p id="done-text" class="text-stone-700 dark:text-gray-200 font-light mb-8"></p>
+        <div class="flex gap-3">
+          <button id="submit-another" type="button" class="px-5 py-3 rounded-full bg-stone-200 dark:bg-slate-700 hover:bg-stone-300 dark:hover:bg-slate-600 text-stone-800 dark:text-stone-100 text-sm font-medium">Submit another</button>
+          <a href="/" class="px-5 py-3 rounded-full text-sm font-medium text-stone-700 dark:text-slate-300 hover:text-stone-900 dark:hover:text-stone-100">Back to bikes.pizza</a>
+        </div>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .field {
+    display: block;
+  }
+  .field > span:first-child {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-stone-700);
+  }
+  :global(.dark) .field > span:first-child {
+    color: var(--color-slate-300);
+  }
+  .field input[type='text'],
+  .field textarea {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--color-stone-300);
+    background: white;
+    color: var(--color-stone-900);
+  }
+  :global(.dark) .field input[type='text'],
+  :global(.dark) .field textarea {
+    border-color: var(--color-slate-600);
+    background: var(--color-slate-800);
+    color: var(--color-stone-100);
+  }
+  .feed-chip span {
+    display: inline-block;
+    padding: 0.5rem 1.25rem;
+    border-radius: 9999px;
+    border: 1px solid var(--color-stone-300);
+    color: var(--color-stone-600);
+    cursor: pointer;
+    font-weight: 300;
+    letter-spacing: 0.025em;
+  }
+  :global(.dark) .feed-chip span {
+    border-color: var(--color-slate-600);
+    color: var(--color-slate-400);
+  }
+  .feed-chip input:checked + span {
+    background: #e7e5e4;
+    color: #1c1917;
+    border-color: #a8a29e;
+  }
+  :global(.dark) .feed-chip input:checked + span {
+    background: #334155;
+    color: #f5f5f4;
+    border-color: #64748b;
+  }
+  .feed-chip input:focus-visible + span {
+    outline: 2px solid var(--color-teal-600);
+    outline-offset: 2px;
+  }
+</style>
+
+<script>
+  import { onAuth, signInHref, type SiteUser } from '../scripts/auth';
+
+  const MAX_EDGE = 2048; // downscale photos before upload; the API's ceiling is 8 MB
+
+  const root = document.getElementById('submit-state') as HTMLElement;
+  const apiUrl = root.dataset.api!;
+  const form = document.getElementById('submit-form') as HTMLFormElement;
+  const error = document.getElementById('submit-error') as HTMLElement;
+  const send = document.getElementById('submit-send') as HTMLButtonElement;
+  const photo = document.getElementById('photo') as HTMLInputElement;
+  const preview = document.getElementById('photo-preview') as HTMLImageElement;
+  const title = form.elements.namedItem('title') as HTMLInputElement;
+  let user: SiteUser = null;
+
+  function show(view: string) {
+    root.dataset.state = view;
+    for (const el of root.querySelectorAll<HTMLElement>('[data-view]')) el.hidden = el.dataset.view !== view;
+  }
+
+  function say(message: string) {
+    error.textContent = message;
+    error.hidden = !message;
+  }
+
+  onAuth((next, known) => {
+    if (!known) return;
+    user = next;
+    if (!user) {
+      location.replace(signInHref('/submit/'));
+      return;
+    }
+    const from = form.elements.namedItem('from') as HTMLInputElement;
+    if (!from.value && user.displayName) from.value = user.displayName;
+    if (root.dataset.state === 'checking') show('form');
+  });
+
+  for (const radio of form.querySelectorAll<HTMLInputElement>('input[name=feed]')) {
+    radio.addEventListener('change', () => {
+      title.placeholder = title.dataset[`hint${radio.value[0].toUpperCase()}${radio.value.slice(1)}`] ?? '';
+    });
+  }
+
+  photo.addEventListener('change', () => {
+    const file = photo.files?.[0];
+    if (!file) {
+      preview.hidden = true;
+      return;
+    }
+    preview.src = URL.createObjectURL(file);
+    preview.hidden = false;
+    say('');
+  });
+
+  /** The photo as JPEG, no larger than MAX_EDGE on its long side. */
+  async function encodePhoto(file: File): Promise<{ data: string; contentType: string }> {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const blob: Blob = await new Promise((resolve, reject) =>
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not read the photo.'))), 'image/jpeg', 0.88),
+    );
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    }
+    return { data: btoa(binary), contentType: 'image/jpeg' };
+  }
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    say('');
+    if (!user) return;
+    const file = photo.files?.[0];
+    if (!form.reportValidity() || !file) {
+      if (!file) say('Please choose a photo.');
+      return;
+    }
+    const data = new FormData(form);
+    const feed = String(data.get('feed'));
+    send.disabled = true;
+    send.textContent = 'Sending…';
+    try {
+      const image = await encodePhoto(file);
+      const token = await user.getIdToken();
+      const res = await fetch(`${apiUrl}/api/submissions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          feed,
+          title: String(data.get('title')).trim(),
+          from: String(data.get('from')).trim(),
+          description: String(data.get('description')).trim(),
+          image,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 401) {
+          location.replace(signInHref('/submit/'));
+          return;
+        }
+        throw new Error(body?.error?.message ?? 'Something went wrong. Please try again.');
+      }
+      const noun = feed === 'pizza' ? 'pizza' : 'bike';
+      document.getElementById('done-text')!.textContent =
+        `Your ${noun} is on its way to bikes.pizza for review. Keep an eye on the site.`;
+      show('done');
+    } catch (err) {
+      say((err as Error).message);
+    } finally {
+      send.disabled = false;
+      send.textContent = 'Send it in';
+    }
+  });
+
+  document.getElementById('submit-another')!.addEventListener('click', () => {
+    form.reset();
+    preview.hidden = true;
+    say('');
+    show('form');
+  });
+</script>
