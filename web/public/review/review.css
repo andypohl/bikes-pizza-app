@@ -164,3 +164,17 @@ button.danger {
 [hidden] {
   display: none !important;
 }
+
+#filters {
+  flex-wrap: wrap;
+}
+
+#filters button {
+  flex: 1 1 auto;
+  min-width: 5.5rem;
+}
+
+.card.review {
+  max-width: min(64rem, 100%);
+  min-width: 0;
+}
