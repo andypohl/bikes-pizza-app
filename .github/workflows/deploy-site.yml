@@ -1,0 +1,56 @@
+# Rebuilds the website from Sanity and deploys it to the `home` Hosting
+# target. Runs when Sanity reports a content change (a webhook sends a
+# `repository_dispatch` of type `sanity-content-changed`; see
+# docs/firebase.md) or when started by hand. Code changes to the site still
+# ship with the release deploy (deploy-firebase.yml).
+name: Deploy website
+
+on:
+  repository_dispatch:
+    types: [sanity-content-changed]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-site
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write # needed to mint the OIDC token for Google Cloud
+
+jobs:
+  deploy:
+    name: Build and deploy the website
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Deploy
+        run: npx --yes firebase-tools@15 deploy --only hosting:home --non-interactive
+        working-directory: .
