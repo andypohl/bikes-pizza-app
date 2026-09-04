@@ -65,10 +65,14 @@ One `Submission`.
 
 Body: `{ "action": "publish" | "draft" | "reject", "note": "optional, ≤1000 chars" }`.
 
-`publish` and `draft` create the Ghost post from the Markdown template and
-return `{ "status": "approved", "postId", "postUrl", "postStatus" }`;
-`reject` returns `{ "status": "rejected" }`. A submission that was already
-posted answers `409`.
+- `publish` puts the submission at the back of its feed's queue (see
+  Queues) and returns `{ "status": "queued", "id", "position", "feed",
+  "length", "nextPostAt", "seconds", "countdown", "clock" }`.
+- `draft` creates a Ghost draft right away from the Markdown template and
+  returns `{ "status": "approved", "postId", "postUrl", "postStatus" }`.
+- `reject` returns `{ "status": "rejected" }`.
+
+Only pending submissions can be reviewed; anything else answers `409`.
 
 ### `POST /api/submissions`
 
@@ -89,6 +93,71 @@ The image may be up to 8 MB before encoding. Returns
 `{ "submissionId", "notified" }`, where `notified` says whether the
 reviewer email went out.
 
+## Queues
+
+Approved submissions do not go live immediately. Each feed has a queue
+that posts its oldest entry at fixed times in Central Time
+(America/Chicago, so daylight saving is followed):
+
+| Feed    | Posting times          |
+|---------|------------------------|
+| `bikes` | 8am, 12pm, 4pm, 8pm    |
+| `pizza` | 9am, 1pm, 5pm, 9pm     |
+
+Scheduled functions call the same code as `submit-next` at those times. A
+slot with an empty queue posts nothing. If posting fails, the entry stays
+at the front of the queue with `queue.lastError` set and is retried at the
+next slot.
+
+`{feed}` below is `pizza` or `bikes`; anything else is a `400`.
+
+### `GET /api/queue/{feed}/length`
+
+`{ "feed", "length" }`, the number of submissions waiting. Any verified
+account may call this.
+
+### `GET /api/queue/{feed}/countdown-time`
+
+Any verified account. When the feed next posts and how long that is:
+
+```json
+{
+  "feed": "bikes",
+  "length": 2,
+  "nextPostAt": "2026-09-04T17:00:00.000Z",
+  "seconds": 5400,
+  "countdown": "1h 30m 0s",
+  "clock": "01:30:00"
+}
+```
+
+`countdown` drops leading zero units (`"32m 14s"`, `"14s"`); `clock` is
+always `HH:MM:SS`. The next slot is reported even when the queue is empty.
+
+### `GET /api/queue/{feed}` (admin)
+
+The queue in posting order: the countdown fields above plus
+`"items": [Submission with "position" starting at 1, ...]`.
+
+### `POST /api/queue/{feed}/add` (admin)
+
+Body `{ "id", "note": "optional" }`. Queues a pending submission of that
+feed; the same thing the review `publish` action does. Returns the
+`"status": "queued"` shape above. A submission of the other feed is a
+`400`; one that is not pending is a `409`.
+
+### `POST /api/queue/{feed}/remove` (admin)
+
+Body `{ "id" }`. Takes a queued submission back to pending. Returns
+`{ "status": "pending", "id", ...countdown fields }`. Not queued: `409`.
+
+### `POST /api/queue/{feed}/submit-next` (admin)
+
+Posts the oldest queued submission to the blog now, without waiting for
+the schedule. Returns `{ "posted": Submission | null, ...countdown fields }`;
+`posted` is `null` when the queue was empty. A failure at Ghost answers
+`503` and leaves the entry queued.
+
 ## Submission
 
 ```json
@@ -98,10 +167,14 @@ reviewer email went out.
   "title": "1991 Trek 970",
   "from": "Ada",
   "description": "…",
-  "status": "pending" | "approved" | "rejected",
+  "status": "pending" | "queued" | "posting" | "approved" | "rejected",
   "createdAt": "2026-09-04T16:00:00.000Z",
   "submittedBy": { "uid": "…", "email": "…" },
   "image": { "width": 2048, "height": 1536, "photoUrl": "https://…", "thumbUrl": "https://…" },
+  "queue": null | {
+    "at": "…", "by": "<uid>", "byEmail": "…", "note": "…",
+    "postedAt": "…" | null, "lastError": "…" | null
+  },
   "review": null | {
     "action": "publish" | "draft" | "reject",
     "at": "…", "by": "<uid>", "byEmail": "…", "note": "…",

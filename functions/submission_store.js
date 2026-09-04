@@ -19,6 +19,7 @@ function item(snap) {
     ...data,
     createdAt: toDate(data.createdAt),
     review: data.review ? { ...data.review, at: toDate(data.review.at) } : null,
+    queue: data.queue ? { ...data.queue, at: toDate(data.queue.at), postedAt: toDate(data.queue.postedAt) } : null,
   };
 }
 
@@ -49,6 +50,42 @@ export function firestoreSubmissionStore(db, bucket) {
       }
       const snap = await q.limit(limit + 1).get();
       return { items: snap.docs.slice(0, limit).map(item), hasMore: snap.docs.length > limit };
+    },
+
+    /** A server timestamp for fields set through transition(). */
+    timestamp: () => FieldValue.serverTimestamp(),
+
+    /**
+     * Atomically applies `patch` to the submission if its status is one of
+     * `from`; otherwise throws `failed-precondition` with `message`.
+     */
+    async transition(id, { from, patch, message }) {
+      return db.runTransaction(async (tx) => {
+        const ref = col.doc(id);
+        const snap = await tx.get(ref);
+        if (!snap.exists) throw new AppError("not-found", "That submission no longer exists.");
+        if (!from.includes(snap.get("status"))) throw new AppError("failed-precondition", message);
+        tx.update(ref, patch);
+        return item(snap);
+      });
+    },
+
+    queueQuery: (feed) => col.where("status", "==", "queued").where("feed", "==", feed),
+
+    /** Queued submissions for a feed, oldest first. */
+    async queueList(feed) {
+      const snap = await this.queueQuery(feed).orderBy("queue.at", "asc").limit(200).get();
+      return snap.docs.map(item);
+    },
+
+    async queueHead(feed) {
+      const snap = await this.queueQuery(feed).orderBy("queue.at", "asc").limit(1).get();
+      return snap.empty ? null : item(snap.docs[0]);
+    },
+
+    async queueLength(feed) {
+      const snap = await this.queueQuery(feed).count().get();
+      return snap.data().count;
     },
 
     async setReview(id, { status, review }) {

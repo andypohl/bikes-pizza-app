@@ -64,8 +64,25 @@ function when(iso) {
   return iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "";
 }
 
-const STATUS_LABEL = { pending: "Pending", approved: "Posted", rejected: "Rejected" };
+const STATUS_LABEL = { pending: "Pending", queued: "Queued", posting: "Posting", approved: "Posted", rejected: "Rejected" };
 const FEED_LABEL = { pizza: "Pizza", bikes: "Bike" };
+const FEEDS = ["bikes", "pizza"];
+
+function at(iso) {
+  return iso ? new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "";
+}
+
+/** Shows each feed's queue length and time to its next post. */
+async function loadQueues() {
+  try {
+    const infos = await Promise.all(FEEDS.map((feed) => api(`/api/queue/${feed}/countdown-time`)));
+    $("#queues").textContent = infos
+      .map((q) => `${FEED_LABEL[q.feed]} queue: ${q.length} waiting · next post in ${q.countdown} (${at(q.nextPostAt)})`)
+      .join(" — ");
+  } catch {
+    $("#queues").textContent = "";
+  }
+}
 
 function describe(error) {
   switch (error?.code) {
@@ -101,6 +118,7 @@ async function load() {
     cursors[page] = nextCursor;
     hasNext = Boolean(nextCursor);
     render();
+    loadQueues();
   } catch (error) {
     say(describe(error) ?? "Could not load submissions.");
   } finally {
@@ -168,14 +186,21 @@ function openDetail(row) {
   $("#d-image-link").href = full || "#";
   const pending = d.status === "pending";
   $("#d-actions").hidden = !pending;
+  $("#d-queue-actions").hidden = d.status !== "queued";
   $("#d-note-label").hidden = !pending;
   $("#d-note").value = "";
   const r = d.review;
-  $("#d-review").hidden = !r;
+  const q = d.queue;
+  $("#d-review").hidden = !r && !q;
   if (r) {
     const bits = [`${STATUS_LABEL[d.status]} by ${r.byEmail ?? r.by} on ${when(r.at)}`];
     if (r.postUrl) bits.push(r.postStatus === "draft" ? `draft ${r.postId}` : r.postUrl);
     if (r.note) bits.push(`Note: ${r.note}`);
+    $("#d-review").textContent = bits.join(" · ");
+  } else if (q) {
+    const bits = [`Queued by ${q.byEmail ?? q.by} on ${when(q.at)}`];
+    if (q.note) bits.push(`Note: ${q.note}`);
+    if (q.lastError) bits.push(`Last attempt failed: ${q.lastError}`);
     $("#d-review").textContent = bits.join(" · ");
   }
   $("#detail").showModal();
@@ -191,7 +216,9 @@ async function review(action) {
       body: { action, note: $("#d-note").value },
     });
     $("#detail").close();
-    if (data.status === "approved") {
+    if (data.status === "queued") {
+      say(`Queued at position ${data.position} for ${FEED_LABEL[data.feed]}; next post in ${data.countdown} (${at(data.nextPostAt)}).`, true);
+    } else if (data.status === "approved") {
       say(
         data.postStatus === "draft"
           ? "Saved as a draft in Ghost."
@@ -229,6 +256,20 @@ $("#next").addEventListener("click", () => {
 $("#d-publish").addEventListener("click", () => review("publish"));
 $("#d-draft").addEventListener("click", () => review("draft"));
 $("#d-reject").addEventListener("click", () => review("reject"));
+$("#d-dequeue").addEventListener("click", async () => {
+  if (!current) return;
+  busy(true);
+  try {
+    await api(`/api/queue/${current.feed}/remove`, { method: "POST", body: { id: current.id } });
+    $("#detail").close();
+    say("Removed from the queue; it is pending again.", true);
+    await load();
+  } catch (error) {
+    say(describe(error) ?? "Could not change the queue.");
+  } finally {
+    busy(false);
+  }
+});
 
 async function signInWith(provider) {
   busy(true);

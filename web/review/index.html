@@ -41,8 +41,10 @@
       </section>
 
       <section data-view="list" hidden>
+        <p class="queues muted small" id="queues"></p>
         <nav class="tabs" role="tablist" id="filters">
           <button type="button" role="tab" data-status="pending" aria-selected="true">Pending</button>
+          <button type="button" role="tab" data-status="queued" aria-selected="false">Queued</button>
           <button type="button" role="tab" data-status="approved" aria-selected="false">Posted</button>
           <button type="button" role="tab" data-status="rejected" aria-selected="false">Rejected</button>
           <button type="button" role="tab" data-status="" aria-selected="false">All</button>
@@ -74,9 +76,12 @@
             <input type="text" id="d-note" maxlength="1000" />
           </label>
           <div class="actions" id="d-actions">
-            <button type="button" class="primary" id="d-publish">Publish</button>
+            <button type="button" class="primary" id="d-publish">Queue to post</button>
             <button type="button" class="secondary" id="d-draft">Save as draft</button>
             <button type="button" class="secondary danger" id="d-reject">Reject</button>
+          </div>
+          <div class="actions" id="d-queue-actions" hidden>
+            <button type="button" class="secondary" id="d-dequeue">Remove from queue</button>
           </div>
           <button type="submit" class="link">Close</button>
         </form>

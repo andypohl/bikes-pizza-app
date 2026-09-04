@@ -16,13 +16,16 @@
 // reviewSubmission:  admin only; publishes or drafts an approved submission
 //                    to Ghost from the Markdown template, or rejects it.
 // api:               HTTPS; the REST API behind /api/ on the submissions
-//                    Hosting site (list, fetch, review, create).
+//                    Hosting site (list, fetch, review, create, queues).
+// postBikesQueue,    scheduled; post the oldest queued submission of the
+// postPizzaQueue:    feed at its posting times (schedule.js).
 
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret, defineString } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import { ValidationError, profile, validateUpdate } from "./account.js";
@@ -32,6 +35,7 @@ import { GhostAdminClient, GhostApiError } from "./ghost.js";
 import { processImage } from "./images.js";
 import { firestoreStore, resolveMember } from "./link.js";
 import { isMailConfigured, sendMail } from "./mail.js";
+import { TIME_ZONE, cronFor } from "./schedule.js";
 import { notificationEmail } from "./submission.js";
 import { firestoreSubmissionStore } from "./submission_store.js";
 import * as subs from "./submissions.js";
@@ -183,6 +187,20 @@ const service = {
     }),
   list: (query) => subs.listSubmissions(subs.parseListQuery(query), { store: store() }),
   get: (id) => subs.getSubmission(id, { store: store() }),
+  queue: {
+    info: (feed) => subs.queueInfo(feed, { store: store() }),
+    items: (feed) => subs.queueItems(feed, { store: store() }),
+    add: (input, admin) => subs.enqueue(input, admin, { store: store(), log: logger.info }),
+    remove: (input, admin) => subs.dequeue(input, admin, { store: store(), log: logger.info }),
+    submitNext: (feed) =>
+      subs.submitNext(feed, {
+        store: store(),
+        ghost: ghostClient(),
+        authorEmail: authorEmail.value().trim(),
+        warn: (message) => logger.warn(message),
+        log: logger.info,
+      }),
+  },
 };
 
 export const submitPost = onCall(
@@ -198,6 +216,19 @@ export const reviewSubmission = onCall({ ...options, ...heavy }, (request) =>
     service.review(request.data, adminUser(request)),
   ),
 );
+
+/** Posts a feed's oldest queued submission at each of its scheduled times. */
+const queueRunner = (feed) =>
+  onSchedule(
+    { schedule: cronFor(feed), timeZone: TIME_ZONE, region: "us-central1", secrets: [ghostAdminApiKey], retryCount: 2, ...heavy },
+    async () => {
+      const result = await service.queue.submitNext(feed);
+      logger.info("queue run", { feed, posted: result.posted?.id ?? null, remaining: result.length });
+    },
+  );
+
+export const postBikesQueue = queueRunner("bikes");
+export const postPizzaQueue = queueRunner("pizza");
 
 export const api = onRequest(
   { region: "us-central1", secrets: [ghostAdminApiKey, mailgunApiKey], ...heavy },

@@ -5,9 +5,12 @@
 import { ValidationError } from "./account.js";
 import { AppError } from "./errors.js";
 import { createPost, loadTemplate, renderPost, templateView } from "./post.js";
-import { submissionRecord, validateSubmission } from "./submission.js";
+import { countdown } from "./schedule.js";
+import { FEEDS, submissionRecord, validateSubmission } from "./submission.js";
 
-export const STATUSES = ["pending", "approved", "rejected"];
+// pending -> queued (approved for posting) -> posting -> approved (on the
+// blog), or pending -> rejected; drafts go pending -> approved directly.
+export const STATUSES = ["pending", "queued", "posting", "approved", "rejected"];
 export const REVIEW_ACTIONS = ["publish", "draft", "reject"];
 export const DEFAULT_PAGE = 20;
 export const MAX_PAGE = 50;
@@ -51,17 +54,18 @@ export function parseReview(data) {
   return { id, action, note };
 }
 
-/** Publishes, drafts or rejects a pending submission. */
-export async function reviewSubmission(
-  { id, action, note },
-  admin,
-  { store, ghost, authorEmail = "", warn = () => {}, log = () => {} },
-) {
+/**
+ * Reviews a pending submission: `reject` records the decision, `draft`
+ * creates a Ghost draft right away, and `publish` puts it in its feed's
+ * queue to be posted at the next scheduled time.
+ */
+export async function reviewSubmission({ id, action, note }, admin, deps) {
+  const { store, log = () => {} } = deps;
   const data = await store.get(id);
   if (!data) throw new AppError("not-found", "That submission no longer exists.");
-  if (data.status === "approved") {
-    throw new AppError("failed-precondition", "That submission was already posted.");
-  }
+  if (data.status !== "pending") throw new AppError("failed-precondition", notPending(data.status));
+
+  if (action === "publish") return enqueue({ feed: data.feed, id, note }, admin, deps);
 
   const reviewedBy = { by: admin.uid, byEmail: admin.email, note, action };
   if (action === "reject") {
@@ -70,6 +74,23 @@ export async function reviewSubmission(
     return { status: "rejected" };
   }
 
+  const result = await postToGhost(data, deps, "draft");
+  await store.setReview(id, { status: "approved", review: { ...reviewedBy, ...result } });
+  log("submission drafted", { id, by: admin.uid, ...result });
+  return { status: "approved", ...result };
+}
+
+function notPending(status) {
+  return {
+    queued: "That submission is already queued.",
+    posting: "That submission is being posted right now.",
+    approved: "That submission was already posted.",
+    rejected: "That submission was rejected; it cannot be reviewed again.",
+  }[status] ?? "That submission is not pending.";
+}
+
+/** Uploads the photo and creates the Ghost post; `status` is published or draft. */
+async function postToGhost(data, { store, ghost, authorEmail = "", warn = () => {} }, status) {
   const bytes = await store.readImage(data.image.path);
   const imageUrl = await ghost.uploadImage({
     bytes,
@@ -77,12 +98,110 @@ export async function reviewSubmission(
     filename: `${data.feed}-submission.jpg`,
   });
   const rendered = renderPost(loadTemplate(), templateView(data, { imageUrl }));
-  const status = action === "publish" ? "published" : "draft";
   const post = await createPost(ghost, rendered, { status, authorEmail }, warn);
-  const result = { postId: post.id, postUrl: post.url ?? null, postStatus: post.status ?? status };
-  await store.setReview(id, { status: "approved", review: { ...reviewedBy, ...result } });
-  log("submission posted", { id, by: admin.uid, ...result });
-  return { status: "approved", ...result };
+  return { postId: post.id, postUrl: post.url ?? null, postStatus: post.status ?? status };
+}
+
+// ---- queues ----------------------------------------------------------------
+
+export function parseFeed(feed) {
+  if (typeof feed !== "string" || !(feed in FEEDS)) throw new ValidationError("Unknown feed.");
+  return feed;
+}
+
+/** Puts a pending submission at the back of its feed's queue. */
+export async function enqueue({ feed, id, note = "" }, admin, { store, log = () => {}, now }) {
+  parseFeed(feed);
+  if (typeof id !== "string" || !id) throw new ValidationError("Submission id is required.");
+  const data = await store.get(id);
+  if (!data) throw new AppError("not-found", "That submission no longer exists.");
+  if (data.feed !== feed) throw new ValidationError(`That submission is for the ${data.feed} feed.`);
+  await store.transition(id, {
+    from: ["pending"],
+    patch: {
+      status: "queued",
+      queue: { by: admin.uid, byEmail: admin.email, note: String(note ?? "").trim().slice(0, 1000), at: store.timestamp() },
+    },
+    message: notPending(data.status),
+  });
+  const info = await queueInfo(feed, { store, now });
+  log("submission queued", { id, feed, by: admin.uid, position: info.length });
+  return { status: "queued", id, position: info.length, ...info };
+}
+
+/** Takes a queued submission back to pending. */
+export async function dequeue({ feed, id }, admin, { store, log = () => {}, now }) {
+  parseFeed(feed);
+  if (typeof id !== "string" || !id) throw new ValidationError("Submission id is required.");
+  const data = await store.get(id);
+  if (!data) throw new AppError("not-found", "That submission no longer exists.");
+  if (data.feed !== feed) throw new ValidationError(`That submission is for the ${data.feed} feed.`);
+  await store.transition(id, {
+    from: ["queued"],
+    patch: { status: "pending", queue: null },
+    message: "That submission is not in the queue.",
+  });
+  log("submission dequeued", { id, feed, by: admin.uid });
+  return { status: "pending", id, ...(await queueInfo(feed, { store, now })) };
+}
+
+/** Queue length plus when the feed next posts. */
+export async function queueInfo(feed, { store, now = new Date() }) {
+  parseFeed(feed);
+  const length = await store.queueLength(feed);
+  return { feed, length, ...countdown(feed, now) };
+}
+
+/** The queue in posting order, with positions starting at 1. */
+export async function queueItems(feed, { store, now = new Date() }) {
+  parseFeed(feed);
+  const items = await store.queueList(feed);
+  const out = [];
+  for (const [i, item] of items.entries()) out.push({ position: i + 1, ...(await serialise(item, store)) });
+  return { feed, length: out.length, ...countdown(feed, now), items: out };
+}
+
+/**
+ * Posts the oldest queued submission of a feed to the blog. Run by the
+ * scheduled functions at the feed's posting times, and by the API on
+ * request. Returns the posted submission, or null when the queue is empty.
+ */
+export async function submitNext(feed, deps) {
+  const { store, log = () => {}, now } = deps;
+  parseFeed(feed);
+  const head = await store.queueHead(feed);
+  if (!head) return { posted: null, ...(await queueInfo(feed, { store, now })) };
+
+  await store.transition(head.id, {
+    from: ["queued"],
+    patch: { status: "posting" },
+    message: "That submission is being posted right now.",
+  });
+  let result;
+  try {
+    result = await postToGhost(head, deps, "published");
+  } catch (error) {
+    await store.transition(head.id, {
+      from: ["posting"],
+      patch: { status: "queued", "queue.lastError": error.message },
+      message: "unreachable",
+    });
+    throw error;
+  }
+  const q = head.queue ?? {};
+  await store.transition(head.id, {
+    from: ["posting"],
+    patch: {
+      status: "approved",
+      review: { action: "publish", by: q.by ?? null, byEmail: q.byEmail ?? null, note: q.note ?? "", at: store.timestamp(), ...result },
+      "queue.postedAt": store.timestamp(),
+      "queue.lastError": null,
+    },
+    message: "unreachable",
+  });
+  log("queued submission posted", { id: head.id, feed, ...result });
+  const posted = await serialise(await store.get(head.id), store);
+  return { posted, ...(await queueInfo(feed, { store, now })) };
 }
 
 /** Validates list query parameters (strings, as from a URL). */
@@ -141,6 +260,16 @@ export async function serialise(item, store) {
       photoUrl: image.path ? store.imageUrl(image.path, token) : null,
       thumbUrl: image.thumbPath ? store.imageUrl(image.thumbPath, token) : null,
     },
+    queue: item.queue
+      ? {
+          at: iso(item.queue.at),
+          by: item.queue.by ?? null,
+          byEmail: item.queue.byEmail ?? null,
+          note: item.queue.note ?? "",
+          postedAt: iso(item.queue.postedAt),
+          lastError: item.queue.lastError ?? null,
+        }
+      : null,
     review: review
       ? {
           action: review.action,

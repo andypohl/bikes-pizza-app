@@ -7,6 +7,12 @@
 //   GET  /api/submissions/:id           admin
 //   POST /api/submissions/:id/review    admin; {action, note}
 //   POST /api/submissions               verified user; same body as submitPost
+//   GET  /api/queue/:feed               admin; the queue in posting order
+//   GET  /api/queue/:feed/length        {feed, length}
+//   GET  /api/queue/:feed/countdown-time {feed, length, nextPostAt, seconds, countdown, clock}
+//   POST /api/queue/:feed/add           admin; {id, note}
+//   POST /api/queue/:feed/remove        admin; {id}
+//   POST /api/queue/:feed/submit-next   admin; posts the oldest entry now
 //
 // Errors are JSON: {"error": {"code": "...", "message": "..."}}.
 
@@ -33,8 +39,10 @@ export const BODY_LIMIT = "12mb";
  * Builds the Express app.
  *
  * `verifyToken(idToken)` resolves to the token's claims or rejects.
- * `service` exposes create(data, user), list(query), get(id) and
- * review(input, admin); see index.js for the wiring.
+ * `service` exposes create(data, user), list(query), get(id),
+ * review(input, admin) and a `queue` with info(feed), items(feed),
+ * add(input, admin), remove(input, admin) and submitNext(feed); see
+ * index.js for the wiring.
  */
 export function createApi({ verifyToken, service, log = () => {} }) {
   const app = express();
@@ -76,6 +84,45 @@ export function createApi({ verifyToken, service, log = () => {} }) {
     wrap((req) => service.review({ ...req.body, id: req.params.id }, adminFromClaims(req.claims))),
   );
 
+  const queue = service.queue;
+  api.get(
+    "/queue/:feed",
+    wrap((req) => {
+      adminFromClaims(req.claims);
+      return queue.items(req.params.feed);
+    }),
+  );
+  api.get(
+    "/queue/:feed/length",
+    wrap(async (req) => {
+      userFromClaims(req.claims);
+      const { feed, length } = await queue.info(req.params.feed);
+      return { feed, length };
+    }),
+  );
+  api.get(
+    "/queue/:feed/countdown-time",
+    wrap((req) => {
+      userFromClaims(req.claims);
+      return queue.info(req.params.feed);
+    }),
+  );
+  api.post(
+    "/queue/:feed/add",
+    wrap((req) => queue.add({ ...req.body, feed: req.params.feed }, adminFromClaims(req.claims))),
+  );
+  api.post(
+    "/queue/:feed/remove",
+    wrap((req) => queue.remove({ ...req.body, feed: req.params.feed }, adminFromClaims(req.claims))),
+  );
+  api.post(
+    "/queue/:feed/submit-next",
+    wrap((req) => {
+      adminFromClaims(req.claims);
+      return queue.submitNext(req.params.feed);
+    }),
+  );
+
   app.use("/api", api);
 
   app.use((req, res) => {
@@ -85,7 +132,7 @@ export function createApi({ verifyToken, service, log = () => {} }) {
   // eslint-disable-next-line no-unused-vars
   app.use((error, req, res, next) => {
     const { code, message } = describe(error);
-    if (code === "unavailable") log("api request failed", { path: req.path, message: error.message });
+    if (code === "unavailable") log("api request failed", { path: req.path, error: String(error?.stack ?? error) });
     res.status(STATUS_FOR_CODE[code]).json({ error: { code, message } });
   });
 
