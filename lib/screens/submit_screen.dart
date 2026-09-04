@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../auth/auth_service.dart';
+import '../auth/session_expiry.dart';
 import '../models/post_feed.dart';
 import '../submissions/photo_picker.dart';
 import '../submissions/submission_service.dart';
@@ -12,12 +14,14 @@ class SubmitScreen extends StatefulWidget {
     required this.feed,
     required this.submissions,
     required this.photos,
+    required this.auth,
     this.initialFrom,
   });
 
   final PostFeed feed;
   final SubmissionService submissions;
   final PhotoPicker photos;
+  final AuthService auth;
 
   /// Pre-fills the "From" field, e.g. with the account's display name.
   final String? initialFrom;
@@ -96,6 +100,9 @@ class _SubmitScreenState extends State<SubmitScreen> {
       );
       if (mounted) setState(() => _result = result);
     } on SubmissionException catch (e) {
+      if (e.sessionExpired && mounted) {
+        return handleSessionExpired(context, widget.auth);
+      }
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _sending = false);

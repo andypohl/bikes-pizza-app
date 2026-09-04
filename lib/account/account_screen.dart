@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../auth/auth_service.dart';
+import '../auth/session_expiry.dart';
 import 'member_service.dart';
 
 /// Lets a signed-in member edit their name and newsletters, change their
@@ -44,7 +45,9 @@ class _AccountScreenState extends State<AccountScreen> {
       if (!mounted) return;
       setState(() => _apply(profile));
     } on MemberException catch (e) {
-      if (mounted) setState(() => _error = e.message);
+      if (!mounted) return;
+      if (e.sessionExpired) return handleSessionExpired(context, widget.auth);
+      setState(() => _error = e.message);
     }
   }
 
@@ -71,6 +74,9 @@ class _AccountScreenState extends State<AccountScreen> {
       setState(() => _apply(profile));
       messenger.showSnackBar(const SnackBar(content: Text('Saved.')));
     } on MemberException catch (e) {
+      if (e.sessionExpired && mounted) {
+        return handleSessionExpired(context, widget.auth);
+      }
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _saving = false);

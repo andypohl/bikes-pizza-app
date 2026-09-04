@@ -3,13 +3,18 @@ import 'dart:typed_data';
 
 import 'package:cloud_functions/cloud_functions.dart';
 
+import '../auth/session_expiry.dart';
 import '../models/post_feed.dart';
 
 /// Thrown by [SubmissionService] with a message safe to show to the user.
 class SubmissionException implements Exception {
-  SubmissionException(this.message);
+  SubmissionException(this.message, {this.sessionExpired = false});
 
   final String message;
+
+  /// True when the server no longer accepts the user's session; the UI
+  /// should sign out (see `handleSessionExpired`).
+  final bool sessionExpired;
 
   @override
   String toString() => message;
@@ -92,8 +97,10 @@ class CloudFunctionsSubmissionService implements SubmissionService {
         notified: result.data['notified'] == true,
       );
     } on FirebaseFunctionsException catch (e) {
+      if (e.code == 'unauthenticated') {
+        throw SubmissionException(sessionExpiredMessage, sessionExpired: true);
+      }
       throw SubmissionException(switch (e.code) {
-        'unauthenticated' => 'Sign in first.',
         'failed-precondition' ||
         'invalid-argument' => e.message ?? 'Could not send your submission.',
         'deadline-exceeded' =>

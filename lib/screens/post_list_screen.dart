@@ -123,14 +123,19 @@ class _PostListScreenState extends State<PostListScreen> {
     );
   }
 
-  void _openSubmit(SubmissionService submissions, PhotoPicker photos) {
+  void _openSubmit(
+    AuthService auth,
+    SubmissionService submissions,
+    PhotoPicker photos,
+  ) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => SubmitScreen(
           feed: widget.feed,
           submissions: submissions,
           photos: photos,
-          initialFrom: widget.auth?.currentUser?.displayName,
+          auth: auth,
+          initialFrom: auth.currentUser?.displayName,
         ),
       ),
     );
@@ -161,7 +166,7 @@ class _PostListScreenState extends State<PostListScreen> {
               auth: auth,
               label: submitLabel,
               buttonKey: Key('submit-${widget.feed.name}'),
-              onPressed: () => _openSubmit(submissions, photos),
+              onPressed: () => _openSubmit(auth, submissions, photos),
             )
           : null,
     );
