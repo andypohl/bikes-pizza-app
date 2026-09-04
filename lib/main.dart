@@ -11,6 +11,8 @@ import 'screens/post_list_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/store_screen.dart';
 import 'store/store_repository.dart';
+import 'submissions/photo_picker.dart';
+import 'submissions/submission_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +25,8 @@ Future<void> main() async {
       store: StoreRepository.forConfig(),
       auth: FirebaseAuthService(),
       members: CloudFunctionsMemberService(),
+      submissions: CloudFunctionsSubmissionService(),
+      photos: ImagePickerPhotoPicker(),
     ),
   );
 }
@@ -35,6 +39,8 @@ class PizzaPredatorApp extends StatelessWidget {
     required this.auth,
     this.store,
     this.members,
+    this.submissions,
+    this.photos,
   });
 
   final AppSettings settings;
@@ -47,6 +53,10 @@ class PizzaPredatorApp extends StatelessWidget {
 
   /// Null when account management is unavailable; Settings then hides it.
   final MemberService? members;
+
+  /// Both needed for the Submit Pizza / Submit Bike buttons; null hides them.
+  final SubmissionService? submissions;
+  final PhotoPicker? photos;
 
   static const _seed = Color(0xFFD62828); // tomato-sauce red
 
@@ -72,6 +82,8 @@ class PizzaPredatorApp extends StatelessWidget {
             auth: auth,
             store: store,
             members: members,
+            submissions: submissions,
+            photos: photos,
           ),
         ),
       ),
@@ -89,12 +101,16 @@ class HomeShell extends StatefulWidget {
     required this.auth,
     this.store,
     this.members,
+    this.submissions,
+    this.photos,
   });
 
   final PostRepository repository;
   final AuthService auth;
   final StoreRepository? store;
   final MemberService? members;
+  final SubmissionService? submissions;
+  final PhotoPicker? photos;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -111,11 +127,15 @@ class _HomeShellState extends State<HomeShell> {
         feed: PostFeed.pizza,
         repository: widget.repository,
         auth: widget.auth,
+        submissions: widget.submissions,
+        photos: widget.photos,
       ),
       PostListScreen(
         feed: PostFeed.bikes,
         repository: widget.repository,
         auth: widget.auth,
+        submissions: widget.submissions,
+        photos: widget.photos,
       ),
       StoreScreen(repository: widget.store, auth: widget.auth),
       SettingsScreen(auth: widget.auth, members: widget.members),

@@ -20,8 +20,7 @@ toolbar button opens the post in the browser.
 
 Signed-in members (verified email) see a "Submit Pizza" / "Submit Bike"
 button under the Pizza and Bikes lists, between the list and the tab bar.
-It is not shown on a post. For now it opens a "Coming soon" screen
-(`lib/screens/submit_screen.dart`); the submission flow comes next.
+It is not shown on a post. See "Member submissions" below.
 
 ## Build-time configuration
 
@@ -60,6 +59,41 @@ flutter build appbundle --dart-define-from-file=config/local.json
 Content API keys grant read-only access to public content, so they are not
 secret in Ghost's model, but the key is still kept out of the repo. Without
 it the app throws on startup with a message naming the missing define.
+
+## Member submissions
+
+The Submit Pizza / Submit Bike form (`lib/screens/submit_screen.dart`) asks
+for a main photo (camera or library, scaled to 2048px on the device), a
+title, who it is from, and a description or story. Submitting calls the
+`submitPost` Cloud Function, which uploads the photo to Ghost, creates a
+**draft** post tagged `pizza` or `biking` plus the internal `#submission`
+tag, with the photo as feature image and the text as body, and then emails
+a configured address. Nothing is published until someone edits and
+publishes the draft in Ghost Admin. The submitter's email is only in the
+notification email (as the reply-to), never in the post.
+
+Drafts are attributed to a dedicated Ghost staff account (its email in
+`SUBMISSION_AUTHOR_EMAIL`), so they are easy to tell apart from the owner's
+own drafts; if that account does not exist, Ghost's default author is used
+and a warning is logged. The staff account is a Ghost login only; it has
+nothing to do with Firebase, which only handles members.
+
+The email goes out through Mailgun's HTTP API. Configure once per
+Firebase project:
+
+```sh
+# Secret:
+firebase functions:secrets:set MAILGUN_API_KEY
+# Not secret, in functions/.env and as repository variables for the deploy
+# workflow: MAILGUN_DOMAIN (a verified sending domain, or the sandbox domain
+# for tests), SUBMISSION_NOTIFY_EMAIL (recipient), SUBMISSION_AUTHOR_EMAIL
+# (staff account), optionally SUBMISSION_FROM_EMAIL (sender) and
+# MAILGUN_API_BASE (EU-region accounts only).
+```
+
+Without a key, domain and recipient, the draft is still created and the
+email is skipped with a warning in the function logs. Mailgun sandbox
+domains only deliver to recipients authorized in Mailgun.
 
 ## Store (Shopify)
 

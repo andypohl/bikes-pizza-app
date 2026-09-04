@@ -10,6 +10,8 @@
 // ghostMember:       the member's profile (name, email, newsletter choices)
 //                    for the hosted account page.
 // updateGhostMember: changes the member's name and/or newsletters.
+// submitPost:        turns a member's bike/pizza submission (photo + text)
+//                    into a draft post and emails the author about it.
 
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
@@ -19,6 +21,8 @@ import { logger } from "firebase-functions";
 import { ValidationError, profile, validateUpdate } from "./account.js";
 import { GhostAdminClient, GhostApiError } from "./ghost.js";
 import { firestoreStore, resolveMember } from "./link.js";
+import { isMailConfigured, sendMail } from "./mail.js";
+import { buildPost, createDraft, notificationEmail, validateSubmission } from "./submission.js";
 
 initializeApp();
 
@@ -26,6 +30,21 @@ initializeApp();
 const ghostAdminApiKey = defineSecret("GHOST_ADMIN_API_KEY");
 // Set in functions/.env (see .env.example); not a secret.
 const ghostAdminApiUrl = defineString("GHOST_ADMIN_API_URL");
+
+// Mailgun sends the notification email (see mail.js). The API key is set
+// with `firebase functions:secrets:set MAILGUN_API_KEY`; the rest lives in
+// functions/.env. Without a real key, domain and recipient the email is
+// skipped.
+const mailgunApiKey = defineSecret("MAILGUN_API_KEY");
+const mailgunDomain = defineString("MAILGUN_DOMAIN", { default: "" });
+const mailgunApiBase = defineString("MAILGUN_API_BASE", { default: "https://api.mailgun.net" });
+// Who to tell about new submissions.
+const notifyEmail = defineString("SUBMISSION_NOTIFY_EMAIL", { default: "" });
+// Sender; empty means postmaster@<MAILGUN_DOMAIN>.
+const fromEmail = defineString("SUBMISSION_FROM_EMAIL", { default: "" });
+// Email of the Ghost staff account that submission drafts are attributed
+// to; set in functions/.env. Empty leaves Ghost's default author.
+const authorEmail = defineString("SUBMISSION_AUTHOR_EMAIL", { default: "" });
 
 const options = { region: "us-central1", secrets: [ghostAdminApiKey] };
 
@@ -99,4 +118,57 @@ export const updateGhostMember = onCall(options, (request) =>
     logger.info("ghost member updated", { uid: user.uid, fields: Object.keys(patch) });
     return profile(updated, newsletters);
   }),
+);
+
+export const submitPost = onCall(
+  { ...options, secrets: [ghostAdminApiKey, mailgunApiKey], memory: "512MiB", timeoutSeconds: 120 },
+  (request) =>
+    withMember(request, "send your submission", async ({ user, ghost }) => {
+      const submission = validateSubmission(request.data);
+      const imageUrl = await ghost.uploadImage(submission.image);
+      const post = await createDraft(
+        ghost,
+        buildPost({ ...submission, imageUrl, authorEmail: authorEmail.value().trim() }),
+        (message) => logger.warn(message),
+      );
+      logger.info("submission drafted", {
+        uid: user.uid,
+        feed: submission.feed,
+        postId: post.id,
+        author: post.primary_author?.email ?? null,
+      });
+
+      let notified = false;
+      const to = notifyEmail.value().trim();
+      const domain = mailgunDomain.value().trim();
+      const apiKey = mailgunApiKey.value();
+      if (to && isMailConfigured({ apiKey, domain })) {
+        try {
+          const mail = notificationEmail({
+            ...submission,
+            userEmail: user.email,
+            post,
+            adminUrl: ghostAdminApiUrl.value(),
+          });
+          await sendMail({
+            apiKey,
+            domain,
+            apiBase: mailgunApiBase.value(),
+            from: fromEmail.value().trim() || `postmaster@${domain}`,
+            to,
+            replyTo: user.email,
+            ...mail,
+          });
+          notified = true;
+        } catch (error) {
+          // The draft exists either way; do not fail the submission.
+          logger.warn("submission email failed", { uid: user.uid, message: error.message });
+        }
+      } else {
+        logger.warn(
+          "submission email skipped: MAILGUN_API_KEY, MAILGUN_DOMAIN or SUBMISSION_NOTIFY_EMAIL not set",
+        );
+      }
+      return { postId: post.id, notified };
+    }),
 );

@@ -163,6 +163,15 @@ first use by email).
   paid-only newsletters are hidden from free members).
 - `updateGhostMember`: changes the member's name and/or the full list of
   newsletters they receive, validated against that same profile.
+- `submitPost`: takes a member's bike or pizza submission (photo as base64,
+  title, from, description), uploads the photo to Ghost, creates a draft
+  post attributed to the staff account in `SUBMISSION_AUTHOR_EMAIL`, and
+  emails `SUBMISSION_NOTIFY_EMAIL` through Mailgun. Needs the
+  `MAILGUN_API_KEY` secret and `MAILGUN_DOMAIN`; without them or the
+  recipient the email step is skipped. `SUBMISSION_FROM_EMAIL` optionally
+  sets the sender and `MAILGUN_API_BASE` the API region. These parameters
+  live in `functions/.env`.
+  Runs with 512 MiB and a 2-minute timeout because of the image upload.
 
   Configuration: a Secret Manager secret holding the Ghost Admin API key
   (name in `functions/index.js`) and a plain parameter with the Ghost API

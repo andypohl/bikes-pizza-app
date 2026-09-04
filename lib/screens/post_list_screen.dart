@@ -4,6 +4,8 @@ import '../auth/auth_service.dart';
 import '../data/post_repository.dart';
 import '../models/post.dart';
 import '../models/post_feed.dart';
+import '../submissions/photo_picker.dart';
+import '../submissions/submission_service.dart';
 import '../widgets/post_tile.dart';
 import 'post_detail_screen.dart';
 import 'submit_screen.dart';
@@ -12,18 +14,22 @@ import 'submit_screen.dart';
 /// and infinite scrolling (when the backend supports paging).
 ///
 /// Feeds that take submissions show a "Submit …" bar under the list to
-/// signed-in members when [auth] is given.
+/// signed-in members when [auth], [submissions] and [photos] are all given.
 class PostListScreen extends StatefulWidget {
   const PostListScreen({
     super.key,
     required this.feed,
     required this.repository,
     this.auth,
+    this.submissions,
+    this.photos,
   });
 
   final PostFeed feed;
   final PostRepository repository;
   final AuthService? auth;
+  final SubmissionService? submissions;
+  final PhotoPicker? photos;
 
   @override
   State<PostListScreen> createState() => _PostListScreenState();
@@ -117,15 +123,24 @@ class _PostListScreenState extends State<PostListScreen> {
     );
   }
 
-  void _openSubmit() {
+  void _openSubmit(SubmissionService submissions, PhotoPicker photos) {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => SubmitScreen(feed: widget.feed)),
+      MaterialPageRoute<void>(
+        builder: (_) => SubmitScreen(
+          feed: widget.feed,
+          submissions: submissions,
+          photos: photos,
+          initialFrom: widget.auth?.currentUser?.displayName,
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = widget.auth;
+    final submissions = widget.submissions;
+    final photos = widget.photos;
     final submitLabel = widget.feed.submitLabel;
     return Scaffold(
       appBar: AppBar(
@@ -137,12 +152,16 @@ class _PostListScreenState extends State<PostListScreen> {
       // Sits between the list and the app's tab bar rather than floating
       // over the posts. The post detail is a pushed route, so it is not
       // shown there.
-      bottomNavigationBar: auth != null && submitLabel != null
+      bottomNavigationBar:
+          auth != null &&
+              submissions != null &&
+              photos != null &&
+              submitLabel != null
           ? _SubmitBar(
               auth: auth,
               label: submitLabel,
               buttonKey: Key('submit-${widget.feed.name}'),
-              onPressed: _openSubmit,
+              onPressed: () => _openSubmit(submissions, photos),
             )
           : null,
     );

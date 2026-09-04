@@ -1,6 +1,7 @@
 // Minimal Ghost Admin API client covering what the app needs: look up or
 // create a member by email, read and update a member's name and newsletter
-// subscriptions, and mint a one-time sign-in URL for them.
+// subscriptions, mint a one-time sign-in URL for them, and turn a member's
+// submission into a draft post (image upload + post creation).
 //
 // The sign-in URL endpoint (`members/{id}/signin_urls/`) is what Ghost Admin
 // itself uses for "Sign in as member". It is not in the public API docs, so
@@ -47,14 +48,22 @@ export class GhostAdminClient {
   }
 
   async request(method, path, body) {
+    return this.send(method, path, {
+      headers: { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  }
+
+  /** Low-level call; `body` is sent as-is (a string or FormData). */
+  async send(method, path, { headers = {}, body } = {}) {
     const response = await this.fetch(`${this.base}${path}`, {
       method,
       headers: {
         Authorization: `Ghost ${this.token()}`,
         "Accept-Version": "v6.0",
-        "Content-Type": "application/json",
+        ...headers,
       },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body,
     });
     const text = await response.text();
     let json;
@@ -123,6 +132,31 @@ export class GhostAdminClient {
       { members: [patch] },
     );
     return json.members[0];
+  }
+
+  /**
+   * Uploads an image to the site's media store and returns its public URL.
+   *
+   * @param {{bytes: Uint8Array, contentType: string, filename: string}} image
+   */
+  async uploadImage({ bytes, contentType, filename }) {
+    const form = new FormData();
+    form.append("file", new Blob([bytes], { type: contentType }), filename);
+    form.append("purpose", "image");
+    form.append("ref", filename);
+    const json = await this.send("POST", "/images/upload/", { body: form });
+    const url = json.images?.[0]?.url;
+    if (!url) throw new GhostApiError("Ghost did not return an image URL.");
+    return url;
+  }
+
+  /**
+   * Creates a post from HTML (Ghost converts it to its editor format).
+   * Returns the post as Ghost stored it (`id`, `status`, `url`, ...).
+   */
+  async createPost(post) {
+    const json = await this.request("POST", "/posts/?source=html", { posts: [post] });
+    return json.posts[0];
   }
 
   /** Active newsletters on the site, in Ghost's sort order. */

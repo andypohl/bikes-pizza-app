@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +13,8 @@ import 'package:pizza_predator/models/post.dart';
 import 'package:pizza_predator/models/post_feed.dart';
 import 'package:pizza_predator/store/product.dart';
 import 'package:pizza_predator/store/store_repository.dart';
+import 'package:pizza_predator/submissions/photo_picker.dart';
+import 'package:pizza_predator/submissions/submission_service.dart';
 import 'package:pizza_predator/widgets/post_tile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -192,6 +195,41 @@ class FakeMemberService implements MemberService {
   }
 }
 
+/// Records submissions; can be told to fail.
+class FakeSubmissionService implements SubmissionService {
+  final submissions = <Submission>[];
+  bool fail = false;
+
+  @override
+  Future<SubmissionResult> submit(Submission submission) async {
+    if (fail) throw SubmissionException('Could not send your submission.');
+    submissions.add(submission);
+    return const SubmissionResult(postId: 'p1', notified: true);
+  }
+}
+
+/// Returns a tiny PNG, or nothing when [cancel] is set.
+class FakePhotoPicker implements PhotoPicker {
+  bool cancel = false;
+  final sources = <PhotoSource>[];
+
+  // 1x1 transparent PNG.
+  static final png = base64Decode(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+  );
+
+  @override
+  Future<SubmissionPhoto?> pick(PhotoSource source) async {
+    sources.add(source);
+    if (cancel) return null;
+    return SubmissionPhoto(
+      bytes: png,
+      contentType: 'image/png',
+      filename: 'photo.png',
+    );
+  }
+}
+
 /// In-memory store with two products; records checkout requests.
 class FakeStoreRepository implements StoreRepository {
   final checkouts = <String>[];
@@ -269,10 +307,14 @@ void main() {
   late FakeAuthService auth;
   FakeStoreRepository? store;
   FakeMemberService? members;
+  late FakeSubmissionService submissions;
+  late FakePhotoPicker photos;
 
   setUp(() {
     store = null;
     members = null;
+    submissions = FakeSubmissionService();
+    photos = FakePhotoPicker();
   });
 
   Future<FakePostRepository> pumpApp(WidgetTester tester) async {
@@ -292,6 +334,8 @@ void main() {
         auth: auth,
         store: store,
         members: members,
+        submissions: submissions,
+        photos: photos,
       ),
     );
     await tester.pumpAndSettle();
@@ -776,16 +820,128 @@ void main() {
     expect(find.text('Submit Pizza'), findsOneWidget);
   });
 
-  testWidgets('submit button opens the submission screen', (tester) async {
+  /// The form is a lazy ListView, so scroll until the button is built.
+  Future<void> scrollToSubmit(WidgetTester tester) => tester.scrollUntilVisible(
+    find.byKey(const Key('submit')),
+    200,
+    scrollable: find.byType(Scrollable).first,
+  );
+
+  Future<void> openSubmitForm(WidgetTester tester, String tab) async {
     await pumpApp(tester);
     await signInWithGoogle(tester);
-    await tester.tap(find.text('Bikes'));
+    await tester.tap(find.text(tab));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(Key('submit-${tab.toLowerCase()}')));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('submission form shows the feed-specific hints', (tester) async {
+    await openSubmitForm(tester, 'Bikes');
+    expect(find.widgetWithText(AppBar, 'Submit Bike'), findsOneWidget);
+    expect(find.text('Main photo'), findsOneWidget);
+    expect(find.text('(e.g. 1991 Trek 970 mountain bike!)'), findsOneWidget);
+    expect(find.text('(your name/nickname)'), findsOneWidget);
+    expect(find.text('Description/Story'), findsOneWidget);
+    // The Google fake's display name pre-fills From.
+    expect(
+      tester
+          .widget<TextFormField>(find.byKey(const Key('from')))
+          .controller
+          ?.text,
+      'G',
+    );
+    await tester.pageBack();
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('submit-bikes')));
+    await tester.tap(find.text('Pizza'));
     await tester.pumpAndSettle();
-    expect(find.widgetWithText(AppBar, 'Submit Bike'), findsOneWidget);
-    expect(find.text('Coming soon'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('submit-pizza')));
+    await tester.pumpAndSettle();
+    expect(find.text("(e.g. Domino's 14-inch Pepperoni)"), findsOneWidget);
+  });
+
+  testWidgets('submission form requires a photo and a title', (tester) async {
+    await openSubmitForm(tester, 'Bikes');
+    await tester.enterText(find.byKey(const Key('from')), '');
+    await scrollToSubmit(tester);
+    await tester.tap(find.byKey(const Key('submit')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Please add a photo.'), findsOneWidget);
+    expect(find.text('Please give it a title.'), findsOneWidget);
+    expect(find.text('Tell us who this is from.'), findsOneWidget);
+    expect(submissions.submissions, isEmpty);
+  });
+
+  testWidgets('a complete submission is sent and thanks the member', (
+    tester,
+  ) async {
+    await openSubmitForm(tester, 'Pizza');
+
+    // Cancelling the picker leaves no photo.
+    photos.cancel = true;
+    await tester.tap(find.byKey(const Key('pick-photo')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('photo-library')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('photo-preview')), findsNothing);
+
+    photos.cancel = false;
+    await tester.tap(find.byKey(const Key('pick-photo')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('photo-camera')));
+    await tester.pumpAndSettle();
+    expect(photos.sources, [PhotoSource.library, PhotoSource.camera]);
+    expect(find.byKey(const Key('photo-preview')), findsOneWidget);
+    expect(find.text('Change photo'), findsOneWidget);
+
+    await tester.enterText(find.byKey(const Key('title')), ' Pepperoni ');
+    await tester.enterText(find.byKey(const Key('from')), 'Andy');
+    await tester.enterText(
+      find.byKey(const Key('description')),
+      'Crispy edges.',
+    );
+    await scrollToSubmit(tester);
+    await tester.tap(find.byKey(const Key('submit')));
+    await tester.pumpAndSettle();
+
+    final sent = submissions.submissions.single;
+    expect(sent.feed, PostFeed.pizza);
+    expect(sent.title, 'Pepperoni');
+    expect(sent.from, 'Andy');
+    expect(sent.description, 'Crispy edges.');
+    expect(sent.photo.contentType, 'image/png');
+    expect(find.text('Thanks!'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('done')));
+    await tester.pumpAndSettle();
+    expect(find.text('Submit Pizza'), findsOneWidget); // back on the list
+  });
+
+  testWidgets('submission failures show a snackbar and keep the form', (
+    tester,
+  ) async {
+    submissions.fail = true;
+    await openSubmitForm(tester, 'Bikes');
+    await tester.tap(find.byKey(const Key('pick-photo')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('photo-library')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('title')), 'Trek');
+    await scrollToSubmit(tester);
+    await tester.tap(find.byKey(const Key('submit')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Could not send your submission.'), findsOneWidget);
+    expect(find.text('Thanks!'), findsNothing);
+    expect(
+      tester
+          .widget<TextFormField>(find.byKey(const Key('title')))
+          .controller
+          ?.text,
+      'Trek',
+    );
   });
 
   testWidgets('Settings tab switches theme mode', (tester) async {
