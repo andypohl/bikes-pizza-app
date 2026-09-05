@@ -2,8 +2,10 @@
    the review page is its own Hosting site, so it carries its own copy. */
 
 :root {
-  --red: #d62828;
+  --red: #d62828; /* the brand, and destructive actions only */
   --red-dark: #a81d1d;
+  --accent: #2456b8; /* ordinary buttons, links and tabs */
+  --accent-dark: #1b4390;
   --ink: #1f1a1a;
   --muted: #6b6060;
   --line: #e6dcdc;
@@ -14,6 +16,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+    --accent: #7aa6ff;
+    --accent-dark: #5d8ff0;
     --ink: #f3ecec;
     --muted: #b5a6a6;
     --line: #3d3232;
@@ -99,8 +103,8 @@ p {
 }
 
 .tabs button[aria-selected="true"] {
-  color: var(--red);
-  border-bottom-color: var(--red);
+  color: var(--accent);
+  border-bottom-color: var(--accent);
 }
 
 label {
@@ -123,7 +127,7 @@ input {
 }
 
 input:focus {
-  outline: 2px solid var(--red);
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
   border-color: transparent;
 }
@@ -144,13 +148,13 @@ button.secondary {
 }
 
 button.primary {
-  background: var(--red);
+  background: var(--accent);
   color: #fff;
   border: 0;
 }
 
 button.primary:hover {
-  background: var(--red-dark);
+  background: var(--accent-dark);
 }
 
 button.secondary {
@@ -177,7 +181,7 @@ button.link {
   border: 0;
   padding: 0.6rem 0 0;
   font: inherit;
-  color: var(--red);
+  color: var(--accent);
   cursor: pointer;
 }
 
@@ -345,8 +349,8 @@ table.submissions tr.row:hover {
 }
 
 .status.pending {
-  color: var(--red);
-  border-color: var(--red);
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .status.approved {
@@ -461,7 +465,7 @@ button.danger {
   width: 1rem;
   height: 1rem;
   margin: 0;
-  accent-color: #d62828;
+  accent-color: var(--accent);
 }
 .toggle input:disabled + span {
   opacity: 0.6;
