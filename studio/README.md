@@ -7,10 +7,16 @@ schema and the app's readers evolve together. The project is set in
 written by the app's functions rather than edited here; posts reference it
 so the site shows the member's current username.
 
-The Studio has two workspaces, one per dataset. `production` is what
-bikes.pizza is built from. `development` is a copy that the development
-deploy (bikes-pizza.dev) builds from and publishes submissions into, so code
-can be tested without touching live content. Refresh the copy with
+There is one dataset, and one hosted Studio, per environment. `production`
+is what bikes.pizza is built from, edited at https://bikes-pizza.sanity.studio/.
+`development` is a copy that the development deploy (bikes-pizza.dev) builds
+from and publishes submissions into, so code can be tested without touching
+live content; it is edited at https://bikes-pizza-dev.sanity.studio/. Both
+Studios are built from this folder: `SANITY_STUDIO_DATASET` (see
+`environment.ts`) picks the dataset, its hostname and its app id, and
+`.env.production` sets it to `production` for a plain `sanity deploy`. A local
+`sanity dev` leaves it unset and shows a workspace per dataset, switchable
+with the workspace menu. Refresh the copy with
 `npx sanity dataset copy production development` (server-side, Growth plan
 and up) or, on any plan, `npx sanity dataset export production x.tar.gz`
 followed by `npx sanity dataset import x.tar.gz development --replace`.
@@ -22,7 +28,8 @@ npm install
 npx sanity login              # once per machine
 npm run dev                   # Studio at http://localhost:3333
 npx sanity schemas deploy     # after changing schemaTypes/ (needed by the MCP tools)
-npx sanity deploy             # publish the hosted Studio
+npx sanity deploy             # publish the production Studio
+npm run deploy:dev            # publish the development Studio
 ```
 
 Import a post from the Ghost site (reads the Content API key from the app's
