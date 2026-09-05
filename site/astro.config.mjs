@@ -7,10 +7,13 @@ import sanity from '@sanity/astro';
 // dataset is public, so builds need no token.
 const projectId = process.env.PUBLIC_SANITY_PROJECT_ID || 'nva9b0ia';
 const dataset = process.env.PUBLIC_SANITY_DATASET || 'production';
+// Where the built site is served from, used for canonical and Open Graph
+// URLs. The development deploy overrides it with its own domain.
+const site = process.env.PUBLIC_SITE_URL || 'https://bikes.pizza';
 
 // https://astro.build/config
 export default defineConfig({
-  site: 'https://bikes.pizza',
+  site,
   prefetch: { defaultStrategy: 'viewport' },
   integrations: [
     sanity({ projectId, dataset, apiVersion: '2025-02-19', useCdn: false }),

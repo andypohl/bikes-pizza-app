@@ -220,13 +220,18 @@ to site IDs in `.firebaserc`), so each serves its page from `/`. Preview
 locally with `firebase emulators:start --only hosting` (uses the live
 Firebase project for sign-in) and deploy with `firebase deploy --only hosting`.
 
-Deploys also happen automatically when a GitHub release is published (or by
-running the "Deploy to Firebase" workflow by hand). The workflow authenticates
-without any stored key: GitHub's OIDC token is exchanged for a deploy-only
-service account via Workload Identity Federation. It needs a `production`
-environment and two repository variables (`GCP_WORKLOAD_IDENTITY_PROVIDER`,
-`GCP_DEPLOY_SERVICE_ACCOUNT`). See `docs/firebase.md`
-for the cloud-side setup.
+There are two Firebase projects. Production (bikes.pizza,
+submissions.bikes.pizza) only changes when a GitHub release is published (or
+when the "Deploy to production" workflow is run by hand). Every merge to
+`main` deploys the same code to the development project, served at
+https://bikes-pizza.dev/ and https://submissions.bikes-pizza.dev/, with its
+own Firestore, Auth users and Cloud Functions, and built from the
+`development` Sanity dataset. The workflows authenticate without any stored
+key: GitHub's OIDC token is exchanged for a deploy-only service account via
+Workload Identity Federation, configured per GitHub environment
+(`production`, `development`). See `docs/firebase.md` for the cloud-side
+setup and the list of variables. `firebase deploy --project dev` deploys to
+the development project from a machine.
 
 ## Project layout
 
@@ -266,10 +271,12 @@ flutter run            # pick a connected device / simulator
 
 Formatting, `flutter analyze`, `flutter test`, and the Cloud Functions unit
 tests run on GitHub Actions for every pull request targeting `main`
-(`.github/workflows/pr-checks.yml`). Publishing a GitHub release deploys the
-Cloud Functions, the website and the account page
-(`.github/workflows/deploy-firebase.yml`);
-app store release workflows will be added later.
+(`.github/workflows/pr-checks.yml`). Merging to `main` deploys the Cloud
+Functions, the website and the account page to the development project
+(`.github/workflows/deploy-dev.yml`); publishing a GitHub release deploys
+them to production (`.github/workflows/deploy-firebase.yml`). Both call
+`.github/workflows/deploy.yml`. App store release workflows will be added
+later.
 
 Adding or renaming tabs: edit `PostFeed` in `lib/models/post_feed.dart` and
 the `NavigationDestination` list in `lib/main.dart`.

@@ -1,0 +1,20 @@
+# Deploys every merge to main to the development Firebase project, served at
+# https://bikes-pizza.dev/ and https://submissions.bikes-pizza.dev/. Production
+# only changes on a release (deploy-firebase.yml). The steps live in
+# deploy.yml.
+name: Deploy to development
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # needed to mint the OIDC token for Google Cloud
+
+jobs:
+  development:
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: development

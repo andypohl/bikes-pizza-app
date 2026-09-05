@@ -219,9 +219,43 @@ Planned:
   Any Shopify token used here is stored as a Functions secret with
   `firebase functions:secrets:set`, never in the repo.
 
+## Environments
+
+There are two Firebase projects with the same layout, selected by the
+aliases in `.firebaserc` (`default` and `dev`):
+
+| | production | development |
+|---|---|---|
+| Firebase project | `pizzapredator-a445e` | `bikes-pizza-dev` |
+| Website | https://bikes.pizza/ | https://bikes-pizza.dev/ |
+| Submissions and API | https://submissions.bikes.pizza/ | https://submissions.bikes-pizza.dev/ |
+| Sanity dataset | `production` | `development` (a copy; see `studio/README.md`) |
+| Deployed by | a published GitHub release | every merge to `main` |
+| GitHub environment | `production` | `development` |
+
+Both projects share the Sanity project and its Editor token (project-wide),
+the Shopify store and the Google account, and nothing else: Auth users,
+Firestore data, Storage and Cloud Functions are separate, so a member of
+bikes.pizza has to sign up again on bikes-pizza.dev. The development project
+sends no submission emails (its deploy leaves `MAILGUN_DOMAIN` empty, and the
+`MAILGUN_API_KEY` secret there is a placeholder). Google and Apple sign-in are
+not configured on it; email/password is.
+
+The workflows read their settings from GitHub Actions variables, with the
+environment's variables overriding the repository's:
+`FIREBASE_PROJECT`, `GCP_WORKLOAD_IDENTITY_PROVIDER`,
+`GCP_DEPLOY_SERVICE_ACCOUNT`, `SITE_URL`, `REVIEW_PAGE_URL`,
+`PUBLIC_API_URL` and `SANITY_DATASET` are set on the `development`
+environment; the repository-level values serve production. The full list is
+at the top of `.github/workflows/deploy.yml`.
+
+Content changes rebuild both websites ("Rebuild website" workflow):
+production from the latest published release, so an edit never ships
+unreleased code, and development from `main`.
+
 ## Hosting
 
-Three sites on the project, mapped to the `home`, `account` and `review`
+Three sites on each project, mapped to the `home`, `account` and `review`
 targets in `firebase.json` by `.firebaserc` (create the extra sites with
 `firebase hosting:sites:create <site-id>` before the first deploy):
 
@@ -235,8 +269,9 @@ targets in `firebase.json` by `.firebaserc` (create the extra sites with
 
   The site is static, so content changes need a rebuild. The "Deploy
   website" workflow (`.github/workflows/deploy-site.yml`) builds `site/`
-  from `main` and deploys only the home target; it runs on a
-  `repository_dispatch` event of type `sanity-content-changed`, or by hand.
+  and deploys only the home target of each environment (see Environments
+  above); it runs on a `repository_dispatch` event of type
+  `sanity-content-changed`, or by hand.
   Sanity sends that event through a webhook (Manage → API → Webhooks on the
   project): URL `https://api.github.com/repos/<owner>/<repo>/dispatches`,
   method POST, dataset `production`, trigger on create, update and delete,
@@ -320,11 +355,14 @@ Keep this list current. It is the checklist for rebuilding the project.
     `assertion.repository` to this repository; then grant the repository's
     principal set the Workload Identity User role on the deploy service
     account. Record the provider resource name and the service account email
-    as GitHub repository variables `GCP_WORKLOAD_IDENTITY_PROVIDER` and
-    `GCP_DEPLOY_SERVICE_ACCOUNT`. Also create a `production` GitHub
-    environment (optionally with required reviewers); the other repository
-    variables the workflows read are listed at the top of each workflow
-    file.
+    as GitHub variables `GCP_WORKLOAD_IDENTITY_PROVIDER` and
+    `GCP_DEPLOY_SERVICE_ACCOUNT`, on the `production` or `development`
+    environment (create it first; production may have required reviewers).
+    The other variables the workflows read are listed at the top of
+    `.github/workflows/deploy.yml`. Steps 1 to 11 apply to both projects;
+    for development, skip the Google and Apple providers, the app
+    registrations and the Mailgun key (set a placeholder so the functions
+    deploy), and use the `development` Sanity dataset in `functions/.env`.
 
 ## Rebuilding the app config
 

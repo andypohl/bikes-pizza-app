@@ -1,8 +1,18 @@
 # bikes.pizza Studio
 
 Sanity Studio for the bikes.pizza content model, kept alongside the app so the
-schema and the app's readers evolve together. The project and dataset are set
-in `sanity.cli.ts` and `sanity.config.ts`.
+schema and the app's readers evolve together. The project is set in
+`sanity.cli.ts` and `sanity.config.ts`.
+
+The Studio has two workspaces, one per dataset. `production` is what
+bikes.pizza is built from. `development` is a copy that the development
+deploy (bikes-pizza.dev) builds from and publishes submissions into, so code
+can be tested without touching live content. Refresh the copy with
+`npx sanity dataset copy production development` (server-side, Growth plan
+and up) or, on any plan, `npx sanity dataset export production x.tar.gz`
+followed by `npx sanity dataset import x.tar.gz development --replace`.
+Both datasets are public, so the website builds need no token. CLI commands
+default to `production`; add `--dataset development` to target the copy.
 
 ```sh
 npm install

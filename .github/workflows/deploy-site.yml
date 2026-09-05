@@ -1,56 +1,50 @@
-# Rebuilds the website from Sanity and deploys it to the `home` Hosting
-# target. Runs when Sanity reports a content change (a webhook sends a
-# `repository_dispatch` of type `sanity-content-changed`; see
-# docs/firebase.md) or when started by hand. Code changes to the site still
-# ship with the release deploy (deploy-firebase.yml).
-name: Deploy website
+# Rebuilds the website from Sanity when content changes (a webhook sends a
+# `repository_dispatch` of type `sanity-content-changed`; see docs/firebase.md)
+# or when started by hand. Production is rebuilt from the latest release, so
+# a content change never ships unreleased code; development is rebuilt from
+# main. Only the home Hosting target is deployed; code changes reach
+# production with the release deploy (deploy-firebase.yml).
+name: Rebuild website
 
 on:
   repository_dispatch:
     types: [sanity-content-changed]
   workflow_dispatch:
 
-concurrency:
-  group: deploy-site
-  cancel-in-progress: true
-
 permissions:
   contents: read
   id-token: write # needed to mint the OIDC token for Google Cloud
 
 jobs:
-  deploy:
-    name: Build and deploy the website
+  release:
+    name: Find the latest release
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: production
-    defaults:
-      run:
-        working-directory: site
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.latest.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: main
+      - id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # `releases/latest` is the newest published release that is neither a
+        # draft nor a pre-release; 404 means there has been no release yet.
+        run: |
+          tag=$(gh api "repos/${{ github.repository }}/releases/latest" --jq .tag_name 2>/dev/null || true)
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Latest release: ${tag:-none}"
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: site/package-lock.json
+  production:
+    needs: release
+    if: ${{ needs.release.outputs.tag != '' }}
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: production
+      ref: ${{ needs.release.outputs.tag }}
+      only: hosting:home
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
-          token_format: access_token
-
-      - name: Deploy
-        run: npx --yes firebase-tools@15 deploy --only hosting:home --non-interactive
-        working-directory: .
+  development:
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: development
+      ref: main
+      only: hosting:home

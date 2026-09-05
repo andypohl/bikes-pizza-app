@@ -14,7 +14,9 @@ npm run preview
 
 Posts are fetched at build time from the public Sanity dataset (project and
 dataset in `astro.config.mjs`; override with `PUBLIC_SANITY_PROJECT_ID` and
-`PUBLIC_SANITY_DATASET`), so no token is needed. Images are served from
+`PUBLIC_SANITY_DATASET`), so no token is needed. Canonical and Open Graph
+URLs use `PUBLIC_SITE_URL` (default `https://bikes.pizza`); the development
+deploy sets it to its own domain. Images are served from
 Sanity's CDN with responsive `srcset`s. `src/lib/sanity.ts` holds the query
 and image helpers; `src/pages/` has the index, `category/[category]` and
 `post/[slug]` routes.
