@@ -1,13 +1,16 @@
 ---
 // One post in a gallery: the photo, with title and category revealed on
-// hover. Shared by the featured row and the masonry; `widths` and `sizes`
-// describe how wide the tile can be so the browser picks a fitting image.
+// hover. With `titleAbove` the title sits above the photo all the time and
+// only the category and date appear on hover (the featured row). Shared by
+// the featured row and the grid; `widths` and `sizes` describe how wide
+// the tile can be so the browser picks a fitting image.
 import { categoryOf, responsive, TILE_RATIO, type Post } from '../lib/sanity';
 import { formatDate } from '../utils/format';
 
 interface Props {
   post: Post;
   eager?: boolean;
+  titleAbove?: boolean;
   widths?: number[];
   sizes?: string;
 }
@@ -15,6 +18,7 @@ interface Props {
 const {
   post,
   eager = false,
+  titleAbove = false,
   widths = [400, 800, 1200],
   sizes = '(min-width: 1024px) 25vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw',
 } = Astro.props;
@@ -28,6 +32,13 @@ const height = Math.round(width / TILE_RATIO);
   class="group block overflow-hidden rounded-lg transition-all duration-300 relative"
   transition:name={`post-${post.id}`}
 >
+  {
+    titleAbove && (
+      <h3 class="text-2xl font-light tracking-wide mb-3 text-stone-900 dark:text-stone-100 group-hover:text-stone-600 dark:group-hover:text-stone-300 transition-colors duration-300">
+        {post.title}
+      </h3>
+    )
+  }
   <div class="overflow-hidden relative">
     <img
       src={src}
@@ -43,7 +54,7 @@ const height = Math.round(width / TILE_RATIO);
     />
     <div class="absolute inset-0 bg-slate-900 opacity-0 group-hover:opacity-50 transition-opacity duration-300 flex items-center justify-center pointer-events-none">
       <div class="text-stone-100 text-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 p-4">
-        <h3 class="text-lg font-medium mb-1">{post.title}</h3>
+        {!titleAbove && <h3 class="text-lg font-medium mb-1">{post.title}</h3>}
         <p class="text-sm font-light tracking-wide opacity-90">
           {categoryOf(post)} · {formatDate(post.publishedAt)}
         </p>

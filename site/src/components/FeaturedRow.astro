@@ -21,7 +21,7 @@ const SIZES = '(min-width: 1024px) 50vw, (min-width: 768px) 66vw, 100vw';
     <div class="featured" data-count={posts.length}>
       {posts.map((post) => (
         <div class="featured-item">
-          <PostTile post={post} eager widths={WIDTHS} sizes={SIZES} />
+          <PostTile post={post} eager titleAbove widths={WIDTHS} sizes={SIZES} />
         </div>
       ))}
     </div>
