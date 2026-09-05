@@ -63,7 +63,9 @@ for the production dataset behind bikes.pizza, and
 https://bikes-pizza-dev.sanity.studio/ for the development copy behind
 bikes-pizza.dev.
 See `studio/README.md` for running it, deploying the schema, and importing
-posts from the old Ghost site.
+posts from the old Ghost site. `apps/post-details/` is a Sanity App SDK app
+in the Dashboard for filling in a bike post's brand, year, colour and type
+and for linking a post to a member by username; see its README.
 
 `site/` is the public website at https://bikes.pizza/, an Astro site that
 renders the posts as a photo gallery (the Astro Frame Shift theme by Ema
@@ -310,6 +312,7 @@ lib/
 test/                           unit tests for both backends, widget tests
 functions/                      Cloud Functions (submissions, members, REST API)
 site/                           Astro website; studio/ the Sanity Studio
+apps/post-details/              Sanity Dashboard app: bike details, member links
 web/                            account page and submissions review page
 infra/                          Pulumi program for the cloud resources (dev, prod stacks)
 ```
