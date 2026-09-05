@@ -82,6 +82,43 @@ body {
   fill: currentColor;
 }
 
+/* Signed out, the sign-in view shows the site's navigation instead. */
+[data-state="auth"] .back {
+  display: none;
+}
+
+.site-nav {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.site-nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.95rem;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.site-nav a:hover {
+  border-color: var(--muted);
+}
+
+.site-nav svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  fill: currentColor;
+}
+
 h1 {
   font-size: 1.25rem;
   margin: 0 0 0.5rem;
