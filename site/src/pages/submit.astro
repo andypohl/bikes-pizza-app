@@ -250,7 +250,11 @@ import { API_URL as apiUrl } from '../lib/api';
     send.textContent = 'Sending…';
     try {
       const image = await encodePhoto(file);
-      const token = await user.getIdToken();
+      // A cached ID token can predate the email verification (the link is
+      // opened in another tab); the API checks the token's claims, so mint
+      // a fresh one from the account's current state.
+      await user.reload();
+      const token = await user.getIdToken(true);
       const res = await fetch(`${apiUrl}/api/submissions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

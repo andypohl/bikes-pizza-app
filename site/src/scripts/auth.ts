@@ -8,7 +8,9 @@ export type SiteUser = {
   email: string | null;
   emailVerified: boolean;
   displayName: string | null;
-  getIdToken: () => Promise<string>;
+  /** Firebase's User methods; `getIdToken(true)` mints a token with current claims. */
+  getIdToken: (forceRefresh?: boolean) => Promise<string>;
+  reload: () => Promise<void>;
 } | null;
 
 type Listener = (user: SiteUser, known: boolean) => void;
