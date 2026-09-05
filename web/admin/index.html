@@ -90,6 +90,7 @@
           </div>
           <p class="muted small" id="d-posts-head"></p>
           <ul class="posts" id="d-posts"></ul>
+          <p class="status-line" id="d-status" role="status"></p>
           <div class="actions spread">
             <div class="actions">
               <button type="submit" class="primary" id="d-save" disabled>Save</button>
@@ -97,7 +98,7 @@
             </div>
             <div class="actions">
               <button type="button" class="secondary" id="d-reset" hidden>Reset password</button>
-              <button type="button" class="delete" id="d-delete">Delete user</button>
+              <button type="button" class="secondary delete" id="d-delete">Delete user</button>
             </div>
           </div>
         </form>
@@ -108,7 +109,7 @@
           <h2>Are you sure?</h2>
           <p id="confirm-text"></p>
           <div class="actions">
-            <button type="button" class="delete" id="confirm-yes">Yes</button>
+            <button type="button" class="secondary delete" id="confirm-yes">Yes</button>
             <button type="button" class="secondary" id="confirm-no">No</button>
           </div>
         </form>

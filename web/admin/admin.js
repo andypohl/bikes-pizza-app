@@ -60,6 +60,16 @@ function say(text, ok = false) {
   m.textContent = text;
   m.classList.toggle("ok", ok);
   m.hidden = false;
+  // The dialog is modal, so it repeats the message where it can be seen.
+  const line = $("#d-status");
+  line.textContent = text;
+  line.classList.toggle("ok", ok);
+  line.classList.toggle("bad", !ok);
+}
+
+function clearStatus() {
+  $("#d-status").textContent = "";
+  $("#d-status").className = "status-line";
 }
 
 function busy(on) {
@@ -244,6 +254,7 @@ async function openDetail(uid) {
   try {
     fill(await api(`/api/admin/users/${encodeURIComponent(uid)}`));
     $("#message").hidden = true;
+    clearStatus();
     dialog.showModal();
   } catch (error) {
     say(describe(error) ?? "Could not load that user.");
