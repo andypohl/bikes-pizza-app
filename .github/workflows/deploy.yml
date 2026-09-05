@@ -1,0 +1,111 @@
+# Reusable deploy: builds the website, runs the Cloud Functions tests, and
+# deploys to the Firebase project of one GitHub environment. Called by the
+# release deploy (production), the merge deploy (development) and the
+# website rebuild that Sanity triggers. Not run on its own.
+#
+# Authentication is keyless: GitHub's OIDC token is exchanged for the deploy
+# service account through Workload Identity Federation (see docs/firebase.md).
+#
+# Variables, read from the environment (which overrides the repository):
+#   FIREBASE_PROJECT                Firebase project ID to deploy to
+#   GCP_WORKLOAD_IDENTITY_PROVIDER  projects/<number>/locations/global/
+#                                   workloadIdentityPools/<pool>/providers/<id>
+#   GCP_DEPLOY_SERVICE_ACCOUNT      deploy service account email
+#   SITE_URL                        where the website is served from
+#   PUBLIC_API_URL                  (optional) submissions API origin the site calls
+#   SANITY_PROJECT_ID, SANITY_DATASET  (optional) overrides for functions/.env
+#   MAILGUN_DOMAIN                  (optional) Mailgun sending domain; production only
+#   MAILGUN_API_BASE                (optional) Mailgun API base, EU accounts only
+#   SUBMISSION_NOTIFY_EMAIL         (optional) who to email about submissions
+#   SUBMISSION_FROM_EMAIL           (optional) sender address for the email
+#   REVIEW_PAGE_URL                 (optional) link in the notification email
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: GitHub environment to deploy (production or development)
+        required: true
+        type: string
+      ref:
+        description: Git ref to build and deploy; defaults to the calling ref
+        required: false
+        type: string
+        default: ""
+      only:
+        description: Value for `firebase deploy --only`
+        required: false
+        type: string
+        default: functions,hosting,firestore,storage
+
+permissions:
+  contents: read
+  id-token: write # needed to mint the OIDC token for Google Cloud
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ inputs.environment }}
+    # One deploy per environment at a time; queued ones wait.
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install and test the functions
+        if: contains(inputs.only, 'functions')
+        working-directory: functions
+        run: npm ci && npm test
+
+      - name: Write functions/.env
+        if: contains(inputs.only, 'functions')
+        working-directory: functions
+        # Submission emails are a production concern: the development
+        # project gets no Mailgun domain, which makes the functions skip them.
+        run: |
+          echo "SANITY_PROJECT_ID=${{ vars.SANITY_PROJECT_ID }}" > .env
+          echo "SANITY_DATASET=${{ vars.SANITY_DATASET }}" >> .env
+          echo "SITE_URL=${{ vars.SITE_URL }}" >> .env
+          echo "MAILGUN_DOMAIN=${{ inputs.environment == 'production' && vars.MAILGUN_DOMAIN || '' }}" >> .env
+          echo "MAILGUN_API_BASE=${{ vars.MAILGUN_API_BASE || 'https://api.mailgun.net' }}" >> .env
+          echo "SUBMISSION_NOTIFY_EMAIL=${{ vars.SUBMISSION_NOTIFY_EMAIL }}" >> .env
+          echo "SUBMISSION_FROM_EMAIL=${{ vars.SUBMISSION_FROM_EMAIL }}" >> .env
+          echo "REVIEW_PAGE_URL=${{ vars.REVIEW_PAGE_URL }}" >> .env
+
+      - name: Build the website
+        working-directory: site
+        env:
+          PUBLIC_SITE_URL: ${{ vars.SITE_URL }}
+          PUBLIC_API_URL: ${{ vars.PUBLIC_API_URL }}
+          PUBLIC_SANITY_PROJECT_ID: ${{ vars.SANITY_PROJECT_ID }}
+          PUBLIC_SANITY_DATASET: ${{ vars.SANITY_DATASET }}
+        run: npm ci && npm run build
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          # Minting a token here verifies impersonation up front, so a
+          # permissions problem fails this step with a clear message instead
+          # of a generic "Failed to authenticate" from the Firebase CLI.
+          token_format: access_token
+
+      - name: Deploy
+        # --force skips the interactive confirmation for deleting functions
+        # that were removed from the source.
+        run: >-
+          npx --yes firebase-tools@15 deploy
+          --project ${{ vars.FIREBASE_PROJECT }}
+          --only ${{ inputs.only }}
+          --non-interactive --force

@@ -1,6 +1,7 @@
 {
   "projects": {
-    "default": "pizzapredator-a445e"
+    "default": "pizzapredator-a445e",
+    "dev": "bikes-pizza-dev"
   },
   "targets": {
     "pizzapredator-a445e": {
@@ -13,6 +14,19 @@
         ],
         "review": [
           "pizzapredator-submissions"
+        ]
+      }
+    },
+    "bikes-pizza-dev": {
+      "hosting": {
+        "home": [
+          "bikes-pizza-dev-home"
+        ],
+        "account": [
+          "bikes-pizza-dev"
+        ],
+        "review": [
+          "bikes-pizza-dev-submissions"
         ]
       }
     }
