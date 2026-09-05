@@ -421,7 +421,7 @@ for (const id of ["#signout-verify", "#signout-error"]) {
 // ---- start ----------------------------------------------------------------
 
 $("#site-link").href = ON_SITE ? redirectTo : `${SITE}/`;
-$("#home-link").href = ON_SITE ? "/" : `${SITE}/`;
+$("#back-link").href = ON_SITE ? redirectTo : `${SITE}/`;
 setMode(mode);
 
 onAuthStateChanged(auth, (user) => {
