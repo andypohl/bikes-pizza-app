@@ -1,4 +1,5 @@
 import '../data/portable_text_html.dart';
+import 'bike_options.dart';
 
 /// The member who submitted a post: their Sanity `member` document id
 /// (stable, used to list their posts) and current username.
@@ -7,6 +8,58 @@ class PostAuthor {
 
   final String id;
   final String username;
+}
+
+/// One labelled bike detail ready to display, e.g. `Type: MTB`.
+class BikeSpec {
+  const BikeSpec(this.label, this.value);
+
+  final String label;
+  final String value;
+}
+
+/// The structured details of a bike post, as stored (option values), with
+/// the display forms the app shows.
+class BikeDetails {
+  const BikeDetails({this.brand, this.year, this.color, this.type});
+
+  final String? brand;
+  final String? year;
+  final String? color;
+  final String? type;
+
+  bool get isEmpty =>
+      _blank(brand) && _blank(year) && _blank(color) && _blank(type);
+
+  String? get yearTitle => _title(bikeYears, year);
+  String? get colorTitle => _title(bikeColors, color);
+  String? get typeTitle => _title(bikeTypes, type);
+
+  /// The filled-in details in display order.
+  List<BikeSpec> get specs => [
+    if (!_blank(brand)) BikeSpec('Brand', brand!.trim()),
+    if (yearTitle != null) BikeSpec('Year', yearTitle!),
+    if (colorTitle != null) BikeSpec('Color', colorTitle!),
+    if (typeTitle != null) BikeSpec('Type', typeTitle!),
+  ];
+
+  /// One line for lists: brand, type and year, e.g. `GT · MTB · 1990s`.
+  String? get line {
+    final parts = [if (!_blank(brand)) brand!.trim(), ?typeTitle, ?yearTitle];
+    return parts.isEmpty ? null : parts.join(' · ');
+  }
+
+  static bool _blank(String? value) => value == null || value.trim().isEmpty;
+
+  static String? _title(Map<String, String> titles, String? value) =>
+      _blank(value) ? null : titles[value] ?? value;
+
+  factory BikeDetails.fromJson(Map<dynamic, dynamic> json) => BikeDetails(
+    brand: json['brand'] as String?,
+    year: json['year'] as String?,
+    color: json['color'] as String?,
+    type: json['type'] as String?,
+  );
 }
 
 /// A single post as loaded from Sanity.
@@ -22,6 +75,7 @@ class Post {
     this.tags = const [],
     this.submittedBy,
     this.author,
+    this.bike,
   });
 
   final String id;
@@ -48,6 +102,9 @@ class Post {
 
   /// The submitting member, when the post carries a member reference.
   final PostAuthor? author;
+
+  /// Structured details of a bike post, when some have been filled in.
+  final BikeDetails? bike;
 
   /// Who to credit: the member's current username when known, else the
   /// text typed at submission. Null for posts written in the Studio.
@@ -76,6 +133,10 @@ class Post {
     final custom = (json['excerpt'] as String?)?.trim() ?? '';
     final rawAuthor = json['author'];
     final authorId = rawAuthor is Map ? rawAuthor['id'] as String? : null;
+    final rawBike = json['bike'];
+    final bike = rawBike is Map && feed == 'bikes'
+        ? BikeDetails.fromJson(rawBike)
+        : null;
 
     return Post(
       id: slug.isNotEmpty ? slug : json['_id'] as String? ?? '',
@@ -99,6 +160,7 @@ class Post {
               id: authorId,
               username: (rawAuthor as Map)['username'] as String? ?? '',
             ),
+      bike: bike == null || bike.isEmpty ? null : bike,
     );
   }
 

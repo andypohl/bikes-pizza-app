@@ -4,7 +4,8 @@ import 'package:intl/intl.dart';
 
 import '../models/post.dart';
 
-/// One row in a post list: thumbnail on the left, title and date on the right.
+/// One row in a post list: thumbnail on the left, title and date on the
+/// right, plus a bike's brand, type and year when known.
 class PostTile extends StatelessWidget {
   const PostTile({super.key, required this.post, this.onTap});
 
@@ -19,6 +20,7 @@ class PostTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final details = post.bike?.line;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -49,6 +51,15 @@ class PostTile extends StatelessWidget {
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
+                  if (details != null)
+                    Text(
+                      details,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                 ],
               ),
             ),
