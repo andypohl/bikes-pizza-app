@@ -1,0 +1,64 @@
+---
+// One post in a gallery: the photo, with title and category revealed on
+// hover. With `titleAbove` the title sits above the photo all the time and
+// only the category and date appear on hover (the featured row). Shared by
+// the featured row and the grid; `widths` and `sizes` describe how wide
+// the tile can be so the browser picks a fitting image.
+import { categoryOf, responsive, TILE_RATIO, type Post } from '../lib/sanity';
+import { formatDate } from '../utils/format';
+
+interface Props {
+  post: Post;
+  eager?: boolean;
+  titleAbove?: boolean;
+  widths?: number[];
+  sizes?: string;
+}
+
+const {
+  post,
+  eager = false,
+  titleAbove = false,
+  widths = [400, 800, 1200],
+  sizes = '(min-width: 1024px) 25vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw',
+} = Astro.props;
+const { src, srcset } = responsive(post.image, widths, 80, TILE_RATIO);
+const width = post.image.width;
+const height = Math.round(width / TILE_RATIO);
+---
+
+<a
+  href={`/post/${post.id}/`}
+  class="group block overflow-hidden rounded-lg transition-all duration-300 relative"
+  transition:name={`post-${post.id}`}
+>
+  {
+    titleAbove && (
+      <h3 class="text-2xl font-light tracking-wide text-center mb-3 text-stone-900 dark:text-stone-100 group-hover:text-stone-600 dark:group-hover:text-stone-300 transition-colors duration-300">
+        {post.title}
+      </h3>
+    )
+  }
+  <div class="overflow-hidden relative">
+    <img
+      src={src}
+      srcset={srcset}
+      sizes={sizes}
+      alt={post.image.alt}
+      width={width}
+      height={height}
+      loading={eager ? 'eager' : 'lazy'}
+      decoding="async"
+      style={post.image.lqip ? `background: url(${post.image.lqip}) center / cover` : undefined}
+      class="w-full h-auto aspect-[4/3] object-cover transition-transform duration-500 group-hover:scale-102"
+    />
+    <div class="absolute inset-0 bg-slate-900 opacity-0 group-hover:opacity-50 transition-opacity duration-300 flex items-center justify-center pointer-events-none">
+      <div class="text-stone-100 text-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 p-4">
+        {!titleAbove && <h3 class="text-lg font-medium mb-1">{post.title}</h3>}
+        <p class="text-sm font-light tracking-wide opacity-90">
+          {categoryOf(post)} · {formatDate(post.publishedAt)}
+        </p>
+      </div>
+    </div>
+  </div>
+</a>

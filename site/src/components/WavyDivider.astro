@@ -1,0 +1,17 @@
+---
+// A wavy rule between the featured row and the rest of the gallery, so the
+// break is visible even when a narrow window makes the featured tiles
+// barely larger than the others. Drawn as a repeating SVG pattern in the
+// theme's muted grey; `aria-hidden` because it is decorative.
+---
+
+<div class="wavy my-10 text-stone-300 dark:text-slate-600" aria-hidden="true">
+  <svg class="w-full h-3" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <pattern id="wave" width="24" height="12" patternUnits="userSpaceOnUse">
+        <path d="M0 6 C 6 0, 6 0, 12 6 S 18 12, 24 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+      </pattern>
+    </defs>
+    <rect width="100%" height="100%" fill="url(#wave)"></rect>
+  </svg>
+</div>

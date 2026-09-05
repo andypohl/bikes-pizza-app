@@ -1,0 +1,61 @@
+---
+// The newest post of each feed, shown above the gallery at twice the width
+// of a regular tile: on the front page the latest bike and the latest
+// pizza side by side, on a category page just that category's latest.
+// Uses the same column grid as PostGrid so a featured tile spans two of
+// its columns (one when there is only one column).
+import PostTile from './PostTile.astro';
+import type { Post } from '../lib/sanity';
+
+interface Props {
+  posts: Post[];
+}
+
+const { posts } = Astro.props;
+const WIDTHS = [800, 1200, 1600, 2000];
+const SIZES = '(min-width: 1024px) 50vw, (min-width: 768px) 66vw, 100vw';
+---
+
+{
+  posts.length > 0 && (
+    <div class="featured" data-count={posts.length}>
+      {posts.map((post) => (
+        <div class="featured-item">
+          <PostTile post={post} eager titleAbove widths={WIDTHS} sizes={SIZES} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+<style>
+  .featured {
+    display: grid;
+    grid-template-columns: repeat(var(--post-columns, 1), minmax(0, 1fr));
+    gap: 1.5rem;
+    align-items: start;
+  }
+  .featured-item {
+    grid-column: span 1;
+    min-width: 0;
+  }
+  /* Same breakpoints as PostGrid; a featured tile is two columns wide. */
+  @media (min-width: 640px) {
+    .featured {
+      --post-columns: 2;
+    }
+    .featured-item {
+      grid-column: span 2;
+    }
+  }
+  @media (min-width: 768px) {
+    .featured {
+      --post-columns: 3;
+    }
+  }
+  @media (min-width: 1024px) {
+    .featured {
+      --post-columns: 4;
+    }
+  }
+</style>

@@ -67,6 +67,19 @@ export function categoryOf(post: Post): string {
   return FEED_LABELS[post.feed] ?? post.feed;
 }
 
+/** Feeds whose newest post is featured on the front page, in row order. */
+export const FEATURED_FEEDS = ['bikes', 'pizza'];
+
+/**
+ * Splits `posts` (newest first) into the newest post of each of `feeds`,
+ * in that order, and everything else in the original order.
+ */
+export function splitFeatured(posts: Post[], feeds: string[] = FEATURED_FEEDS): { featured: Post[]; rest: Post[] } {
+  const featured = feeds.map((feed) => posts.find((post) => post.feed === feed)).filter((post): post is Post => !!post);
+  const ids = new Set(featured.map((post) => post.id));
+  return { featured, rest: posts.filter((post) => !ids.has(post.id)) };
+}
+
 /** Short text for cards and meta descriptions. */
 export function summaryOf(post: Post, max = 160): string {
   const text = (post.excerpt ?? post.plain ?? '').replace(/\s+/g, ' ').trim();
@@ -79,11 +92,19 @@ export function urlFor(source: SanityImageSource) {
   return builder.image(source).auto('format');
 }
 
-/** `src` and `srcset` for an image at the given widths. */
-export function responsive(image: SanityImageSource, widths: number[], quality = 80) {
-  const srcset = widths
-    .map((w) => `${urlFor(image).width(w).quality(quality).url()} ${w}w`)
-    .join(', ');
-  const src = urlFor(image).width(widths[widths.length - 1]).quality(quality).url();
-  return { src, srcset };
+/** Width over height of gallery tiles; nearly every photo is shot 4:3. */
+export const TILE_RATIO = 4 / 3;
+
+/**
+ * `src` and `srcset` for an image at the given widths. With `ratio` the
+ * image is cropped to that width/height ratio on Sanity's CDN, which
+ * respects the hotspot set in the Studio.
+ */
+export function responsive(image: SanityImageSource, widths: number[], quality = 80, ratio?: number) {
+  const url = (w: number) => {
+    const b = urlFor(image).width(w).quality(quality);
+    return (ratio ? b.height(Math.round(w / ratio)).fit('crop') : b).url();
+  };
+  const srcset = widths.map((w) => `${url(w)} ${w}w`).join(', ');
+  return { src: url(widths[widths.length - 1]), srcset };
 }
