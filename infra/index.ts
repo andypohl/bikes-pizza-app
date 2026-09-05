@@ -151,6 +151,10 @@ const auth = new gcp.identityplatform.Config(
   {
     project: project.projectId,
     signIn: { email: { enabled: true, passwordRequired: true }, phoneNumber: { enabled: false } },
+    // Second factor by authenticator app (TOTP), available to any account and
+    // required of administrators by the admin page and its API. ENABLED, not
+    // MANDATORY: ordinary members are not made to enroll.
+    mfa: { state: "ENABLED", providerConfigs: [{ state: "ENABLED", totpProviderConfig: { adjacentIntervals: 5 } }] },
     authorizedDomains: [
       "localhost",
       pulumi.interpolate`${project.projectId}.firebaseapp.com`,

@@ -252,7 +252,11 @@ Google, Apple), verification, join and last sign-in dates and their posts;
 username, email and newsletter are editable, with Save enabled only once
 something changed and Close never asking about unsaved edits. Email
 accounts get a Reset password button (Firebase emails the usual reset
-link). Delete user, in red, asks "Are you sure?" and then removes the Auth
+link). Administrators must use two-factor authentication: an admin who
+signs in without a second factor enrolled is shown a QR code to scan with
+an authenticator app and must enter a code before the page opens, and
+every later sign-in asks for the code; the user endpoints refuse tokens
+without it. Delete user, in red, asks "Are you sure?" and then removes the Auth
 user and the member profile, freeing the username; the member's posts, and
 the Sanity member document they reference, stay.
 

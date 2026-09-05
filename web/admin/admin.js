@@ -5,12 +5,20 @@
 // functions/admin_users.js) with the signed-in admin's Firebase ID token.
 // Password resets go through Firebase Auth directly, which emails the
 // member its usual reset link.
+//
+// Administrators must use a second factor (an authenticator app, TOTP).
+// An admin without one is walked through enrolling before the user list
+// appears; from then on every sign-in asks for the code, and the API only
+// accepts tokens minted after that second step.
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 import {
   GoogleAuthProvider,
   OAuthProvider,
+  TotpMultiFactorGenerator,
   getAuth,
+  getMultiFactorResolver,
+  multiFactor,
   onAuthStateChanged,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
@@ -99,6 +107,17 @@ function describe(error) {
       return null;
     case "auth/invalid-email":
       return "That email address doesn't look right.";
+    case "auth/invalid-verification-code":
+    case "auth/totp-challenge-timeout":
+      return "That code isn't right, or it expired. Try the current one.";
+    case "auth/requires-recent-login":
+      return "Please sign out and back in, then try again.";
+    case "auth/unverified-email":
+      return "Verify the account's email address before turning on two-factor authentication.";
+    case "auth/multi-factor-auth-required":
+      return null; // handled by the code prompt
+    case "auth/operation-not-allowed":
+      return "Two-factor authentication is not enabled on this project.";
     case "api/permission-denied":
     case "api/failed-precondition":
     case "api/invalid-argument":
@@ -360,16 +379,99 @@ $("#next").addEventListener("click", () => {
   }
 });
 
-async function signInWith(provider) {
+// ---- second factor --------------------------------------------------------
+
+let resolver = null; // pending sign-in waiting for the authenticator code
+
+/** Runs a sign-in; when Firebase asks for the second factor, shows the code prompt. */
+async function attemptSignIn(signIn) {
   busy(true);
   try {
-    await signInWithPopup(auth, provider);
+    await signIn();
   } catch (error) {
+    if (error?.code === "auth/multi-factor-auth-required") {
+      resolver = getMultiFactorResolver(auth, error);
+      $("#mfa-code-form").code.value = "";
+      show("mfa-code");
+      $("#mfa-code-form").code.focus();
+      return;
+    }
     const text = describe(error);
     if (text) say(text);
   } finally {
     busy(false);
   }
+}
+
+$("#mfa-code-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const code = event.currentTarget.code.value.trim();
+  if (!resolver) return show("signin");
+  if (!/^\d{6}$/.test(code)) return say("Enter the 6-digit code.");
+  const hint = resolver.hints.find((h) => h.factorId === TotpMultiFactorGenerator.FACTOR_ID) ?? resolver.hints[0];
+  busy(true);
+  try {
+    await resolver.resolveSignIn(TotpMultiFactorGenerator.assertionForSignIn(hint.uid, code));
+    resolver = null;
+    // onAuthStateChanged takes it from here.
+  } catch (error) {
+    say(describe(error) ?? "Could not verify the code.");
+  } finally {
+    busy(false);
+  }
+});
+
+$("#mfa-code-cancel").addEventListener("click", () => {
+  resolver = null;
+  show("signin");
+});
+
+let enrolling = null; // the TOTP secret being enrolled
+
+/** Shows the QR code and asks for a first code to finish enrolment. */
+async function startEnrollment(user) {
+  try {
+    const session = await multiFactor(user).getSession();
+    enrolling = await TotpMultiFactorGenerator.generateSecret(session);
+  } catch (error) {
+    say(describe(error) ?? "Could not start two-factor setup.");
+    show("forbidden");
+    return;
+  }
+  const url = enrolling.generateQrCodeUrl(user.email ?? "admin", "bikes.pizza admin");
+  const box = $("#qr");
+  box.replaceChildren();
+  if (window.QRCode) new window.QRCode(box, { text: url, width: 192, height: 192, correctLevel: window.QRCode.CorrectLevel.M });
+  $("#secret-key").textContent = enrolling.secretKey;
+  $("#mfa-setup-form").code.value = "";
+  show("mfa-setup");
+}
+
+$("#mfa-setup-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const code = event.currentTarget.code.value.trim();
+  const user = auth.currentUser;
+  if (!enrolling || !user) return show("signin");
+  if (!/^\d{6}$/.test(code)) return say("Enter the 6-digit code from the app.");
+  busy(true);
+  try {
+    await multiFactor(user).enroll(TotpMultiFactorGenerator.assertionForEnrollment(enrolling, code), "Authenticator app");
+    enrolling = null;
+    // The current session was not signed in with the second factor, so the
+    // API would refuse it: start over with a proper two-step sign-in.
+    await signOut(auth);
+    say("Two-factor authentication is on. Sign in again, with the code from your app.", true);
+  } catch (error) {
+    say(describe(error) ?? "Could not turn on two-factor authentication.");
+  } finally {
+    busy(false);
+  }
+});
+
+$("#mfa-setup-cancel").addEventListener("click", () => signOut(auth));
+
+async function signInWith(provider) {
+  await attemptSignIn(() => signInWithPopup(auth, provider));
 }
 $("#google").addEventListener("click", () => signInWith(new GoogleAuthProvider()));
 $("#apple").addEventListener("click", () => {
@@ -380,14 +482,7 @@ $("#apple").addEventListener("click", () => {
 $("#auth-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const f = event.currentTarget;
-  busy(true);
-  try {
-    await signInWithEmailAndPassword(auth, f.email.value.trim(), f.password.value);
-  } catch (error) {
-    say(describe(error) ?? "Could not sign in.");
-  } finally {
-    busy(false);
-  }
+  await attemptSignIn(() => signInWithEmailAndPassword(auth, f.email.value.trim(), f.password.value));
 });
 $("#signout").addEventListener("click", () => signOut(auth));
 
@@ -399,17 +494,27 @@ if (location.hostname.startsWith("admin.")) {
 }
 
 onAuthStateChanged(auth, async (user) => {
-  $("#message").hidden = true;
   $("#who").hidden = !user;
   if (!user) {
     show("signin");
     return;
   }
+  $("#message").hidden = true;
   $("#who-email").textContent = user.email ?? "";
   // Claims come with the token; refresh in case the admin claim is new.
   const token = await user.getIdTokenResult(true);
   if (token.claims.admin !== true) {
     show("forbidden");
+    return;
+  }
+  if (multiFactor(user).enrolledFactors.length === 0) {
+    await startEnrollment(user);
+    return;
+  }
+  if (!token.claims.firebase?.sign_in_second_factor) {
+    // A session from before the second factor was enrolled.
+    await signOut(auth);
+    say("Sign in again, with the code from your authenticator app.");
     return;
   }
   show("list");

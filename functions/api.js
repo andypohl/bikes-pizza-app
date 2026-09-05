@@ -15,10 +15,10 @@
 //   POST /api/queue/:feed/submit-next   admin; posts the oldest entry now
 //   GET  /api/site/settings             public (no token); {submitButton}
 //   POST /api/site/settings             admin; {submitButton: boolean}
-//   GET  /api/admin/users               admin; ?page=&pageSize= — by most recent post
-//   GET  /api/admin/users/:uid          admin
-//   PATCH /api/admin/users/:uid         admin; {username?, email?, newsletters?}
-//   DELETE /api/admin/users/:uid        admin
+//   GET  /api/admin/users               admin + 2FA; ?page=&pageSize= — by most recent post
+//   GET  /api/admin/users/:uid          admin + 2FA
+//   PATCH /api/admin/users/:uid         admin + 2FA; {username?, email?, newsletters?}
+//   DELETE /api/admin/users/:uid        admin + 2FA
 //
 // The admin page (web/admin/) reaches these through the same rewrite on its
 // own Hosting site.
@@ -29,7 +29,7 @@ import cors from "cors";
 import express from "express";
 
 import { ValidationError } from "./account.js";
-import { AppError, adminFromClaims, userFromClaims } from "./errors.js";
+import { AppError, adminFromClaims, secondFactorAdminFromClaims, userFromClaims } from "./errors.js";
 
 export const STATUS_FOR_CODE = {
   "invalid-argument": 400,
@@ -149,27 +149,28 @@ export function createApi({ verifyToken, service, log = () => {} }) {
 
   const users = service.users;
   if (users) {
+    // User administration needs an admin who signed in with a second factor.
     api.get(
       "/admin/users",
       wrap((req) => {
-        adminFromClaims(req.claims);
+        secondFactorAdminFromClaims(req.claims);
         return users.list(req.query);
       }),
     );
     api.get(
       "/admin/users/:uid",
       wrap((req) => {
-        adminFromClaims(req.claims);
+        secondFactorAdminFromClaims(req.claims);
         return users.get(req.params.uid);
       }),
     );
     api.patch(
       "/admin/users/:uid",
-      wrap((req) => users.update(req.params.uid, req.body, adminFromClaims(req.claims))),
+      wrap((req) => users.update(req.params.uid, req.body, secondFactorAdminFromClaims(req.claims))),
     );
     api.delete(
       "/admin/users/:uid",
-      wrap((req) => users.remove(req.params.uid, adminFromClaims(req.claims))),
+      wrap((req) => users.remove(req.params.uid, secondFactorAdminFromClaims(req.claims))),
     );
   }
 

@@ -70,6 +70,19 @@ OAuth token that has the cloud-platform scope.
 
 ## Authentication (current)
 
+- Both projects run Firebase Authentication upgraded to Identity Platform
+  (the development project through the Pulumi `identityplatform.Config`
+  resource, production through the Identity Toolkit
+  `identityPlatform:initializeAuth` call). The upgrade is one-way; it is
+  what allows a second factor.
+- Multi-factor authentication is `ENABLED` (not `MANDATORY`) with the TOTP
+  provider (authenticator apps), so any account may enroll and none is
+  forced to. Administrators are the exception: the admin page walks an
+  admin without a second factor through enrolling before showing anything,
+  and the user-administration API only accepts ID tokens carrying
+  `firebase.sign_in_second_factor` (`secondFactorAdminFromClaims` in
+  `functions/errors.js`). The setting lives in `infra/index.ts` (`mfa`);
+  production was set by hand to match.
 - Enabled providers: Email/Password, Google, and Apple.
   - Email/Password was turned on by hand in the console under
     Authentication, Sign-in method, after pressing "Get started" on the
