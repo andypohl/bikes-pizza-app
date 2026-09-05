@@ -274,6 +274,18 @@ flutter test
 flutter run            # pick a connected device / simulator
 ```
 
+Debug and profile builds (simulators, devices while developing) use the
+development Firebase project, `bikes-pizza-dev`, and read the `development`
+Sanity dataset, so nothing done from a simulator touches bikes.pizza's
+users or submissions. Release builds, the ones that go to the app stores,
+use production. The choice is made at start-up from the build mode
+(`lib/main.dart`, `lib/config.dart`); the native config files for both
+projects are in the repo (`android/app/src/debug/` and `ios/dev/` for
+development), and an Xcode build phase bundles the right iOS plist per
+configuration. Sign in on a debug build with an account created on
+bikes-pizza.dev; Google sign-in there waits on the Google provider being
+enabled on the dev project.
+
 Formatting, `flutter analyze`, `flutter test`, and the Cloud Functions unit
 tests run on GitHub Actions for every pull request targeting `main`
 (`.github/workflows/pr-checks.yml`). Merging to `main` deploys the Cloud

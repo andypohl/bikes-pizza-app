@@ -22,6 +22,19 @@ the intended shape and have not been created yet.
 
 ## Registered apps (current)
 
+Both projects register the same iOS bundle ID and Android package name.
+Production's config lives at `lib/firebase_options.dart`,
+`android/app/google-services.json` and `ios/Runner/GoogleService-Info.plist`;
+development's at `lib/firebase_options_dev.dart`,
+`android/app/src/debug/google-services.json` (picked up by the Android
+`debug` build type) and `ios/dev/GoogleService-Info.plist` (bundled into
+Debug builds by the "FlutterFire: flutterfire bundle-service-file" Xcode
+build phase, which needs the FlutterFire CLI on the machine that builds).
+`lib/main.dart` picks the options by build mode. Regenerate either set with
+`flutterfire configure --project=<project> ...`; `firebase.json` records
+the paths. The iOS Google Sign-In client ID comes from `GID_CLIENT_ID` in
+`ios/Flutter/{Debug,Release}.xcconfig`.
+
 - One iOS app and one Android app, both under the `com.pizzapredator`
   reverse-domain prefix. The iOS bundle ID and Android package name differ
   only in casing and separators; both are set in the native projects.
@@ -248,6 +261,7 @@ described there but not yet imported.
 | Sanity dataset | `production` | `development` (a copy; see `studio/README.md`) |
 | Deployed by | a published GitHub release | every merge to `main` |
 | GitHub environment | `production` | `development` |
+| Flutter app builds | release (app stores) | debug and profile (simulators, devices) |
 
 Both projects share the Sanity project and its Editor token (project-wide),
 the Shopify store and the Google account, and nothing else: Auth users,

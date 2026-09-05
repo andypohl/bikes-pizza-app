@@ -1,10 +1,12 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'account/member_service.dart';
 import 'app_settings.dart';
 import 'auth/auth_service.dart';
 import 'firebase_options.dart';
+import 'firebase_options_dev.dart';
 import 'data/post_repository.dart';
 import 'models/post_feed.dart';
 import 'screens/post_list_screen.dart';
@@ -16,7 +18,14 @@ import 'submissions/submission_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // Release builds (the app stores) talk to the production Firebase project;
+  // debug and profile builds (simulators, devices during development) to
+  // the development one, bikes-pizza-dev. See docs/firebase.md.
+  await Firebase.initializeApp(
+    options: kReleaseMode
+        ? DefaultFirebaseOptions.currentPlatform
+        : DevFirebaseOptions.currentPlatform,
+  );
   final settings = await AppSettings.load();
   runApp(
     BikesPizzaApp(
