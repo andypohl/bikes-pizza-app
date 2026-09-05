@@ -3,6 +3,7 @@ import Layout from '../../layouts/Layout.astro';
 import CategoryFilters from '../../components/CategoryFilters.astro';
 import PostGrid from '../../components/PostGrid.astro';
 import FeaturedRow from '../../components/FeaturedRow.astro';
+import WavyDivider from '../../components/WavyDivider.astro';
 import { splitFeatured } from '../../lib/sanity';
 import { slugify } from '../../utils/slug';
 
@@ -32,6 +33,7 @@ const { featured, rest } = splitFeatured(posts, posts.length ? [posts[0].feed] :
 
     <CategoryFilters categories={categories} active={slugify(category)} />
     <FeaturedRow posts={featured} />
+    {featured.length > 0 && rest.length > 0 && <WavyDivider />}
     <PostGrid posts={rest} />
   </main>
 </Layout>
