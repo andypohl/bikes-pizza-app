@@ -325,7 +325,9 @@ for (const secretId of ["SANITY_WRITE_TOKEN", "MAILGUN_API_KEY"]) {
 }
 
 // ---------------------------------------------------------------------------
-// GitHub environment read by .github/workflows/deploy.yml
+// GitHub environment read by .github/workflows/deploy.yml. Only variables
+// are managed here; the environment's secrets (the Sanity deploy tokens,
+// see README.md) are set by hand so no secret value passes through state.
 
 const ghOpts: pulumi.CustomResourceOptions = {};
 

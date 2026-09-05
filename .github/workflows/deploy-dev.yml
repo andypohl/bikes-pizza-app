@@ -1,7 +1,7 @@
 # Deploys every merge to main to the development Firebase project, served at
-# https://bikes-pizza.dev/ and https://submissions.bikes-pizza.dev/. Production
-# only changes on a release (deploy-firebase.yml). The steps live in
-# deploy.yml.
+# https://bikes-pizza.dev/ and https://submissions.bikes-pizza.dev/, and the
+# development Sanity Studio and Post details app. Production only changes on
+# a release (deploy-firebase.yml). The steps live in deploy.yml.
 name: Deploy to development
 
 on:
@@ -18,3 +18,4 @@ jobs:
     uses: ./.github/workflows/deploy.yml
     with:
       environment: development
+      sanity: true

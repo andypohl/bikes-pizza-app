@@ -28,9 +28,19 @@ npm install
 npx sanity login              # once per machine
 npm run dev                   # Studio at http://localhost:3333
 npx sanity schemas deploy     # after changing schemaTypes/ (needed by the MCP tools)
-npx sanity deploy             # publish the production Studio
-npm run deploy:dev            # publish the development Studio
+npm run deploy:dev            # publish the development Studio by hand
+npx sanity deploy             # publish the production Studio by hand
 ```
+
+The hosted Studios follow the same lifecycle as the rest of the project:
+a merge to `main` deploys the development Studio and a published release
+deploys the production one (the `sanity` job in
+`.github/workflows/deploy.yml`, which also publishes the workspace schema
+for that dataset). Pull requests build the Studio as a check. The deploy
+commands above are for trying something out before it merges. The
+workflow signs in with a project robot token that has the Deploy Studio
+role, kept as the `SANITY_STUDIO_DEPLOY_TOKEN` secret on each GitHub
+environment.
 
 Import a post from the Ghost site (reads the Content API key from the app's
 `config/local.json`, or `GHOST_CONTENT_API_KEY`):

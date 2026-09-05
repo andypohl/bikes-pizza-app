@@ -26,9 +26,19 @@ title and its app id; unset, a local `npm run dev` works on the
 npm install
 npx sanity login              # once per machine
 npm run dev                   # prints a Dashboard URL; sign in to open the app
-npm run deploy:dev            # publish the development app
-npm run deploy                # publish the production app
+npm run deploy:dev            # publish the development app by hand
+npm run deploy                # publish the production app by hand
 ```
 
-Deploying needs an organisation admin or developer role (App SDK apps are
-organisation-level, unlike Studios).
+The apps follow the same lifecycle as the rest of the project: a merge to
+`main` deploys the development app and a published release deploys the
+production one (the `sanity` job in `.github/workflows/deploy.yml`); pull
+requests build the app as a check. The workflow signs in with an
+organization robot token that has the Manage SDK Apps permission, kept as
+the `SANITY_APP_DEPLOY_TOKEN` secret on each GitHub environment.
+
+The first deploy of an app creates it and prints its id, which then goes
+into `environment.ts`; an unattended deploy refuses to run without one, as
+it would create a second app. So the first deploy for a dataset is done by
+hand (the commands above, which need an organization admin or developer
+role), and the workflow updates it from then on.
