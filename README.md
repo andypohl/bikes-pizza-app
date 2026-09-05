@@ -295,8 +295,10 @@ them to production (`.github/workflows/deploy-firebase.yml`). Both call
 `.github/workflows/deploy.yml`. App store release workflows will be added
 later.
 
-Adding or renaming tabs: edit `PostFeed` in `lib/models/post_feed.dart` and
-the `NavigationDestination` list in `lib/main.dart`.
+The bottom bar has All (every post), Blog, Pizza and Bikes (one feed
+each, matching the website's filters), Store and Settings. Adding or
+renaming tabs: edit `PostFeed` in `lib/models/post_feed.dart` and the
+`NavigationDestination` list in `lib/main.dart`.
 
 App icon: the source files live in `assets/icon/` (`icon.png` for Android's
 legacy launcher icon, `icon_ios.png` as an opaque square for iOS, and

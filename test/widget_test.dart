@@ -328,10 +328,11 @@ void main() {
   Future<FakePostRepository> pumpApp(WidgetTester tester) async {
     auth = FakeAuthService();
     final repo = FakePostRepository({
-      PostFeed.blog: [
+      PostFeed.all: [
         _post('Newest post', DateTime(2025, 4, 12)),
         _post('Older post', DateTime(2025, 3, 3)),
       ],
+      PostFeed.blog: [_post('Older post', DateTime(2025, 3, 3))],
       PostFeed.pizza: [_post('Detroit style', DateTime(2025, 2, 1))],
       PostFeed.bikes: [],
     });
@@ -350,11 +351,20 @@ void main() {
     return repo;
   }
 
-  testWidgets('shows five bottom navigation destinations', (tester) async {
+  testWidgets('shows six bottom navigation destinations, All first', (
+    tester,
+  ) async {
     await pumpApp(tester);
 
     expect(find.byType(NavigationBar), findsOneWidget);
-    for (final label in ['Blog', 'Pizza', 'Bikes', 'Store', 'Settings']) {
+    for (final label in [
+      'All',
+      'Blog',
+      'Pizza',
+      'Bikes',
+      'Store',
+      'Settings',
+    ]) {
       expect(
         find.descendant(
           of: find.byType(NavigationBar),
@@ -363,9 +373,16 @@ void main() {
         findsOneWidget,
       );
     }
+    Finder inBar(String label) => find
+        .descendant(of: find.byType(NavigationBar), matching: find.text(label))
+        .first;
+    expect(
+      tester.getTopLeft(inBar('All')).dx,
+      lessThan(tester.getTopLeft(inBar('Blog')).dx),
+    );
   });
 
-  testWidgets('Blog tab lists posts with thumbnails', (tester) async {
+  testWidgets('All tab lists every post with thumbnails', (tester) async {
     await pumpApp(tester);
 
     expect(find.text('bikes.pizza'), findsOneWidget);
@@ -388,8 +405,15 @@ void main() {
     expect(find.byIcon(Icons.open_in_browser), findsOneWidget);
   });
 
-  testWidgets('Pizza and Bikes tabs request their own feeds', (tester) async {
+  testWidgets('Blog, Pizza and Bikes tabs request their own feeds', (
+    tester,
+  ) async {
     final repo = await pumpApp(tester);
+
+    await tester.tap(find.text('Blog'));
+    await tester.pumpAndSettle();
+    expect(find.text('Older post'), findsOneWidget);
+    expect(find.text('Newest post'), findsNothing);
 
     await tester.tap(find.text('Pizza'));
     await tester.pumpAndSettle();

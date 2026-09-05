@@ -1,6 +1,8 @@
-/// The three content feeds surfaced by the bottom navigation bar.
+/// The content tabs of the bottom navigation bar: "All" shows every post,
+/// the others one feed each, matching the website's filters.
 enum PostFeed {
-  blog(label: 'Blog', feeds: []),
+  all(label: 'All', feeds: []),
+  blog(label: 'Blog', feeds: ['blog']),
   pizza(
     label: 'Pizza',
     feeds: ['pizza'],

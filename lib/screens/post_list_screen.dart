@@ -149,9 +149,7 @@ class _PostListScreenState extends State<PostListScreen> {
     final submitLabel = widget.feed.submitLabel;
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          widget.feed == PostFeed.blog ? 'bikes.pizza' : widget.feed.label,
-        ),
+        title: Text(widget.feed.isFiltered ? widget.feed.label : 'bikes.pizza'),
       ),
       body: _buildBody(context),
       // Sits between the list and the app's tab bar rather than floating
