@@ -65,6 +65,21 @@ on purpose: nothing secret is stored in config or state (provider tokens
 are read from the environment and secret values are never managed), so
 there is nothing to protect and no passphrase to lose.
 
+For the same reason the GitHub environment *secrets* the deploy workflow
+reads are not in the program, only its variables are. Set them by hand on
+each environment (`gh secret set NAME --env development`, likewise
+`production`):
+
+- `SANITY_STUDIO_DEPLOY_TOKEN`: a Sanity project robot token with the
+  Deploy Studio role (Manage → project → API → Tokens, or
+  `npx sanity tokens add "GitHub Actions" --role=deploy-studio` in `studio/`).
+- `SANITY_APP_DEPLOY_TOKEN`: a Sanity organization robot token with the
+  Manage SDK Apps permission (Manage → organization → Settings → API →
+  Tokens; the CLI cannot create these).
+
+One Sanity project serves both environments, so the same two tokens can be
+set on both.
+
 ## State backend
 
 State currently lives in the local backend (`~/.pulumi` on the machine that

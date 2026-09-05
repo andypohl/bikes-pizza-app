@@ -61,7 +61,9 @@ to the submitting `member`, and a record of where a post came from).
 There is a hosted Studio per environment: https://bikes-pizza.sanity.studio/
 for the production dataset behind bikes.pizza, and
 https://bikes-pizza-dev.sanity.studio/ for the development copy behind
-bikes-pizza.dev.
+bikes-pizza.dev. Both, and the Post details app, deploy with everything
+else: merges to `main` update the development ones, releases the production
+ones.
 See `studio/README.md` for running it, deploying the schema, and importing
 posts from the old Ghost site. `apps/post-details/` is a Sanity App SDK app
 in the Dashboard for filling in a bike post's brand, year, color and type

@@ -1,6 +1,6 @@
-# Deploys the Cloud Functions, the Hosting sites, and the Firestore and
-# Storage rules to the production Firebase project when a GitHub release is
-# published (pre-releases are skipped). Can also be run by hand from the
+# Deploys the Cloud Functions, the Hosting sites, the Firestore and Storage
+# rules, and the production Sanity Studio and Post details app when a GitHub
+# release is published (pre-releases are skipped). Can also be run by hand from the
 # Actions tab. The steps live in deploy.yml; merges to main go to the
 # development project instead (deploy-dev.yml).
 name: Deploy to production
@@ -20,3 +20,4 @@ jobs:
     uses: ./.github/workflows/deploy.yml
     with:
       environment: production
+      sanity: true

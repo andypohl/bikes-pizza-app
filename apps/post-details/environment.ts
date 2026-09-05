@@ -11,7 +11,7 @@ export const projectId = 'nva9b0ia'
 export const datasets = {
   production: {
     title: 'Post details',
-    appId: undefined as string | undefined,
+    appId: 'vrq0n2d7nuvccw8sdqu04fsp' as string | undefined,
     studioUrl: 'https://bikes-pizza.sanity.studio',
   },
   development: {

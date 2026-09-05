@@ -20,6 +20,10 @@
 #   SUBMISSION_FROM_EMAIL           (optional) sender address for the email
 #   REVIEW_PAGE_URL                 (optional) link in the notification email
 #   GITHUB_REPOSITORY               (optional) repository the functions ask to rebuild the site
+#
+# Secrets (set by hand on the environment; see infra/README.md):
+#   SANITY_STUDIO_DEPLOY_TOKEN      Sanity project token with the Deploy Studio role
+#   SANITY_APP_DEPLOY_TOKEN         Sanity organization token with Manage SDK Apps
 name: Deploy
 
 on:
@@ -39,6 +43,11 @@ on:
         required: false
         type: string
         default: functions,hosting,firestore,storage
+      sanity:
+        description: Also deploy the Sanity Studio and the Post details app for the environment's dataset
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -115,3 +124,45 @@ jobs:
           --project ${{ vars.FIREBASE_PROJECT }}
           --only ${{ inputs.only }}
           --non-interactive --force
+
+  # The Sanity Studio and the Post details app follow the same lifecycle as
+  # the rest: this environment's dataset, on the same trigger. Each has one
+  # hosted deployment per dataset (studio/environment.ts,
+  # apps/post-details/environment.ts); the dataset name picks it.
+  sanity:
+    name: Deploy the Studio and apps to ${{ inputs.environment }}
+    if: ${{ inputs.sanity }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: sanity-${{ inputs.environment }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            studio/package-lock.json
+            apps/post-details/package-lock.json
+
+      - name: Deploy the Studio
+        working-directory: studio
+        env:
+          SANITY_AUTH_TOKEN: ${{ secrets.SANITY_STUDIO_DEPLOY_TOKEN }}
+          SANITY_STUDIO_DATASET: ${{ vars.SANITY_DATASET }}
+        # The Studio deploy also publishes the workspace schema for the
+        # dataset; --schema-required makes a schema problem fail the job.
+        run: npm ci && npx sanity deploy --yes --schema-required
+
+      - name: Deploy the Post details app
+        working-directory: apps/post-details
+        env:
+          SANITY_AUTH_TOKEN: ${{ secrets.SANITY_APP_DEPLOY_TOKEN }}
+          SANITY_APP_DATASET: ${{ vars.SANITY_DATASET }}
+        run: npm ci && npx sanity deploy --yes
