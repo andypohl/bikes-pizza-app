@@ -19,3 +19,6 @@ jobs:
     with:
       environment: development
       sanity: true
+    # The Sanity deploy tokens are environment secrets; a called workflow only
+    # sees them when the caller passes them on.
+    secrets: inherit
