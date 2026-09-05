@@ -1,0 +1,20 @@
+{
+  "name": "bikes-pizza-infra",
+  "private": true,
+  "description": "Pulumi program for the bikes.pizza cloud resources (one stack per environment)",
+  "main": "index.ts",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@pulumi/cloudflare": "^6",
+    "@pulumi/gcp": "^9",
+    "@pulumi/github": "^6",
+    "@pulumi/pulumi": "^3"
+  }
+}

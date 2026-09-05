@@ -1,0 +1,17 @@
+# Production values. The stack is not imported yet: run the import in
+# infra/README.md ("Importing prod") before any `pulumi up` on it.
+config:
+  bikes-pizza:projectId: pizzapredator-a445e
+  bikes-pizza:displayName: PizzaPredator
+  bikes-pizza:billingAccount: 016876-3824C1-561384
+  bikes-pizza:region: us-central1
+  bikes-pizza:domain: bikes.pizza
+  bikes-pizza:homeSiteId: bikes-pizza-home
+  bikes-pizza:submissionsSiteId: pizzapredator-submissions
+  bikes-pizza:cloudflareZoneId: 222cbf1d898ee7aad24ef8d6c8b506a2
+  bikes-pizza:manageDns: "false"
+  bikes-pizza:githubEnvironment: production
+  bikes-pizza:sanityDataset: production
+  gcp:project: pizzapredator-a445e
+  gcp:userProjectOverride: "true"
+  github:owner: andypohl

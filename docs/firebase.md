@@ -222,7 +222,11 @@ Planned:
 ## Environments
 
 There are two Firebase projects with the same layout, selected by the
-aliases in `.firebaserc` (`default` and `dev`):
+aliases in `.firebaserc` (`default` and `dev`). Their cloud resources are
+defined in the Pulumi program in `infra/` (one stack per environment; see
+`infra/README.md`), which is where infrastructure changes are made. The
+development stack is imported and matches the program; production is
+described there but not yet imported.
 
 | | production | development |
 |---|---|---|
@@ -317,7 +321,13 @@ Apple sign-in does not need any of this.
 
 ## Console steps that are not captured in code
 
-Keep this list current. It is the checklist for rebuilding the project.
+Most of this list is now expressed by the Pulumi program in `infra/`
+(project, billing, APIs, Firestore, Storage bucket, Auth email sign-in and
+authorized domains, Hosting sites and domains, deploy service account,
+Workload Identity, Secret Manager entries, DNS, GitHub environment). It is
+kept as the record of what a project needs, and for the steps the program
+cannot do: the Google and Apple providers, the app registrations, the
+extension, and secret values.
 
 1. Create the Firebase project under the project's Google account.
 2. Upgrade to the Blaze (pay-as-you-go) plan. Cloud Functions require it;
