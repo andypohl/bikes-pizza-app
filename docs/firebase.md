@@ -298,16 +298,22 @@ targets in `firebase.json` by `.firebaserc` (create the extra sites with
   above); it runs on a `repository_dispatch` event of type
   `sanity-content-changed`, or by hand. A dispatch whose payload names an
   `environment` rebuilds that one only; without a payload both are rebuilt.
-  The scheduled functions send it after posting (above). Sanity can also
-  send it, which covers edits made in the Studio, through a webhook (Manage → API → Webhooks on the
-  project): URL `https://api.github.com/repos/<owner>/<repo>/dispatches`,
-  method POST, dataset `production`, trigger on create, update and delete,
-  filter `_type == "post"`, projection `{"event_type": "sanity-content-changed"}`,
-  and two HTTP headers: `Accept: application/vnd.github+json` and
-  `Authorization: Bearer <token>`, where the token is a fine-grained GitHub
-  personal access token for this repository with "Contents: read and write"
-  (the permission `repository_dispatch` requires). Sanity fires once per
-  publish, and the workflow's concurrency setting collapses bursts. Its custom domains are the apex (Firebase
+  The scheduled functions send it after posting (above). Sanity also sends
+  it, which covers edits made in the Studio, through two GROQ-powered
+  webhooks on the project (Manage → API → Webhooks, or the Webhooks HTTP
+  API), one per dataset: "Rebuild website (production)" on `production` and
+  "Rebuild website (development)" on `development`. Each has URL
+  `https://api.github.com/repos/<owner>/<repo>/dispatches`, method POST,
+  triggers on create, update and delete, filter `_type == "post"`, the
+  projection
+  `{"event_type": "sanity-content-changed", "client_payload": {"environment": "<production|development>", "reason": "sanity " + sanity::dataset() + " " + _id}}`,
+  and the headers `Accept: application/vnd.github+json`,
+  `X-GitHub-Api-Version: 2022-11-28` and `Authorization: Bearer <token>`,
+  where the token is the same fine-grained GitHub personal access token the
+  functions hold in `GITHUB_DISPATCH_TOKEN` ("Contents: read and write", the
+  permission `repository_dispatch` requires; it expires, so rotate both
+  places together). Sanity fires once per publish, and the workflow's
+  concurrency setting collapses bursts. Its custom domains are the apex (Firebase
   asks for an `A` record to its IP plus a `hosting-site=<site-id>` `TXT`
   record) and `www`, which is registered as a redirect to the apex (a CNAME
   to the site's `web.app` host).
