@@ -61,6 +61,8 @@ let handled = false; // guards against acting twice on auth state changes
 
 function show(view) {
   app.dataset.state = view;
+  // Signed out, the site's navigation floats top-right as on the website.
+  $("#site-nav").hidden = view !== "auth";
   for (const section of document.querySelectorAll("[data-view]")) {
     section.hidden = section.dataset.view !== view;
   }
