@@ -67,6 +67,23 @@ export function categoryOf(post: Post): string {
   return FEED_LABELS[post.feed] ?? post.feed;
 }
 
+/**
+ * Feeds with a page of their own. The `blog` feed has none: "Blog" is the
+ * front page, which shows every post (bikes, pizza and blog posts alike),
+ * while the Bikes and Pizza pages show only their own feed.
+ */
+export const CATEGORY_FEEDS = ['bikes', 'pizza'];
+
+/** Labels of the category pages that have posts, in `CATEGORY_FEEDS` order. */
+export function categoriesOf(posts: Post[]): string[] {
+  return CATEGORY_FEEDS.filter((feed) => posts.some((post) => post.feed === feed)).map((feed) => FEED_LABELS[feed]);
+}
+
+/** Where a post's category link goes: its category page, or the front page for blog posts. */
+export function categoryHref(post: Post): string {
+  return CATEGORY_FEEDS.includes(post.feed) ? `/category/${post.feed}/` : '/';
+}
+
 /** Feeds whose newest post is featured on the front page, in row order. */
 export const FEATURED_FEEDS = ['bikes', 'pizza'];
 

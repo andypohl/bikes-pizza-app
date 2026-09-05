@@ -8,9 +8,9 @@ import { splitFeatured } from '../../lib/sanity';
 import { slugify } from '../../utils/slug';
 
 export async function getStaticPaths() {
-  const { categoryOf, getPosts } = await import('../../lib/sanity');
+  const { categoriesOf, categoryOf, getPosts } = await import('../../lib/sanity');
   const posts = await getPosts();
-  const categories = [...new Set(posts.map(categoryOf))].sort((a, b) => a.localeCompare(b));
+  const categories = categoriesOf(posts);
   return categories.map((category) => ({
     params: { category: slugify(category) },
     props: {

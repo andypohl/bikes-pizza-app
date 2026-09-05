@@ -4,7 +4,7 @@ import Layout from '../../layouts/Layout.astro';
 import PostGrid from '../../components/PostGrid.astro';
 import ImageBlock from '../../components/portable-text/ImageBlock.astro';
 import Link from '../../components/portable-text/Link.astro';
-import { categoryOf, responsive, summaryOf, urlFor, type Post } from '../../lib/sanity';
+import { categoryHref, categoryOf, responsive, summaryOf, urlFor, type Post } from '../../lib/sanity';
 import { formatDate } from '../../utils/format';
 
 export async function getStaticPaths() {
@@ -38,7 +38,7 @@ const components = { type: { image: ImageBlock }, mark: { link: Link } };
 <Layout title={`${post.title} | bikes.pizza`} description={summaryOf(post)} image={ogImage}>
   <main class="container mx-auto px-6 py-16">
     <a
-      href={`/category/${category.toLowerCase()}/`}
+      href={categoryHref(post)}
       class="inline-flex items-center mb-12 text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-stone-200 transition-colors duration-300 font-light"
     >
       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">

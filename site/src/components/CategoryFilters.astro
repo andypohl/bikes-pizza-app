@@ -12,7 +12,8 @@ const chipClass =
 ---
 
 <nav id="category-filters" class="flex flex-wrap gap-2 mb-12" aria-label="Filter by category">
-  <a href="/" class:list={[chipClass, { 'is-active': active === 'all' }]}>All</a>
+  <!-- "Blog" is the front page: every post, including the blog feed's, which has no page of its own -->
+  <a href="/" class:list={[chipClass, { 'is-active': active === 'all' }]}>Blog</a>
   {
     categories.map((category) => {
       const slug = slugify(category);
