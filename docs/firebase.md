@@ -363,8 +363,13 @@ targets in `firebase.json` by `.firebaserc` (create the extra sites with
   where the token is the same fine-grained GitHub personal access token the
   functions hold in `GITHUB_DISPATCH_TOKEN` ("Contents: read and write", the
   permission `repository_dispatch` requires; it expires, so rotate both
-  places together). Sanity fires once per publish, and the workflow's
-  concurrency setting collapses bursts. Its custom domains are the apex (Firebase
+  places together). Sanity fires once per publish. The workflow spaces
+  rebuilds out: a gate job per environment (`.github/scripts/rebuild-gate.sh`)
+  waits until five minutes have passed since that environment's last
+  deployment finished, reading the environment's deployment records, and a
+  newer dispatch cancels a gate still waiting, so a burst of edits ends in
+  one rebuild of the newest content, never more than one every five
+  minutes. Its custom domains are the apex (Firebase
   asks for an `A` record to its IP plus a `hosting-site=<site-id>` `TXT`
   record) and `www`, which is registered as a redirect to the apex (a CNAME
   to the site's `web.app` host).

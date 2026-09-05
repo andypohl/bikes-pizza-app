@@ -2,10 +2,16 @@
 # and the scheduled functions (functions/rebuild.js) send a
 # `repository_dispatch` of type `sanity-content-changed` (see
 # docs/firebase.md), or it is started by hand. A dispatch whose payload
-# names an `environment` rebuilds only that one; without it, both. Production is rebuilt from the latest release, so
-# a content change never ships unreleased code; development is rebuilt from
-# main. Only the home Hosting target is deployed; code changes reach
-# production with the release deploy (deploy-firebase.yml).
+# names an `environment` rebuilds only that one; without it, both.
+# Production is rebuilt from the latest release, so a content change never
+# ships unreleased code; development is rebuilt from main. Only the home
+# Hosting target is deployed; code changes reach production with the
+# release deploy (deploy-firebase.yml).
+#
+# Rebuilds are spaced out: a gate job per environment waits until five
+# minutes have passed since that environment's last deployment finished
+# (.github/scripts/rebuild-gate.sh). A newer dispatch cancels a gate still
+# waiting, so a burst of edits ends in one rebuild of the newest content.
 name: Rebuild website
 
 on:
@@ -15,6 +21,7 @@ on:
 
 permissions:
   contents: read
+  deployments: read # the gate reads the environment's deployment history
   id-token: write # needed to mint the OIDC token for Google Cloud
 
 jobs:
@@ -42,17 +49,49 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
-  production:
+  gate-production:
+    name: Space out production rebuilds
     needs: release
     if: ${{ needs.release.outputs.tag != '' && (github.event_name != 'repository_dispatch' || !github.event.client_payload.environment || github.event.client_payload.environment == 'production') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: rebuild-gate-production
+      cancel-in-progress: true # a newer content change supersedes one still waiting
+    steps:
+      - uses: actions/checkout@v4
+      - run: .github/scripts/rebuild-gate.sh
+        env:
+          ENVIRONMENT: production
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+
+  production:
+    needs: [release, gate-production]
     uses: ./.github/workflows/deploy.yml
     with:
       environment: production
       ref: ${{ needs.release.outputs.tag }}
       only: hosting:home
 
-  development:
+  gate-development:
+    name: Space out development rebuilds
     if: ${{ github.event_name != 'repository_dispatch' || !github.event.client_payload.environment || github.event.client_payload.environment == 'development' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: rebuild-gate-development
+      cancel-in-progress: true # a newer content change supersedes one still waiting
+    steps:
+      - uses: actions/checkout@v4
+      - run: .github/scripts/rebuild-gate.sh
+        env:
+          ENVIRONMENT: development
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+
+  development:
+    needs: gate-development
     uses: ./.github/workflows/deploy.yml
     with:
       environment: development
