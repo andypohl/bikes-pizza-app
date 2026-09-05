@@ -6,6 +6,7 @@
     <meta name="robots" content="noindex" />
     <title>bikes.pizza account</title>
     <link rel="stylesheet" href="style.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
   </head>
   <body>
     <nav class="site-nav" id="site-nav" hidden aria-label="bikes.pizza">
@@ -62,6 +63,37 @@
         <button type="button" class="secondary apple" id="apple">
           <svg class="g" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.57-.12 0-.23-.02-.3-.03-.01-.06-.04-.22-.04-.39 0-1.15.572-2.27 1.206-2.98.804-.94 2.142-1.64 3.248-1.68.03.13.05.28.05.43zm4.565 15.71c-.03.07-.463 1.58-1.518 3.12-.945 1.34-1.94 2.71-3.43 2.71-1.517 0-1.9-.88-3.63-.88-1.698 0-2.302.91-3.67.91-1.377 0-2.332-1.26-3.428-2.8-1.287-1.82-2.323-4.63-2.323-7.28 0-4.28 2.797-6.55 5.552-6.55 1.448 0 2.675.95 3.6.95.865 0 2.222-1.01 3.902-1.01.613 0 2.886.06 4.374 2.19-.13.09-2.383 1.37-2.383 4.19 0 3.26 2.854 4.42 2.955 4.45z"/></svg> Continue with Apple
         </button>
+      </section>
+
+      <section data-view="mfa-code" hidden>
+        <h1>Enter your authenticator code</h1>
+        <p class="muted">Open your authenticator app and type the 6-digit code for bikes.pizza.</p>
+        <form id="mfa-code-form" novalidate>
+          <label>
+            Code
+            <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" required />
+          </label>
+          <button type="submit" class="primary">Verify</button>
+        </form>
+        <button type="button" class="link" id="mfa-code-cancel">Use a different account</button>
+      </section>
+
+      <section data-view="mfa-setup" hidden>
+        <h1>Set up two-factor authentication</h1>
+        <p class="muted">
+          Scan this code with an authenticator app (Google Authenticator, 1Password, Authy…), then
+          enter the 6-digit code it shows.
+        </p>
+        <div class="qr" id="qr"></div>
+        <p class="muted small">Can't scan? Enter this key by hand: <code id="secret-key"></code></p>
+        <form id="mfa-setup-form" novalidate>
+          <label>
+            Code from the app
+            <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" required />
+          </label>
+          <button type="submit" class="primary">Turn on two-factor authentication</button>
+        </form>
+        <button type="button" class="link" id="mfa-setup-cancel">Cancel</button>
       </section>
 
       <section data-view="verify" hidden>
@@ -127,6 +159,22 @@
           <button type="button" class="link" id="reset-password">Forgotten it? Email me a reset link</button>
         </section>
         <p class="muted small" id="no-password" hidden></p>
+
+        <section class="subsection">
+          <h2>Two-factor authentication</h2>
+          <label class="switch">
+            <input type="checkbox" role="switch" id="mfa-toggle" />
+            <span class="track" aria-hidden="true"></span>
+            <span>Authenticator app<span class="muted small" id="mfa-status"></span></span>
+          </label>
+          <div class="confirm" id="mfa-confirm" hidden>
+            <p>Turn off two-factor authentication? Signing in will only need your password or provider again.</p>
+            <div class="actions">
+              <button type="button" class="secondary delete" id="mfa-off">Turn off</button>
+              <button type="button" class="link" id="mfa-keep">Keep it on</button>
+            </div>
+          </div>
+        </section>
 
         <div class="divider"></div>
         <button type="button" class="secondary" id="go-site">Back to the site</button>

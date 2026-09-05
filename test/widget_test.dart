@@ -62,6 +62,11 @@ class FakeAuthService implements AuthService {
     _controller.add(user);
   }
 
+  /// When set, sign-ins are parked until [resolveSecondFactor].
+  bool requireSecondFactor = false;
+  AppUser? _parked;
+  int cancelledSecondFactors = 0;
+
   @override
   Future<void> signIn({required String email, required String password}) async {
     if (password != 'correct-horse') {
@@ -70,7 +75,69 @@ class FakeAuthService implements AuthService {
         badCredentials: true,
       );
     }
-    _set(AppUser(uid: 'u1', email: email, providerIds: const ['password']));
+    _complete(
+      AppUser(uid: 'u1', email: email, providerIds: const ['password']),
+    );
+  }
+
+  /// Signs [user] in, or parks the sign-in behind the second factor.
+  void _complete(AppUser user) {
+    if (requireSecondFactor) {
+      _parked = user;
+      throw SecondFactorRequired();
+    }
+    _set(user);
+  }
+
+  @override
+  Future<void> resolveSecondFactor(String code) async {
+    final user = _parked;
+    if (user == null) throw AuthException('Sign in first.');
+    if (code != '123456') {
+      throw AuthException(
+        'That code is not right. Try the current one from your app.',
+      );
+    }
+    _parked = null;
+    _set(user);
+  }
+
+  @override
+  void cancelSecondFactor() {
+    _parked = null;
+    cancelledSecondFactors++;
+  }
+
+  final factors = <SecondFactor>[];
+  bool enrolling = false;
+
+  @override
+  Future<List<SecondFactor>> enrolledFactors() async => List.of(factors);
+
+  @override
+  Future<TotpEnrollment> startTotpEnrollment() async {
+    enrolling = true;
+    return const TotpEnrollment(
+      secretKey: 'ABCDEFGHIJKLMNOP',
+      qrCodeUrl: 'otpauth://totp/bikes.pizza:member?secret=ABCDEFGHIJKLMNOP',
+    );
+  }
+
+  @override
+  Future<void> finishTotpEnrollment(String code) async {
+    if (!enrolling) throw AuthException('Start two-factor setup first.');
+    if (code != '123456') {
+      throw AuthException(
+        'That code is not right. Try the current one from your app.',
+      );
+    }
+    enrolling = false;
+    factors.add(const SecondFactor(id: 'f1', name: 'Authenticator app'));
+  }
+
+  @override
+  Future<void> removeSecondFactor(SecondFactor factor) async {
+    factors.removeWhere((f) => f.id == factor.id);
   }
 
   @override
@@ -130,7 +197,7 @@ class FakeAuthService implements AuthService {
   Future<void> signInWithGoogle() async {
     googleCalls++;
     if (cancelProviders) throw AuthException.cancelled();
-    _set(
+    _complete(
       const AppUser(
         uid: 'g1',
         email: 'g@example.com',
@@ -352,6 +419,17 @@ void main() {
     submissions = FakeSubmissionService();
     photos = FakePhotoPicker();
   });
+
+  /// Scrolls the account screen's list until [finder] is on screen; the
+  /// list is lazy, so widgets below the fold are not built until then.
+  Future<void> scrollTo(WidgetTester tester, Finder finder) async {
+    await tester.scrollUntilVisible(
+      finder,
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+  }
 
   Future<FakePostRepository> pumpApp(WidgetTester tester) async {
     auth = FakeAuthService();
@@ -697,6 +775,49 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('accounts with two-factor authentication get a code step', (
+    tester,
+  ) async {
+    await openSignIn(tester);
+    auth.requireSecondFactor = true;
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'andy@example.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'correct-horse');
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Enter your authenticator code'), findsOneWidget);
+    expect(auth.currentUser, isNull);
+
+    // A wrong code keeps the step open with a message.
+    await tester.enterText(find.byKey(const Key('mfa-code')), '000000');
+    await tester.tap(find.byKey(const Key('mfa-verify')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('That code is not right'), findsOneWidget);
+    expect(auth.currentUser, isNull);
+
+    // Backing out drops the parked sign-in and returns to the form.
+    await tester.tap(find.text('Use a different account'));
+    await tester.pumpAndSettle();
+    expect(auth.cancelledSecondFactors, 1);
+    expect(find.byType(TextFormField), findsNWidgets(2));
+
+    // Google accounts get the same step; the right code completes it.
+    await tester.ensureVisible(find.byKey(const Key('google-sign-in')));
+    await tester.tap(find.byKey(const Key('google-sign-in')));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter your authenticator code'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('mfa-code')), '123456');
+    await tester.tap(find.byKey(const Key('mfa-verify')));
+    await tester.pumpAndSettle();
+
+    expect(auth.currentUser?.email, 'g@example.com');
+    expect(find.text('g@example.com'), findsOneWidget);
+  });
+
   testWidgets('verified users can edit their username and newsletters', (
     tester,
   ) async {
@@ -726,6 +847,66 @@ void main() {
     expect(members!.updates.single.username, 'Andy_1');
     expect(members!.updates.single.newsletters, isEmpty);
     expect(find.text('Saved.'), findsOneWidget);
+  });
+
+  testWidgets('members can turn two-factor authentication on and off', (
+    tester,
+  ) async {
+    members = FakeMemberService();
+    await openSignIn(tester);
+    await tester.ensureVisible(find.byKey(const Key('google-sign-in')));
+    await tester.tap(find.byKey(const Key('google-sign-in')));
+    await tester.pumpAndSettle();
+    await openAccount(tester);
+
+    // Off by default.
+    final toggle = find.byKey(const Key('second-factor'));
+    await scrollTo(tester, toggle);
+    expect(tester.widget<SwitchListTile>(toggle).value, isFalse);
+
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('open-authenticator')), findsOneWidget);
+    expect(find.text('ABCDEFGHIJKLMNOP'), findsOneWidget);
+    expect(auth.enrolling, isTrue);
+
+    await tester.enterText(find.byKey(const Key('totp-code')), '999999');
+    await scrollTo(tester, find.byKey(const Key('totp-finish')));
+    await tester.tap(find.byKey(const Key('totp-finish')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('That code is not right'), findsOneWidget);
+
+    await tester.enterText(find.byKey(const Key('totp-code')), '123456');
+    await scrollTo(tester, find.byKey(const Key('totp-finish')));
+    await tester.tap(find.byKey(const Key('totp-finish')));
+    await tester.pumpAndSettle();
+
+    // Back on the account screen, now on.
+    expect(auth.factors, hasLength(1));
+    expect(
+      find.textContaining('Two-factor authentication is on'),
+      findsOneWidget,
+    );
+    // Let that snackbar time out, or the next one queues behind it.
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    await scrollTo(tester, toggle);
+    expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
+
+    // Turning it off asks first.
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Keep it on'));
+    await tester.pumpAndSettle();
+    expect(auth.factors, hasLength(1));
+
+    await scrollTo(tester, toggle);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm-turn-off')));
+    await tester.pumpAndSettle();
+    expect(auth.factors, isEmpty);
+    expect(find.text('Two-factor authentication is off.'), findsOneWidget);
   });
 
   testWidgets('the account screen insists on a valid username', (tester) async {
@@ -886,7 +1067,7 @@ void main() {
     await tester.pumpAndSettle();
     await openAccount(tester);
 
-    await tester.ensureVisible(find.byKey(const Key('sign-out')));
+    await scrollTo(tester, find.byKey(const Key('sign-out')));
     await tester.tap(find.byKey(const Key('sign-out')));
     await tester.pumpAndSettle();
     expect(find.text('Sign in'), findsOneWidget);

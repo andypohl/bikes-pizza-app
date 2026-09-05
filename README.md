@@ -231,7 +231,11 @@ the website's account page use them; the app adds a password change for
 email/password accounts. Password accounts must verify their email first
 (Settings shows a "Verify your email" tile); Google and Apple accounts are
 verified already. Newsletter sending is not part of this app yet; the flag
-records the choice.
+records the choice. Both screens also offer two-factor authentication, off
+by default: turning it on walks through adding bikes.pizza to an
+authenticator app (QR code, or on the phone a button that opens the app)
+and every sign-in afterwards, on the website and in the app, asks for the
+app's code. Turning it off removes the factor after an "Are you sure?".
 
 Run the functions' unit tests with `npm test` inside `functions/`.
 

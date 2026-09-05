@@ -2,7 +2,8 @@
 //
 // Signs people in with Firebase Auth (the same user base as the app), then
 // either sends them on to the website (the Firebase session covers it) or
-// (mode=account) shows their account: username, newsletters and password.
+// (mode=account) shows their account: username, newsletters, password and
+// optional two-factor authentication (an authenticator app).
 // Members without a username (new sign-ups, Google and Apple accounts,
 // accounts from before usernames) are asked to choose one first.
 //
@@ -16,8 +17,11 @@ import {
   EmailAuthProvider,
   GoogleAuthProvider,
   OAuthProvider,
+  TotpMultiFactorGenerator,
   createUserWithEmailAndPassword,
   getAuth,
+  getMultiFactorResolver,
+  multiFactor,
   onAuthStateChanged,
   reauthenticateWithCredential,
   sendEmailVerification,
@@ -186,6 +190,15 @@ function describe(error) {
       return "That email is already used with another sign-in method. Sign in that way instead.";
     case "auth/popup-blocked":
       return "Your browser blocked the sign-in window. Allow pop-ups and try again.";
+    case "auth/multi-factor-auth-required":
+      return null; // handled by the code prompt
+    case "auth/invalid-verification-code":
+      return "That code isn't right. Try the current one from your app.";
+    case "auth/totp-challenge-timeout":
+    case "auth/maximum-second-factor-count-exceeded":
+      return "Two-factor setup timed out. Start it again.";
+    case "auth/second-factor-already-in-use":
+      return "Two-factor authentication is already on for this account.";
     case "functions/failed-precondition":
     case "functions/invalid-argument":
     case "functions/already-exists":
@@ -317,6 +330,7 @@ function renderProfile(user, profile) {
   $("#profile-form").username.value = profile.username;
   renderNewsletters($("#newsletters"), profile.newsletters);
   renderPassword(user);
+  renderMfa(user);
 }
 
 /**
@@ -362,6 +376,157 @@ function renderPassword(user) {
       `You sign in with ${names.join(" and ")}, so there's no password to manage here.`;
   }
 }
+
+// ---- two-factor authentication -------------------------------------------
+//
+// Optional for members, off by default: an authenticator app (TOTP) as a
+// second step at sign-in. The admin pages require it; here it is a choice.
+
+const FACTOR_NAME = "Authenticator app";
+
+function enrolledFactor(user) {
+  return multiFactor(user).enrolledFactors[0] ?? null;
+}
+
+function renderMfa(user) {
+  const on = enrolledFactor(user) !== null;
+  $("#mfa-toggle").checked = on;
+  $("#mfa-status").textContent = on
+    ? "On. You're asked for a code from your authenticator app when you sign in."
+    : "Off. Add a second step at sign-in: a code from an authenticator app on your phone.";
+  $("#mfa-confirm").hidden = true;
+}
+
+let resolver = null; // a sign-in waiting for the authenticator code
+let enrolling = null; // the TOTP secret being enrolled
+
+/** Runs a sign-in; when Firebase asks for the second factor, shows the code prompt. */
+async function attemptSignIn(signIn) {
+  busy(true);
+  try {
+    freshSignIn = true;
+    await signIn();
+    // onAuthStateChanged takes it from here.
+  } catch (error) {
+    if (error?.code === "auth/multi-factor-auth-required") {
+      resolver = getMultiFactorResolver(auth, error);
+      $("#mfa-code-form").code.value = "";
+      show("mfa-code");
+      $("#mfa-code-form").code.focus();
+      return;
+    }
+    const text = describe(error);
+    if (text) say(text);
+  } finally {
+    busy(false);
+  }
+}
+
+$("#mfa-code-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const code = event.currentTarget.code.value.trim();
+  if (!resolver) return show("auth");
+  if (!/^\d{6}$/.test(code)) return say("Enter the 6-digit code.");
+  const hint = resolver.hints.find((h) => h.factorId === TotpMultiFactorGenerator.FACTOR_ID) ?? resolver.hints[0];
+  busy(true);
+  try {
+    await resolver.resolveSignIn(TotpMultiFactorGenerator.assertionForSignIn(hint.uid, code));
+    resolver = null;
+    // onAuthStateChanged takes it from here.
+  } catch (error) {
+    say(describe(error) ?? "Could not verify the code.");
+  } finally {
+    busy(false);
+  }
+});
+
+$("#mfa-code-cancel").addEventListener("click", () => {
+  resolver = null;
+  show("auth");
+});
+
+/** Shows the QR code and asks for a first code to finish enrolment. */
+async function startEnrollment(user) {
+  busy(true);
+  try {
+    const session = await multiFactor(user).getSession();
+    enrolling = await TotpMultiFactorGenerator.generateSecret(session);
+  } catch (error) {
+    say(describe(error) ?? "Could not start two-factor setup.");
+    return;
+  } finally {
+    busy(false);
+  }
+  const url = enrolling.generateQrCodeUrl(user.email ?? "member", "bikes.pizza");
+  const box = $("#qr");
+  box.replaceChildren();
+  if (window.QRCode) new window.QRCode(box, { text: url, width: 192, height: 192, correctLevel: window.QRCode.CorrectLevel.M });
+  $("#secret-key").textContent = enrolling.secretKey;
+  $("#mfa-setup-form").code.value = "";
+  show("mfa-setup");
+  $("#mfa-setup-form").code.focus();
+}
+
+$("#mfa-setup-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const code = event.currentTarget.code.value.trim();
+  const user = auth.currentUser;
+  if (!enrolling || !user) return show("auth");
+  if (!/^\d{6}$/.test(code)) return say("Enter the 6-digit code from the app.");
+  busy(true);
+  try {
+    await multiFactor(user).enroll(TotpMultiFactorGenerator.assertionForEnrollment(enrolling, code), FACTOR_NAME);
+    enrolling = null;
+    renderMfa(user);
+    show("account");
+    say("Two-factor authentication is on. You'll be asked for a code next time you sign in.", true);
+  } catch (error) {
+    say(describe(error) ?? "Could not turn on two-factor authentication.");
+  } finally {
+    busy(false);
+  }
+});
+
+$("#mfa-setup-cancel").addEventListener("click", () => {
+  enrolling = null;
+  renderMfa(auth.currentUser); // the switch goes back to off
+  show("account");
+});
+
+// The switch: sliding on starts enrolment (the switch only stays on once
+// the app is enrolled); sliding off asks first.
+$("#mfa-toggle").addEventListener("change", async (event) => {
+  const user = auth.currentUser;
+  if (event.currentTarget.checked) {
+    if (enrolledFactor(user)) return;
+    await startEnrollment(user);
+    if (!enrolling) renderMfa(user); // setup could not start
+    return;
+  }
+  // Keep the switch on until the person confirms.
+  event.currentTarget.checked = true;
+  $("#mfa-confirm").hidden = false;
+});
+
+$("#mfa-keep").addEventListener("click", () => {
+  $("#mfa-confirm").hidden = true;
+});
+
+$("#mfa-off").addEventListener("click", async () => {
+  const user = auth.currentUser;
+  const factor = enrolledFactor(user);
+  if (!factor) return renderMfa(user);
+  busy(true);
+  try {
+    await multiFactor(user).unenroll(factor);
+    renderMfa(user);
+    say("Two-factor authentication is off.", true);
+  } catch (error) {
+    say(describe(error) ?? "Could not turn off two-factor authentication.");
+  } finally {
+    busy(false);
+  }
+});
 
 $("#profile-form").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -454,9 +619,7 @@ $("#auth-form").addEventListener("submit", async (event) => {
     say(USERNAME_RULE);
     return;
   }
-  busy(true);
-  try {
-    freshSignIn = true;
+  await attemptSignIn(async () => {
     if (mode === "signup") {
       const { user } = await createUserWithEmailAndPassword(auth, email, password);
       savePending(user.uid, { username, newsletter: form.newsletter.checked });
@@ -464,13 +627,7 @@ $("#auth-form").addEventListener("submit", async (event) => {
     } else {
       await signInWithEmailAndPassword(auth, email, password);
     }
-    // onAuthStateChanged takes it from here.
-  } catch (error) {
-    const text = describe(error);
-    if (text) say(text);
-  } finally {
-    busy(false);
-  }
+  });
 });
 
 
@@ -492,16 +649,7 @@ $("#forgot").addEventListener("click", async () => {
 });
 
 async function signInWith(provider) {
-  busy(true);
-  try {
-    freshSignIn = true;
-    await signInWithPopup(auth, provider);
-  } catch (error) {
-    const text = describe(error);
-    if (text) say(text);
-  } finally {
-    busy(false);
-  }
+  await attemptSignIn(() => signInWithPopup(auth, provider));
 }
 
 $("#google").addEventListener("click", () => signInWith(new GoogleAuthProvider()));
