@@ -36,6 +36,7 @@ body {
 }
 
 .card {
+  position: relative;
   width: 100%;
   max-width: 24rem;
   background: var(--card);
@@ -53,6 +54,74 @@ body {
   color: var(--red);
   text-decoration: none;
   margin-bottom: 1.25rem;
+}
+
+/* Back arrow in the card's top-left corner, leading to the website. */
+.back {
+  position: absolute;
+  top: 0.9rem;
+  left: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.back:hover {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.back svg {
+  width: 1.4rem;
+  height: 1.4rem;
+  fill: currentColor;
+}
+
+/* Signed out, the sign-in view shows the site's navigation instead. */
+[data-state="auth"] .back {
+  display: none;
+}
+
+.site-nav {
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+  z-index: 10;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.site-nav[hidden] {
+  display: none;
+}
+
+.site-nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.site-nav a:hover {
+  border-color: var(--muted);
+}
+
+.site-nav svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  fill: currentColor;
 }
 
 h1 {
