@@ -196,6 +196,13 @@ defaults on first use.
   someone else holds fails with `already-exists`. After a rename it patches
   the member's `member` document in Sanity (if they have published) and
   requests a website rebuild; both are best effort and logged on failure.
+- The REST API's `/api/admin/users` endpoints (`functions/admin_users.js`,
+  admin claim required) list users ordered by most recent post (Firebase
+  Auth users joined with `members/{uid}` and the published posts' `author`
+  references in Sanity), read one user, update username / email /
+  newsletters (the email changes on the Auth user and the member record; a
+  username change is mirrored to Sanity and rebuilds the website), and
+  delete a user (Auth user and member record; posts stay).
 - `submitPost`: takes a member's bike or pizza submission (photo as base64,
   title, from, description), normalises the photo and makes a thumbnail
   (sharp), runs the photo through Cloud Vision in one call: SafeSearch
@@ -356,8 +363,13 @@ targets in `firebase.json` by `.firebaserc` (create the extra sites with
   a CNAME to the site's `web.app` host plus an ACME `TXT` record, both added
   at the DNS provider as plain records (with Cloudflare, the proxy must be
   off for that name so Firebase can issue the certificate).
+- The admin site serves `web/admin/`, the user-administration page, at
+  https://admin.bikes.pizza/ (development: https://admin.bikes-pizza.dev/),
+  with the same `/api/**` rewrite. Its custom domain is set up the same way
+  as the submissions site's (CNAME to the site's `web.app` host plus the
+  ACME `TXT` record). In `infra/` it is `adminSiteId` / `adminDomain`.
 
-The account and review sites need a Web app registration on the project so that Hosting's reserved
+The account, review and admin sites need a Web app registration on the project so that Hosting's reserved
 `/__/firebase/init.json` returns the config, and any custom domain must also
 be listed under Authentication → Settings → Authorized domains for sign-in
 to work there.

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>bikes.pizza users</title>
+    <link rel="stylesheet" href="/admin.css" />
+  </head>
+  <body class="wide">
+    <main class="card review admin" id="app" data-state="loading">
+      <header class="review-head">
+        <a class="brand" href="https://bikes.pizza/">bikes.pizza</a>
+        <nav class="site-nav" aria-label="bikes.pizza">
+          <a href="https://bikes.pizza/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>Home</a>
+          <a id="submissions-link" href="https://submissions.bikes.pizza/">Submissions</a>
+          <a href="https://bikes.pizza/account/">Account</a>
+        </nav>
+        <h1>Users</h1>
+        <div class="who" id="who" hidden>
+          <span id="who-email"></span>
+          <button type="button" class="link inline" id="signout">Sign out</button>
+        </div>
+      </header>
+
+      <section data-view="loading"><p class="muted">Loading…</p></section>
+
+      <section data-view="signin" hidden>
+        <p>Sign in with an administrator account.</p>
+        <button type="button" class="secondary" id="google"><span class="g">G</span> Continue with Google</button>
+        <button type="button" class="secondary apple" id="apple">
+          <svg class="g" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.57-.12 0-.23-.02-.3-.03-.01-.06-.04-.22-.04-.39 0-1.15.572-2.27 1.206-2.98.804-.94 2.142-1.64 3.248-1.68.03.13.05.28.05.43zm4.565 15.71c-.03.07-.463 1.58-1.518 3.12-.945 1.34-1.94 2.71-3.43 2.71-1.517 0-1.9-.88-3.63-.88-1.698 0-2.302.91-3.67.91-1.377 0-2.332-1.26-3.428-2.8-1.287-1.82-2.323-4.63-2.323-7.28 0-4.28 2.797-6.55 5.552-6.55 1.448 0 2.675.95 3.6.95.865 0 2.222-1.01 3.902-1.01.613 0 2.886.06 4.374 2.19-.13.09-2.383 1.37-2.383 4.19 0 3.26 2.854 4.42 2.955 4.45z"/></svg>
+          Continue with Apple
+        </button>
+        <form id="auth-form" novalidate>
+          <div class="divider"><span>or</span></div>
+          <label>Email <input type="email" name="email" autocomplete="email" required /></label>
+          <label>Password <input type="password" name="password" autocomplete="current-password" required /></label>
+          <button type="submit" class="primary">Sign in</button>
+        </form>
+      </section>
+
+      <section data-view="forbidden" hidden>
+        <h2>Not an administrator</h2>
+        <p>This account is signed in but does not have admin access.</p>
+      </section>
+
+      <section data-view="list" hidden>
+        <p class="muted small" id="summary"></p>
+        <div class="table-wrap">
+          <table class="users">
+            <thead>
+              <tr>
+                <th>Username</th>
+                <th>Newsletter</th>
+                <th class="num">Posts</th>
+                <th>Most recent post</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+        <p class="muted small" id="empty" hidden>No users.</p>
+        <div class="pager">
+          <button type="button" class="secondary small-btn" id="prev">Previous</button>
+          <span class="muted small" id="page-label"></span>
+          <button type="button" class="secondary small-btn" id="next">Next</button>
+        </div>
+      </section>
+
+      <dialog id="detail" class="detail-dialog">
+        <form id="detail-form" class="detail" novalidate>
+          <h2 id="d-title"></h2>
+          <p class="muted small" id="d-meta"></p>
+          <div class="fields">
+            <span class="key">Username</span>
+            <input type="text" name="username" id="d-username" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false" />
+            <span class="key">Email</span>
+            <input type="email" name="email" id="d-email" autocomplete="off" />
+            <span class="key">Sign-in</span>
+            <span class="value" id="d-providers"></span>
+            <span class="key">Verified</span>
+            <span class="value" id="d-verified"></span>
+            <span class="key">Joined</span>
+            <span class="value" id="d-joined"></span>
+            <span class="key">Last sign-in</span>
+            <span class="value" id="d-last"></span>
+            <span class="key">Newsletters</span>
+            <div id="d-newsletters"></div>
+          </div>
+          <p class="muted small" id="d-posts-head"></p>
+          <ul class="posts" id="d-posts"></ul>
+          <div class="actions spread">
+            <div class="actions">
+              <button type="submit" class="primary" id="d-save" disabled>Save</button>
+              <button type="button" class="secondary" id="d-close">Close</button>
+            </div>
+            <div class="actions">
+              <button type="button" class="secondary" id="d-reset" hidden>Reset password</button>
+              <button type="button" class="delete" id="d-delete">Delete user</button>
+            </div>
+          </div>
+        </form>
+      </dialog>
+
+      <dialog id="confirm" class="confirm">
+        <form method="dialog" class="detail">
+          <h2>Are you sure?</h2>
+          <p id="confirm-text"></p>
+          <div class="actions">
+            <button type="button" class="delete" id="confirm-yes">Yes</button>
+            <button type="button" class="secondary" id="confirm-no">No</button>
+          </div>
+        </form>
+      </dialog>
+
+      <p class="message" id="message" role="status" hidden></p>
+    </main>
+    <script type="module" src="/admin.js"></script>
+  </body>
+</html>

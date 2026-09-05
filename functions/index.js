@@ -33,6 +33,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret, defineString } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import { profile, validateUpdate } from "./account.js";
+import * as adminUsers from "./admin_users.js";
 import { createApi } from "./api.js";
 import { syncMemberUsername } from "./authors.js";
 import { AppError, ValidationError, adminFromClaims, userFromClaims } from "./errors.js";
@@ -197,6 +198,16 @@ async function notify(submission, user) {
 const googleAuth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
 const safeSearch = (bytes) => inspectImage(bytes, { getToken: () => googleAuth.getAccessToken() });
 
+/** What the user-administration endpoints need: Auth admin, members, Sanity. */
+const userAdminDeps = () => ({
+  auth: getAuth(),
+  members: firestoreMemberStore(getFirestore()),
+  sanity: sanityClient(),
+  newsletters: NEWSLETTERS,
+  siteUrl: siteUrl(),
+  log: logger.warn,
+});
+
 /** The submission operations, bound to Firestore, Storage, Vision, Sanity and Mailgun. */
 const service = {
   create: (data, user) =>
@@ -215,6 +226,21 @@ const service = {
     settings: () => getSettings({ store: firestoreSiteSettings(getFirestore()) }),
     updateSettings: (data, admin) =>
       updateSettings(data, admin, { store: firestoreSiteSettings(getFirestore()), log: logger.info }),
+  },
+  users: {
+    list: (query) => adminUsers.listUsers(query, userAdminDeps()),
+    get: (uid) => adminUsers.getUser(uid, userAdminDeps()),
+    update: async (uid, data, admin) => {
+      const result = await adminUsers.updateUser(uid, data, userAdminDeps());
+      logger.info("user updated by admin", { uid, by: admin.uid, fields: Object.keys(data ?? {}) });
+      if (result.renamed) await rebuildWebsite(`member ${uid} renamed by admin`);
+      return result;
+    },
+    remove: async (uid, admin) => {
+      const result = await adminUsers.deleteUser(uid, userAdminDeps());
+      logger.info("user deleted by admin", { uid, by: admin.uid });
+      return result;
+    },
   },
   queue: {
     info: (feed) => subs.queueInfo(feed, { store: store() }),

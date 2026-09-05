@@ -240,10 +240,26 @@ email and sign-in method, lets them edit their username and newsletter choices
 (through the `member` and `updateMember` functions) and, for email/password
 accounts, change their password or request a reset email.
 
-Both pages read their Firebase config from Hosting's reserved
+**Admin page**: `web/admin/`, its own Hosting site served at
+https://admin.bikes.pizza/ (https://admin.bikes-pizza.dev/ for the
+development project), for keeping an eye on who has signed up and removing
+stale accounts. Same sign-in rule as the review page (the `admin` claim)
+and the same `/api/` rewrite; the endpoints are under `/api/admin/users`
+(`functions/admin_users.js`). It lists every Firebase user, ordered by
+their most recent post: username, newsletter status, post count and the
+latest post. Opening a user shows the email, how they sign in (Email,
+Google, Apple), verification, join and last sign-in dates and their posts;
+username, email and newsletter are editable, with Save enabled only once
+something changed and Close never asking about unsaved edits. Email
+accounts get a Reset password button (Firebase emails the usual reset
+link). Delete user, in red, asks "Are you sure?" and then removes the Auth
+user and the member profile, freeing the username; the member's posts, and
+the Sanity member document they reference, stay.
+
+All three pages read their Firebase config from Hosting's reserved
 `/__/firebase/init.json`, so nothing project-specific is committed. They are
-Hosting sites (targets `account` and `review` in `firebase.json`, mapped
-to site IDs in `.firebaserc`), so each serves its page from `/`. Preview
+Hosting sites (targets `account`, `review` and `admin` in `firebase.json`,
+mapped to site IDs in `.firebaserc`), so each serves its page from `/`. Preview
 locally with `firebase emulators:start --only hosting` (uses the live
 Firebase project for sign-in) and deploy with `firebase deploy --only hosting`.
 

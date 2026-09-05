@@ -43,6 +43,15 @@ const service = {
       return { submitButton: settingsState.submitButton };
     },
   },
+  users: {
+    list: async (query) => calls.push(["users.list", { ...query }]) && { page: 1, users: [{ uid: "u1" }] },
+    get: async (uid) => {
+      if (uid === "nope") throw new AppError("not-found", "No such user.");
+      return { uid };
+    },
+    update: async (uid, data, admin) => calls.push(["users.update", uid, data, admin.uid]) && { uid, ...data },
+    remove: async (uid, admin) => calls.push(["users.remove", uid, admin.uid]) && { deleted: uid },
+  },
   queue: {
     info: async (feed) => {
       if (feed === "blog") throw new ValidationError("Unknown feed.");
@@ -200,4 +209,27 @@ test("site settings: public read, admin-only write, validated", async () => {
   assert.deepEqual(off.body, { submitButton: false });
   assert.deepEqual((await call("/api/site/settings")).body, { submitButton: false });
   await call("/api/site/settings", { token: "admin", method: "POST", body: { submitButton: true } });
+});
+
+test("admin user routes are admin-only and pass the body through", async () => {
+  assert.equal((await call("/api/admin/users", { token: "member" })).status, 403);
+  assert.equal((await call("/api/admin/users/u1", { token: "member" })).status, 403);
+  assert.equal((await call("/api/admin/users/u1", { token: "member", method: "PATCH", body: { username: "x" } })).status, 403);
+  assert.equal((await call("/api/admin/users/u1", { token: "member", method: "DELETE" })).status, 403);
+
+  const list = await call("/api/admin/users?page=2&pageSize=10", { token: "admin" });
+  assert.equal(list.status, 200);
+  assert.deepEqual(calls.at(-1), ["users.list", { page: "2", pageSize: "10" }]);
+
+  assert.equal((await call("/api/admin/users/nope", { token: "admin" })).status, 404);
+  assert.equal((await call("/api/admin/users/u1", { token: "admin" })).status, 200);
+
+  const patched = await call("/api/admin/users/u1", { token: "admin", method: "PATCH", body: { username: "ada", newsletters: [] } });
+  assert.equal(patched.status, 200);
+  assert.deepEqual(calls.at(-1), ["users.update", "u1", { username: "ada", newsletters: [] }, "a1"]);
+
+  const removed = await call("/api/admin/users/u1", { token: "admin", method: "DELETE" });
+  assert.equal(removed.status, 200);
+  assert.deepEqual(removed.body, { deleted: "u1" });
+  assert.deepEqual(calls.at(-1), ["users.remove", "u1", "a1"]);
 });

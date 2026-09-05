@@ -91,7 +91,8 @@ Set with `pulumi config set <key> <value>` on the selected stack.
 | `region`             | Firestore and Storage location (default `us-central1`) |
 | `domain`             | website apex |
 | `submissionsDomain`  | submissions / API host (default `submissions.<domain>`) |
-| `homeSiteId`, `submissionsSiteId` | Hosting site IDs |
+| `adminDomain`        | admin page host (default `admin.<domain>`) |
+| `homeSiteId`, `submissionsSiteId`, `adminSiteId` | Hosting site IDs |
 | `cloudflareZoneId`   | Cloudflare zone of the domain |
 | `manageDns`          | manage the Cloudflare records (default true) |
 | `repository`         | GitHub `owner/name` (default `andypohl/bikes-pizza-app`) |
@@ -129,8 +130,9 @@ pulumi preview   # then edit index.ts until it reports no changes
 
 The DNS records for `dev` still need this once a Cloudflare token exists:
 import the A, TXT and CNAME records (`dns-apex-a`, `dns-apex-txt`,
-`dns-submissions-cname`) and the ACME TXT records (`dns-apex-acme`,
-`dns-submissions-acme`), then `pulumi config set manageDns true`.
+`dns-submissions-cname`, `dns-admin-cname`) and the ACME TXT records
+(`dns-apex-acme`, `dns-submissions-acme`, `dns-admin-acme`), then
+`pulumi config set manageDns true`.
 
 ### Importing prod
 

@@ -14,6 +14,9 @@
         ],
         "review": [
           "pizzapredator-submissions"
+        ],
+        "admin": [
+          "bikes-pizza-admin"
         ]
       },
       "storage": {
@@ -32,6 +35,9 @@
         ],
         "review": [
           "bikes-pizza-dev-submissions"
+        ],
+        "admin": [
+          "bikes-pizza-dev-admin"
         ]
       },
       "storage": {

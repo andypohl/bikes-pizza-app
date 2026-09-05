@@ -15,6 +15,13 @@
 //   POST /api/queue/:feed/submit-next   admin; posts the oldest entry now
 //   GET  /api/site/settings             public (no token); {submitButton}
 //   POST /api/site/settings             admin; {submitButton: boolean}
+//   GET  /api/admin/users               admin; ?page=&pageSize= — by most recent post
+//   GET  /api/admin/users/:uid          admin
+//   PATCH /api/admin/users/:uid         admin; {username?, email?, newsletters?}
+//   DELETE /api/admin/users/:uid        admin
+//
+// The admin page (web/admin/) reaches these through the same rewrite on its
+// own Hosting site.
 //
 // Errors are JSON: {"error": {"code": "...", "message": "..."}}.
 
@@ -42,15 +49,16 @@ export const BODY_LIMIT = "12mb";
  * `verifyToken(idToken)` resolves to the token's claims or rejects.
  * `service` exposes create(data, user), list(query), get(id),
  * review(input, admin) and a `queue` with info(feed), items(feed),
- * add(input, admin), remove(input, admin) and submitNext(feed), and a
- * `site` with settings() and updateSettings(data, admin); see index.js for
- * the wiring.
+ * add(input, admin), remove(input, admin) and submitNext(feed), a
+ * `site` with settings() and updateSettings(data, admin), and `users`
+ * with list(query), get(uid), update(uid, data, admin) and remove(uid,
+ * admin); see index.js for the wiring.
  */
 export function createApi({ verifyToken, service, log = () => {} }) {
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", true);
-  app.use(cors({ origin: true, methods: ["GET", "POST"], allowedHeaders: ["Authorization", "Content-Type"] }));
+  app.use(cors({ origin: true, methods: ["GET", "POST", "PATCH", "DELETE"], allowedHeaders: ["Authorization", "Content-Type"] }));
   app.use(express.json({ limit: BODY_LIMIT }));
 
   const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).then((body) => res.json(body), next);
@@ -138,6 +146,32 @@ export function createApi({ verifyToken, service, log = () => {} }) {
       return queue.submitNext(req.params.feed);
     }),
   );
+
+  const users = service.users;
+  if (users) {
+    api.get(
+      "/admin/users",
+      wrap((req) => {
+        adminFromClaims(req.claims);
+        return users.list(req.query);
+      }),
+    );
+    api.get(
+      "/admin/users/:uid",
+      wrap((req) => {
+        adminFromClaims(req.claims);
+        return users.get(req.params.uid);
+      }),
+    );
+    api.patch(
+      "/admin/users/:uid",
+      wrap((req) => users.update(req.params.uid, req.body, adminFromClaims(req.claims))),
+    );
+    api.delete(
+      "/admin/users/:uid",
+      wrap((req) => users.remove(req.params.uid, adminFromClaims(req.claims))),
+    );
+  }
 
   app.use("/api", api);
 
