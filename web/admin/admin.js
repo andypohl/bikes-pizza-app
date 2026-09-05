@@ -434,8 +434,13 @@ async function startEnrollment(user) {
     const session = await multiFactor(user).getSession();
     enrolling = await TotpMultiFactorGenerator.generateSecret(session);
   } catch (error) {
-    say(describe(error) ?? "Could not start two-factor setup.");
-    show("forbidden");
+    // Enrolment needs a recent sign-in; an old session has to start over.
+    await signOut(auth);
+    say(
+      error?.code === "auth/requires-recent-login"
+        ? "Sign in again to set up two-factor authentication."
+        : (describe(error) ?? "Could not start two-factor setup."),
+    );
     return;
   }
   const url = enrolling.generateQrCodeUrl(user.email ?? "admin", "bikes.pizza admin");
