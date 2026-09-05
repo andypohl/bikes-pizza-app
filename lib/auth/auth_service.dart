@@ -56,6 +56,32 @@ class AuthException implements Exception {
   String toString() => message;
 }
 
+/// Thrown by a sign-in when the account has two-factor authentication on:
+/// the sign-in is parked until [AuthService.resolveSecondFactor] gets the
+/// code from the authenticator app, or [AuthService.cancelSecondFactor].
+class SecondFactorRequired extends AuthException {
+  SecondFactorRequired() : super('Enter the code from your authenticator app.');
+}
+
+/// A second factor enrolled on the account.
+class SecondFactor {
+  const SecondFactor({required this.id, required this.name});
+
+  final String id;
+  final String name;
+}
+
+/// A TOTP secret being enrolled: what an authenticator app needs.
+class TotpEnrollment {
+  const TotpEnrollment({required this.secretKey, required this.qrCodeUrl});
+
+  /// The key to type into the app when scanning is not possible.
+  final String secretKey;
+
+  /// The `otpauth://` URL, for a QR code or for opening an app directly.
+  final String qrCodeUrl;
+}
+
 /// Authentication facade so screens and tests never depend on Firebase
 /// directly.
 abstract class AuthService {
@@ -90,6 +116,34 @@ abstract class AuthService {
   Future<void> signInWithApple();
 
   Future<void> signOut();
+
+  // ---- two-factor authentication (optional, an authenticator app) ----
+
+  /// Finishes a sign-in that threw [SecondFactorRequired] with the 6-digit
+  /// [code] from the authenticator app.
+  Future<void> resolveSecondFactor(String code);
+
+  /// Drops a sign-in that was waiting for its second factor.
+  void cancelSecondFactor();
+
+  /// The second factors enrolled on the signed-in account; empty when
+  /// two-factor authentication is off.
+  Future<List<SecondFactor>> enrolledFactors();
+
+  /// Starts enrolling an authenticator app; finish with
+  /// [finishTotpEnrollment] once the app shows a code.
+  Future<TotpEnrollment> startTotpEnrollment();
+
+  /// Enrolls the authenticator app started by [startTotpEnrollment], proving
+  /// it with the [code] it shows.
+  Future<void> finishTotpEnrollment(String code);
+
+  /// Turns two-factor authentication off by removing [factor].
+  Future<void> removeSecondFactor(SecondFactor factor);
+
+  /// Whether the signed-in account is an administrator (the `admin` claim).
+  /// Administrators must keep a second factor for the admin pages.
+  Future<bool> isAdmin();
 }
 
 /// [AuthService] backed by Firebase Authentication.
@@ -101,6 +155,10 @@ class FirebaseAuthService implements AuthService {
   final fb.FirebaseAuth _auth;
   final GoogleSignIn _google;
   Future<void>? _googleInit;
+  fb.MultiFactorResolver? _resolver; // a sign-in waiting for its code
+  fb.TotpSecret? _enrolling; // the secret being enrolled
+
+  static const _factorName = 'Authenticator app';
 
   @override
   Stream<AppUser?> get userChanges => _auth.userChanges().map(_toAppUser);
@@ -230,6 +288,91 @@ class FirebaseAuthService implements AuthService {
     }
   }
 
+  @override
+  Future<void> resolveSecondFactor(String code) => _guard(() async {
+    final resolver = _resolver;
+    if (resolver == null) throw AuthException('Sign in first.');
+    final hint = resolver.hints.firstWhere(
+      (h) => h is fb.TotpMultiFactorInfo,
+      orElse: () => resolver.hints.first,
+    );
+    final assertion = await fb.TotpMultiFactorGenerator.getAssertionForSignIn(
+      hint.uid,
+      code.trim(),
+    );
+    await resolver.resolveSignIn(assertion);
+    _resolver = null;
+  });
+
+  @override
+  void cancelSecondFactor() => _resolver = null;
+
+  @override
+  Future<List<SecondFactor>> enrolledFactors() async {
+    final user = _auth.currentUser;
+    if (user == null) return const [];
+    final factors = await user.multiFactor.getEnrolledFactors();
+    return [
+      for (final f in factors)
+        SecondFactor(id: f.uid, name: f.displayName ?? _factorName),
+    ];
+  }
+
+  @override
+  Future<TotpEnrollment> startTotpEnrollment() async {
+    late TotpEnrollment enrollment;
+    await _guard(() async {
+      final user = _auth.currentUser;
+      if (user == null) throw AuthException('Sign in first.');
+      final session = await user.multiFactor.getSession();
+      final secret = await fb.TotpMultiFactorGenerator.generateSecret(session);
+      _enrolling = secret;
+      enrollment = TotpEnrollment(
+        secretKey: secret.secretKey,
+        qrCodeUrl: await secret.generateQrCodeUrl(
+          accountName: user.email ?? 'member',
+          issuer: 'bikes.pizza',
+        ),
+      );
+    });
+    return enrollment;
+  }
+
+  @override
+  Future<void> finishTotpEnrollment(String code) => _guard(() async {
+    final user = _auth.currentUser;
+    final secret = _enrolling;
+    if (user == null || secret == null) {
+      throw AuthException('Start two-factor setup first.');
+    }
+    final assertion =
+        await fb.TotpMultiFactorGenerator.getAssertionForEnrollment(
+          secret,
+          code.trim(),
+        );
+    await user.multiFactor.enroll(assertion, displayName: _factorName);
+    _enrolling = null;
+  });
+
+  @override
+  Future<void> removeSecondFactor(SecondFactor factor) => _guard(() async {
+    final user = _auth.currentUser;
+    if (user == null) throw AuthException('Sign in first.');
+    await user.multiFactor.unenroll(factorUid: factor.id);
+  });
+
+  @override
+  Future<bool> isAdmin() async {
+    final user = _auth.currentUser;
+    if (user == null) return false;
+    try {
+      final token = await user.getIdTokenResult();
+      return token.claims?['admin'] == true;
+    } on fb.FirebaseAuthException {
+      return false;
+    }
+  }
+
   static AppUser? _toAppUser(fb.User? user) => user == null
       ? null
       : AppUser(
@@ -250,11 +393,16 @@ class FirebaseAuthService implements AuthService {
   }
 
   /// Runs [action], translating Firebase error codes into readable messages.
-  static Future<void> _guard(Future<void> Function() action) async {
+  /// A sign-in that needs its second factor is parked for
+  /// [resolveSecondFactor] and reported as [SecondFactorRequired].
+  Future<void> _guard(Future<void> Function() action) async {
     try {
       await action();
     } on AuthException {
       rethrow;
+    } on fb.FirebaseAuthMultiFactorException catch (e) {
+      _resolver = e.resolver;
+      throw SecondFactorRequired();
     } on fb.FirebaseAuthException catch (e) {
       throw AuthException(
         _describe(e),
@@ -304,6 +452,15 @@ class FirebaseAuthService implements AuthService {
         return 'Could not reach the server. Check your connection.';
       case 'operation-not-allowed':
         return 'This sign-in method is not enabled for the app yet.';
+      case 'requires-recent-login':
+        return 'Sign out and back in, then try again.';
+      case 'invalid-verification-code':
+        return 'That code is not right. Try the current one from your app.';
+      case 'totp-challenge-timeout':
+      case 'maximum-second-factor-count-exceeded':
+        return 'Two-factor setup timed out. Start it again.';
+      case 'second-factor-already-in-use':
+        return 'Two-factor authentication is already on for this account.';
       default:
         return e.message ?? 'Something went wrong (${e.code}).';
     }

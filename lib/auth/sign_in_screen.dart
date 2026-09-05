@@ -9,7 +9,8 @@ import 'auth_service.dart';
 enum _Mode { signIn, createAccount }
 
 /// Email + password sign-in, with a toggle to create a new account and a
-/// password-reset link. Pops itself on success.
+/// password-reset link. Pops itself on success. Accounts with two-factor
+/// authentication on get a second step asking for the authenticator code.
 ///
 /// Creating an account also asks for a username and whether to get the
 /// newsletter; those wait on the device (see [PendingProfile]) until the
@@ -29,10 +30,15 @@ class _SignInScreenState extends State<SignInScreen> {
   final _password = TextEditingController();
   final _username = TextEditingController();
 
+  final _code = TextEditingController();
+
   _Mode _mode = _Mode.signIn;
   bool _busy = false;
   bool _obscure = true;
   bool _newsletter = true;
+  // Set when the account has two-factor authentication on: the sign-in is
+  // parked until the code from the authenticator app arrives.
+  bool _awaitingCode = false;
   String? _error;
 
   @override
@@ -40,6 +46,7 @@ class _SignInScreenState extends State<SignInScreen> {
     _email.dispose();
     _password.dispose();
     _username.dispose();
+    _code.dispose();
     super.dispose();
   }
 
@@ -75,10 +82,48 @@ class _SignInScreenState extends State<SignInScreen> {
         }
       }
       if (mounted) Navigator.of(context).pop();
+    } on SecondFactorRequired {
+      _askForCode();
     } on AuthException catch (e) {
       setState(() {
         _error = e.message;
       });
+    } on Object {
+      setState(() => _error = 'Something went wrong. Please try again.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _askForCode() => setState(() {
+    _awaitingCode = true;
+    _code.clear();
+    _error = null;
+  });
+
+  void _cancelCode() {
+    widget.auth.cancelSecondFactor();
+    setState(() {
+      _awaitingCode = false;
+      _error = null;
+    });
+  }
+
+  Future<void> _verifyCode() async {
+    final code = _code.text.trim();
+    if (!RegExp(r'^\d{6}$').hasMatch(code)) {
+      setState(() => _error = 'Enter the 6-digit code.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await widget.auth.resolveSecondFactor(code);
+      if (mounted) Navigator.of(context).pop();
+    } on AuthException catch (e) {
+      setState(() => _error = e.message);
     } on Object {
       setState(() => _error = 'Something went wrong. Please try again.');
     } finally {
@@ -100,6 +145,8 @@ class _SignInScreenState extends State<SignInScreen> {
     try {
       await signIn();
       if (mounted) Navigator.of(context).pop();
+    } on SecondFactorRequired {
+      _askForCode();
     } on AuthException catch (e) {
       if (!e.cancelled) setState(() => _error = e.message);
     } on Object {
@@ -132,9 +179,72 @@ class _SignInScreenState extends State<SignInScreen> {
     }
   }
 
+  /// The second step of a sign-in: the code from the authenticator app.
+  Widget _codeStep(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Enter your authenticator code',
+          style: theme.textTheme.titleLarge,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Open your authenticator app and type the 6-digit code for '
+          'bikes.pizza.',
+          style: theme.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          key: const Key('mfa-code'),
+          controller: _code,
+          enabled: !_busy,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          maxLength: 6,
+          autofillHints: const [AutofillHints.oneTimeCode],
+          onSubmitted: (_) => _verifyCode(),
+          decoration: const InputDecoration(
+            labelText: 'Code',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        if (_error != null) ...[
+          const SizedBox(height: 8),
+          Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+        ],
+        const SizedBox(height: 16),
+        FilledButton(
+          key: const Key('mfa-verify'),
+          onPressed: _busy ? null : _verifyCode,
+          child: _busy
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Verify'),
+        ),
+        TextButton(
+          onPressed: _busy ? null : _cancelCode,
+          child: const Text('Use a different account'),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    if (_awaitingCode) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Sign in')),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+          child: _codeStep(theme),
+        ),
+      );
+    }
     return Scaffold(
       appBar: AppBar(title: Text(_isSignIn ? 'Sign in' : 'Create account')),
       body: SingleChildScrollView(

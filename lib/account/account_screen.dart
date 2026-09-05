@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import '../auth/auth_service.dart';
 import '../auth/session_expiry.dart';
 import 'member_service.dart';
+import 'totp_setup_screen.dart';
 
 /// Lets a signed-in member edit their username and newsletters, change
-/// their password (password accounts only), and sign out. A member without
+/// their password (password accounts only), turn two-factor authentication
+/// on or off, and sign out. A member without
 /// a username yet (a new account, or one from before usernames) is asked
 /// to choose one here.
 class AccountScreen extends StatefulWidget {
@@ -190,6 +192,8 @@ class _AccountScreenState extends State<AccountScreen> {
               "there's no password to manage here.",
               style: Theme.of(context).textTheme.bodyMedium,
             ),
+          const _Heading('Two-factor authentication'),
+          _SecondFactorSection(auth: widget.auth),
           const SizedBox(height: 24),
           TextButton(
             key: const Key('sign-out'),
@@ -337,6 +341,134 @@ class _PasswordSectionState extends State<_PasswordSection> {
           child: const Text('Forgotten it? Email me a reset link'),
         ),
       ],
+    );
+  }
+}
+
+/// Two-factor authentication: off by default; a switch that walks through
+/// enrolling an authenticator app, or removes it again.
+class _SecondFactorSection extends StatefulWidget {
+  const _SecondFactorSection({required this.auth});
+
+  final AuthService auth;
+
+  @override
+  State<_SecondFactorSection> createState() => _SecondFactorSectionState();
+}
+
+class _SecondFactorSectionState extends State<_SecondFactorSection> {
+  List<SecondFactor>? _factors;
+  bool _admin = false;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final factors = await widget.auth.enrolledFactors();
+    final admin = await widget.auth.isAdmin();
+    if (mounted) {
+      setState(() {
+        _factors = factors;
+        _admin = admin;
+      });
+    }
+  }
+
+  Future<void> _turnOn() async {
+    final enrolled = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => TotpSetupScreen(auth: widget.auth)),
+    );
+    if (!mounted) return;
+    if (enrolled == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Two-factor authentication is on. You'll be asked for a code "
+            'next time you sign in.',
+          ),
+        ),
+      );
+    }
+    await _load();
+  }
+
+  Future<void> _turnOff(SecondFactor factor) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final sure = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Turn off two-factor authentication?'),
+        content: const Text(
+          'Signing in will only need your password or provider again.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Keep it on'),
+          ),
+          FilledButton(
+            key: const Key('confirm-turn-off'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Turn off'),
+          ),
+        ],
+      ),
+    );
+    if (sure != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await widget.auth.removeSecondFactor(factor);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Two-factor authentication is off.')),
+      );
+      await _load();
+    } on AuthException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final factors = _factors;
+    if (factors == null) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: LinearProgressIndicator(),
+      );
+    }
+    final on = factors.isNotEmpty;
+    // The admin and submissions pages insist on a second factor, so an
+    // administrator can turn it on here but not off.
+    final locked = on && _admin;
+    return SwitchListTile(
+      key: const Key('second-factor'),
+      contentPadding: EdgeInsets.zero,
+      title: const Text('Authenticator app'),
+      subtitle: Text(
+        locked
+            ? 'On, and required for administrators.'
+            : on
+            ? "On. You're asked for a code from your authenticator app when "
+                  'you sign in.'
+            : 'Off. Add a second step at sign-in: a code from an '
+                  'authenticator app on your phone.',
+      ),
+      value: on,
+      onChanged: _busy || locked
+          ? null
+          : (next) {
+              if (next) {
+                _turnOn();
+              } else {
+                _turnOff(factors.first);
+              }
+            },
     );
   }
 }

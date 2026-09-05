@@ -351,3 +351,129 @@ legend {
 button.secondary + button.secondary {
   margin-top: 0.6rem;
 }
+
+/* Two-factor setup: the QR code for the authenticator app. */
+.qr {
+  display: flex;
+  justify-content: center;
+  margin: 1rem 0;
+}
+
+.qr img,
+.qr canvas {
+  background: #fff;
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+}
+
+#secret-key {
+  user-select: all;
+  word-break: break-all;
+}
+
+/* A toggle switch (two-factor authentication on the account screen). */
+.switch {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  cursor: pointer;
+  margin: 0.5rem 0;
+}
+
+.switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch .track {
+  flex: none;
+  position: relative;
+  width: 2.75rem;
+  height: 1.6rem;
+  margin-top: 0.05rem;
+  border-radius: 1rem;
+  background: var(--line);
+  transition: background 150ms ease;
+}
+
+.switch .track::after {
+  content: "";
+  position: absolute;
+  top: 0.2rem;
+  left: 0.2rem;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: transform 150ms ease;
+}
+
+.switch input:checked + .track {
+  background: var(--accent);
+}
+
+.switch input:checked + .track::after {
+  transform: translateX(1.15rem);
+}
+
+.switch input:focus-visible + .track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.switch:has(input:disabled) {
+  cursor: default;
+  color: var(--muted);
+}
+
+.switch input:disabled + .track {
+  opacity: 0.4;
+}
+
+.switch > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.confirm {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.confirm p {
+  margin: 0 0 0.5rem;
+}
+
+/* The one red button: confirming two-factor authentication off. */
+button.secondary.delete {
+  background: var(--error);
+  border-color: var(--error);
+  color: #fff;
+}
+
+button.secondary.delete:hover {
+  filter: brightness(0.9);
+}
+
+.confirm .actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.confirm .actions button {
+  width: auto;
+  margin: 0;
+}
+
+.confirm .actions button.secondary {
+  padding: 0.5rem 1.1rem;
+  min-height: 0;
+}
