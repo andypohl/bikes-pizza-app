@@ -120,7 +120,7 @@ export function bikeSpecs(post: Post): Spec[] {
   return specs;
 }
 
-/** One line of bike details for tiles: brand, type and year, e.g. "GT · MTB · 1990s". */
+/** One line of bike details for tiles: brand, type and year, e.g. "GT · Mountain · 1990s". */
 export function bikeLine(post: Post): string | null {
   const bike = post.feed === 'bikes' ? post.bike : null;
   if (!bike) return null;

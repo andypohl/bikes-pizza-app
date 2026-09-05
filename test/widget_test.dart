@@ -556,7 +556,7 @@ void main() {
     await pumpApp(tester);
     await tester.tap(find.text('Bikes'));
     await tester.pumpAndSettle();
-    expect(find.text('GT · MTB · 1990s'), findsOneWidget);
+    expect(find.text('GT · Mountain · 1990s'), findsOneWidget);
 
     await tester.tap(find.text('1992 GT Outpost'));
     await tester.pumpAndSettle();
@@ -565,7 +565,7 @@ void main() {
     expect(find.text('GT'), findsOneWidget);
     expect(find.text('Color'), findsOneWidget);
     expect(find.text('Orange'), findsOneWidget);
-    expect(find.text('MTB'), findsOneWidget);
+    expect(find.text('Mountain'), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
 
