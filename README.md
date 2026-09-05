@@ -258,6 +258,10 @@ lib/
   store/store_repository.dart   StoreRepository + Shopify Storefront client
   widgets/post_tile.dart        title + thumbnail row
 test/                           unit tests for both backends, widget tests
+functions/                      Cloud Functions (submissions, members, REST API)
+site/                           Astro website; studio/ the Sanity Studio
+web/                            account page and submissions review page
+infra/                          Pulumi program for the cloud resources (dev, prod stacks)
 ```
 
 ## Development

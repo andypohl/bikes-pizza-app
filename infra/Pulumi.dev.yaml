@@ -1,0 +1,16 @@
+encryptionsalt: v1:SVqaZvLgAFk=:v1:UgxrDZI1U7PkatEM:N/xjByTs0JzAqX8i+2ac9cJtLt67Ig==
+config:
+  bikes-pizza:projectId: bikes-pizza-dev
+  bikes-pizza:displayName: bikes-pizza dev
+  bikes-pizza:billingAccount: 016876-3824C1-561384
+  bikes-pizza:region: us-central1
+  bikes-pizza:domain: bikes-pizza.dev
+  bikes-pizza:homeSiteId: bikes-pizza-dev-home
+  bikes-pizza:submissionsSiteId: bikes-pizza-dev-submissions
+  bikes-pizza:cloudflareZoneId: 1e1c7fbd918a26c83cb32e2e563cad42
+  bikes-pizza:manageDns: "false"
+  bikes-pizza:githubEnvironment: development
+  bikes-pizza:sanityDataset: development
+  gcp:project: bikes-pizza-dev
+  gcp:userProjectOverride: "true"
+  github:owner: andypohl

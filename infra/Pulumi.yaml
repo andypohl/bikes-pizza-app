@@ -1,0 +1,6 @@
+name: bikes-pizza
+description: Cloud resources for bikes.pizza, one stack per environment (dev, prod)
+runtime:
+  name: nodejs
+  options:
+    packagemanager: npm
