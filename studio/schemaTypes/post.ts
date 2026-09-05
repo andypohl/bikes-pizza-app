@@ -68,7 +68,7 @@ export const post = defineType({
       fields: [
         defineField({ name: 'brand', type: 'string' }),
         defineField({ name: 'year', type: 'string', options: { list: BIKE_YEARS } }),
-        defineField({ name: 'color', title: 'Colour', type: 'string', options: { list: BIKE_COLORS } }),
+        defineField({ name: 'color', type: 'string', options: { list: BIKE_COLORS } }),
         defineField({ name: 'type', type: 'string', options: { list: BIKE_TYPES } }),
       ],
     }),

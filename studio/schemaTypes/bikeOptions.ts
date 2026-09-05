@@ -1,7 +1,7 @@
 /**
  * Choices for the structured details on a bike post. Shared by the Studio
  * schema and the Post details app (apps/post-details), so a new decade,
- * colour or type is added here and nowhere else.
+ * color or type is added here and nowhere else.
  */
 export type Option = {title: string; value: string}
 
@@ -19,7 +19,7 @@ export const BIKE_YEARS: Option[] = [
 export const BIKE_COLORS: Option[] = [
   {title: 'Black', value: 'black'},
   {title: 'White', value: 'white'},
-  {title: 'Silver / grey', value: 'silver'},
+  {title: 'Silver / gray', value: 'silver'},
   {title: 'Chrome', value: 'chrome'},
   {title: 'Red', value: 'red'},
   {title: 'Orange', value: 'orange'},
@@ -29,7 +29,7 @@ export const BIKE_COLORS: Option[] = [
   {title: 'Purple', value: 'purple'},
   {title: 'Pink', value: 'pink'},
   {title: 'Brown / tan', value: 'brown'},
-  {title: 'Multicolour', value: 'multi'},
+  {title: 'Multicolor', value: 'multi'},
 ]
 
 export const BIKE_TYPES: Option[] = [

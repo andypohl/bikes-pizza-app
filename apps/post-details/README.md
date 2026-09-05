@@ -4,7 +4,7 @@ A [Sanity App SDK](https://www.sanity.io/docs/app-sdk) app that runs in the
 organisation's Sanity Dashboard, next to the Studio, for filling in the
 structured parts of a post that the Studio form makes slow:
 
-- **Bike details** on bike posts: brand, year (a decade), colour and type.
+- **Bike details** on bike posts: brand, year (a decade), color and type.
   The choices live in `studio/schemaTypes/bikeOptions.ts`, shared with the
   Studio schema, so a new option is added there and nowhere else.
 - **Member**: which member is credited for a post, chosen by username. The

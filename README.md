@@ -64,7 +64,7 @@ https://bikes-pizza-dev.sanity.studio/ for the development copy behind
 bikes-pizza.dev.
 See `studio/README.md` for running it, deploying the schema, and importing
 posts from the old Ghost site. `apps/post-details/` is a Sanity App SDK app
-in the Dashboard for filling in a bike post's brand, year, colour and type
+in the Dashboard for filling in a bike post's brand, year, color and type
 and for linking a post to a member by username; see its README.
 
 `site/` is the public website at https://bikes.pizza/, an Astro site that

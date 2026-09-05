@@ -44,7 +44,7 @@ export function PostEditor({handle}: {handle: DocumentHandle}) {
             <Grid columns={[1, 1, 2]} gap={4}>
               <TextField handle={handle} path="bike.brand" label="Brand" />
               <SelectField handle={handle} path="bike.year" label="Year" options={BIKE_YEARS} />
-              <SelectField handle={handle} path="bike.color" label="Colour" options={BIKE_COLORS} />
+              <SelectField handle={handle} path="bike.color" label="Color" options={BIKE_COLORS} />
               <SelectField handle={handle} path="bike.type" label="Type" options={BIKE_TYPES} />
             </Grid>
           </Stack>
