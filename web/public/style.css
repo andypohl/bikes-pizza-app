@@ -179,6 +179,12 @@ input {
   border-radius: 10px;
 }
 
+label > .muted {
+  display: block;
+  font-weight: 400;
+  margin-top: 0.35rem;
+}
+
 input:focus {
   outline: 2px solid var(--red);
   outline-offset: 1px;

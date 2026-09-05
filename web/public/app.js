@@ -2,7 +2,9 @@
 //
 // Signs people in with Firebase Auth (the same user base as the app), then
 // either sends them on to the website (the Firebase session covers it) or
-// (mode=account) shows their account: name, newsletters and password.
+// (mode=account) shows their account: username, newsletters and password.
+// Members without a username (new sign-ups, Google and Apple accounts,
+// accounts from before usernames) are asked to choose one first.
 //
 // Query parameters:
 //   mode=signin|signup   which tab to open first (default signin)
@@ -56,6 +58,47 @@ const updateMember = httpsCallable(functions, "updateMember");
 const intent = params.get("mode") === "account" ? "account" : "site";
 let mode = params.get("mode") === "signup" ? "signup" : "signin";
 let handled = false; // guards against acting twice on auth state changes
+// Set when the person signs in on this page (rather than arriving with a
+// session); only then is the profile checked before sending them on, so
+// returning members are not held up by a round trip.
+let freshSignIn = false;
+
+// Usernames: kept in step with `USERNAME_PATTERN` in functions/account.js.
+const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,24}$/;
+const USERNAME_RULE = "Username must be 3 to 24 letters, digits or underscores.";
+
+// ---- sign-up choices, kept until the email is verified ---------------------
+//
+// The member functions only accept verified users, so what a new member
+// chose while signing up waits in this browser until they have verified.
+
+const pendingKey = (uid) => `bikes.pizza:pending-profile:${uid}`;
+
+function savePending(uid, choices) {
+  try {
+    localStorage.setItem(pendingKey(uid), JSON.stringify(choices));
+  } catch {
+    // Storage unavailable; the setup step will ask again.
+  }
+}
+
+function hasPending(uid) {
+  try {
+    return localStorage.getItem(pendingKey(uid)) !== null;
+  } catch {
+    return false;
+  }
+}
+
+function takePending(uid) {
+  try {
+    const raw = localStorage.getItem(pendingKey(uid));
+    localStorage.removeItem(pendingKey(uid));
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
 
 // ---- view helpers ---------------------------------------------------------
 
@@ -92,6 +135,7 @@ function setMode(next) {
   const signup = mode === "signup";
   $("#submit").textContent = signup ? "Create account" : "Sign in";
   $("input[name=password]").autocomplete = signup ? "new-password" : "current-password";
+  $("[data-signup]").hidden = !signup;
   // The email is kept across modes so a member who subscribed before
   // passwords existed can go straight to creating one for that address.
   $("input[name=password]").value = "";
@@ -144,6 +188,7 @@ function describe(error) {
       return "Your browser blocked the sign-in window. Allow pop-ups and try again.";
     case "functions/failed-precondition":
     case "functions/invalid-argument":
+    case "functions/already-exists":
       return error.message;
     default:
       return "Something went wrong. Please try again.";
@@ -153,15 +198,80 @@ function describe(error) {
 // ---- after sign-in ---------------------------------------------------------
 
 /** Continues with whatever the person came here to do. */
-function proceed(user) {
+async function proceed(user) {
   if (!user.emailVerified) {
     $("#verify-email").textContent = user.email ?? "";
     show("verify");
     return;
   }
   if (intent === "account") return showAccount(user);
+  // Someone back from the verification link still has sign-up choices
+  // waiting here, so they get the check too.
+  if ((freshSignIn || hasPending(user.uid)) && !(await ensureProfile(user))) return;
   return connectToSite(user);
 }
+
+/**
+ * Applies what the person chose while signing up, then makes sure they
+ * have a username, asking for one if not. Resolves true when the profile
+ * is complete and the caller may carry on.
+ */
+async function ensureProfile(user) {
+  show("loading");
+  try {
+    let { data } = await loadMember();
+    const pending = takePending(user.uid);
+    if (pending && !data.username) {
+      try {
+        ({ data } = await updateMember({
+          username: pending.username,
+          newsletters: pending.newsletter ? data.newsletters.map((n) => n.id) : [],
+        }));
+      } catch (error) {
+        // Most likely the username was taken meanwhile; ask for another.
+        showSetup(data, pending, describe(error));
+        return false;
+      }
+    }
+    if (data.username) return true;
+    showSetup(data, pending);
+    return false;
+  } catch (error) {
+    fail(error);
+    return false;
+  }
+}
+
+function showSetup(profile, pending, problem) {
+  const form = $("#setup-form");
+  form.username.value = pending?.username ?? "";
+  renderNewsletters($("#setup-newsletters"), profile.newsletters, pending && {
+    subscribed: () => pending.newsletter,
+  });
+  show("setup");
+  if (problem) say(problem);
+}
+
+$("#setup-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const username = form.username.value.trim();
+  if (!USERNAME_PATTERN.test(username)) {
+    say(USERNAME_RULE);
+    return;
+  }
+  busy(true);
+  try {
+    await updateMember({ username, newsletters: chosenNewsletters(form) });
+    const user = auth.currentUser;
+    if (intent === "account") await showAccount(user);
+    else connectToSite(user);
+  } catch (error) {
+    say(describe(error) ?? "Could not save your username.");
+  } finally {
+    busy(false);
+  }
+});
 
 function fail(error) {
   $("#error-detail").textContent = describe(error) ?? "Please try again.";
@@ -204,18 +314,25 @@ async function showAccount(user) {
 function renderProfile(user, profile) {
   $("#account-email").textContent = profile.email;
   $("#account-method").textContent = signInMethods(user);
-  $("#profile-form").name.value = profile.name;
+  $("#profile-form").username.value = profile.username;
+  renderNewsletters($("#newsletters"), profile.newsletters);
+  renderPassword(user);
+}
 
-  const box = $("#newsletters");
+/**
+ * Fills `box` with a checkbox per newsletter. `choice.subscribed(n)`
+ * overrides the profile's own flag (used for sign-up choices).
+ */
+function renderNewsletters(box, newsletters, choice) {
   box.replaceChildren(box.querySelector("legend"));
-  for (const n of profile.newsletters) {
+  for (const n of newsletters) {
     const label = document.createElement("label");
     label.className = "choice";
     const input = document.createElement("input");
     input.type = "checkbox";
     input.name = "newsletter";
     input.value = n.id;
-    input.checked = n.subscribed;
+    input.checked = choice ? choice.subscribed(n) : n.subscribed;
     const text = document.createElement("span");
     text.append(n.name);
     if (n.description) {
@@ -227,8 +344,15 @@ function renderProfile(user, profile) {
     label.append(input, text);
     box.append(label);
   }
-  box.hidden = profile.newsletters.length === 0;
+  box.hidden = newsletters.length === 0;
+}
 
+/** The IDs of the newsletters ticked in `form`. */
+function chosenNewsletters(form) {
+  return [...form.querySelectorAll("input[name=newsletter]:checked")].map((i) => i.value);
+}
+
+function renderPassword(user) {
   const password = hasPassword(user);
   $("#password-section").hidden = !password;
   $("#no-password").hidden = password;
@@ -242,10 +366,14 @@ function renderProfile(user, profile) {
 $("#profile-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
-  const newsletters = [...form.querySelectorAll("input[name=newsletter]:checked")].map((i) => i.value);
+  const username = form.username.value.trim();
+  if (!USERNAME_PATTERN.test(username)) {
+    say(USERNAME_RULE);
+    return;
+  }
   busy(true);
   try {
-    const { data } = await updateMember({ name: form.name.value, newsletters });
+    const { data } = await updateMember({ username, newsletters: chosenNewsletters(form) });
     renderProfile(auth.currentUser, data);
     say("Saved.", true);
   } catch (error) {
@@ -321,10 +449,17 @@ $("#auth-form").addEventListener("submit", async (event) => {
     say("Enter your email and password.");
     return;
   }
+  const username = form.username.value.trim();
+  if (mode === "signup" && !USERNAME_PATTERN.test(username)) {
+    say(USERNAME_RULE);
+    return;
+  }
   busy(true);
   try {
+    freshSignIn = true;
     if (mode === "signup") {
       const { user } = await createUserWithEmailAndPassword(auth, email, password);
+      savePending(user.uid, { username, newsletter: form.newsletter.checked });
       await sendEmailVerification(user, actionCodeSettings());
     } else {
       await signInWithEmailAndPassword(auth, email, password);
@@ -359,6 +494,7 @@ $("#forgot").addEventListener("click", async () => {
 async function signInWith(provider) {
   busy(true);
   try {
+    freshSignIn = true;
     await signInWithPopup(auth, provider);
   } catch (error) {
     const text = describe(error);
@@ -373,9 +509,9 @@ $("#google").addEventListener("click", () => signInWith(new GoogleAuthProvider()
 $("#apple").addEventListener("click", () => {
   // Requires the Apple provider in Firebase to have a Services ID configured
   // (see docs/firebase.md); without it Apple returns an invalid_client error.
+  // Only the email is asked for: names are not kept.
   const apple = new OAuthProvider("apple.com");
   apple.addScope("email");
-  apple.addScope("name");
   return signInWith(apple);
 });
 
@@ -412,7 +548,7 @@ $("#retry").addEventListener("click", () => {
   else show("auth");
 });
 
-for (const id of ["#signout-verify", "#signout-error"]) {
+for (const id of ["#signout-verify", "#signout-setup", "#signout-error"]) {
   $(id).addEventListener("click", async () => {
     handled = false;
     await signOut(auth);

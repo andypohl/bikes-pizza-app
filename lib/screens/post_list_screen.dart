@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../account/member_service.dart';
 import '../auth/auth_service.dart';
 import '../data/post_repository.dart';
 import '../models/post.dart';
@@ -23,6 +24,7 @@ class PostListScreen extends StatefulWidget {
     this.auth,
     this.submissions,
     this.photos,
+    this.members,
   });
 
   final PostFeed feed;
@@ -30,6 +32,9 @@ class PostListScreen extends StatefulWidget {
   final AuthService? auth;
   final SubmissionService? submissions;
   final PhotoPicker? photos;
+
+  /// Pre-fills the submission's credit with the member's username.
+  final MemberService? members;
 
   @override
   State<PostListScreen> createState() => _PostListScreenState();
@@ -135,7 +140,7 @@ class _PostListScreenState extends State<PostListScreen> {
           submissions: submissions,
           photos: photos,
           auth: auth,
-          initialFrom: auth.currentUser?.displayName,
+          members: widget.members,
         ),
       ),
     );

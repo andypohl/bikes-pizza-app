@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../account/member_service.dart';
 import '../auth/auth_service.dart';
 import '../auth/session_expiry.dart';
 import '../models/post_feed.dart';
@@ -16,7 +17,7 @@ class SubmitScreen extends StatefulWidget {
     required this.submissions,
     required this.photos,
     required this.auth,
-    this.initialFrom,
+    this.members,
   });
 
   final PostFeed feed;
@@ -24,8 +25,8 @@ class SubmitScreen extends StatefulWidget {
   final PhotoPicker photos;
   final AuthService auth;
 
-  /// Pre-fills the "From" field, e.g. with the account's display name.
-  final String? initialFrom;
+  /// When given, the "From" field starts as the member's username.
+  final MemberService? members;
 
   @override
   State<SubmitScreen> createState() => _SubmitScreenState();
@@ -34,12 +35,29 @@ class SubmitScreen extends StatefulWidget {
 class _SubmitScreenState extends State<SubmitScreen> {
   final _formKey = GlobalKey<FormState>();
   final _title = TextEditingController();
-  late final _from = TextEditingController(text: widget.initialFrom ?? '');
+  final _from = TextEditingController();
   final _description = TextEditingController();
   SubmissionPhoto? _photo;
   bool _photoMissing = false;
   bool _sending = false;
   SubmissionResult? _result;
+
+  @override
+  void initState() {
+    super.initState();
+    _prefillFrom();
+  }
+
+  Future<void> _prefillFrom() async {
+    final members = widget.members;
+    if (members == null) return;
+    try {
+      final profile = await members.load();
+      if (mounted && _from.text.isEmpty) _from.text = profile.username;
+    } on MemberException {
+      // Left blank; the member types a name.
+    }
+  }
 
   @override
   void dispose() {

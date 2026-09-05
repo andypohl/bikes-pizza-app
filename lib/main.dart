@@ -139,6 +139,7 @@ class _HomeShellState extends State<HomeShell> {
         auth: widget.auth,
         submissions: widget.submissions,
         photos: widget.photos,
+        members: widget.members,
       ),
       PostListScreen(
         feed: PostFeed.bikes,
@@ -146,6 +147,7 @@ class _HomeShellState extends State<HomeShell> {
         auth: widget.auth,
         submissions: widget.submissions,
         photos: widget.photos,
+        members: widget.members,
       ),
       StoreScreen(repository: widget.store, auth: widget.auth),
       SettingsScreen(auth: widget.auth, members: widget.members),

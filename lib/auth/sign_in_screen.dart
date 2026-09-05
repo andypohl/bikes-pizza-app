@@ -2,12 +2,18 @@ import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 
+import '../account/member_service.dart';
+import '../account/pending_profile.dart';
 import 'auth_service.dart';
 
 enum _Mode { signIn, createAccount }
 
 /// Email + password sign-in, with a toggle to create a new account and a
 /// password-reset link. Pops itself on success.
+///
+/// Creating an account also asks for a username and whether to get the
+/// newsletter; those wait on the device (see [PendingProfile]) until the
+/// email is verified, since the member functions need a verified email.
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key, required this.auth});
 
@@ -21,16 +27,19 @@ class _SignInScreenState extends State<SignInScreen> {
   final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
+  final _username = TextEditingController();
 
   _Mode _mode = _Mode.signIn;
   bool _busy = false;
   bool _obscure = true;
+  bool _newsletter = true;
   String? _error;
 
   @override
   void dispose() {
     _email.dispose();
     _password.dispose();
+    _username.dispose();
     super.dispose();
   }
 
@@ -57,6 +66,13 @@ class _SignInScreenState extends State<SignInScreen> {
           email: _email.text,
           password: _password.text,
         );
+        final uid = widget.auth.currentUser?.uid;
+        if (uid != null) {
+          await PendingProfile(
+            username: _username.text.trim(),
+            newsletter: _newsletter,
+          ).save(uid);
+        }
       }
       if (mounted) Navigator.of(context).pop();
     } on AuthException catch (e) {
@@ -179,6 +195,41 @@ class _SignInScreenState extends State<SignInScreen> {
                     return null;
                   },
                 ),
+                if (!_isSignIn) ...[
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    key: const Key('username'),
+                    controller: _username,
+                    enabled: !_busy,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => _submit(),
+                    autofillHints: const [AutofillHints.newUsername],
+                    maxLength: 24,
+                    decoration: const InputDecoration(
+                      labelText: 'Username',
+                      helperText:
+                          '$usernameRule. Shown when you are credited for a post.',
+                      helperMaxLines: 2,
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: validateUsername,
+                  ),
+                  CheckboxListTile(
+                    key: const Key('newsletter'),
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text('Email me the bikes.pizza newsletter'),
+                    subtitle: const Text(
+                      'An occasional email when new bikes and pizzas are posted.',
+                    ),
+                    value: _newsletter,
+                    onChanged: _busy
+                        ? null
+                        : (on) => setState(() => _newsletter = on ?? false),
+                  ),
+                ],
                 if (_error != null) ...[
                   const SizedBox(height: 16),
                   Text(

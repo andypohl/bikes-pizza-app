@@ -102,7 +102,6 @@ class FakeAuthService implements AuthService {
         AppUser(
           uid: user.uid,
           email: user.email,
-          displayName: user.displayName,
           emailVerified: true,
           providerIds: user.providerIds,
         ),
@@ -122,7 +121,6 @@ class FakeAuthService implements AuthService {
       const AppUser(
         uid: 'g1',
         email: 'g@example.com',
-        displayName: 'G',
         emailVerified: true,
         providerIds: ['google.com'],
       ),
@@ -137,7 +135,6 @@ class FakeAuthService implements AuthService {
       const AppUser(
         uid: 'a1',
         email: 'a@example.com',
-        displayName: 'A',
         emailVerified: true,
         providerIds: ['apple.com'],
       ),
@@ -153,10 +150,10 @@ class FakeMemberService implements MemberService {
   bool fail = false;
   bool expireSession = false;
   int loads = 0;
-  final updates = <({String? name, List<String>? newsletters})>[];
+  final updates = <({String? username, List<String>? newsletters})>[];
   MemberProfile profile = const MemberProfile(
     email: 'member@example.com',
-    name: 'Old Name',
+    username: 'oldname',
     newsletters: [
       Newsletter(
         id: 'weekly',
@@ -179,13 +176,14 @@ class FakeMemberService implements MemberService {
 
   @override
   Future<MemberProfile> update({
-    String? name,
+    String? username,
     List<String>? newsletters,
   }) async {
-    updates.add((name: name, newsletters: newsletters));
+    if (username == 'taken') throw MemberException('That username is taken.');
+    updates.add((username: username, newsletters: newsletters));
     profile = MemberProfile(
       email: profile.email,
-      name: name ?? profile.name,
+      username: username ?? profile.username,
       newsletters: [
         for (final n in profile.newsletters)
           Newsletter(
@@ -570,8 +568,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(auth.googleCalls, 1);
-    expect(find.text('G'), findsOneWidget);
+    // Names are not kept, so the tile shows the email alone.
     expect(find.text('g@example.com'), findsOneWidget);
+    expect(find.text('Signed in'), findsOneWidget);
   });
 
   testWidgets('cancelling a provider shows no error', (tester) async {
@@ -614,7 +613,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('verified users can edit their name and newsletters', (
+  testWidgets('verified users can edit their username and newsletters', (
     tester,
   ) async {
     members = FakeMemberService();
@@ -633,16 +632,83 @@ void main() {
     expect(find.byKey(const Key('change-password')), findsNothing);
     expect(find.textContaining('no password to manage'), findsOneWidget);
 
-    await tester.enterText(find.byKey(const Key('name')), 'Andy');
+    await tester.enterText(find.byKey(const Key('username')), 'Andy_1');
     await tester.tap(find.byKey(const Key('newsletter-weekly')));
     await tester.ensureVisible(find.byKey(const Key('save-profile')));
     await tester.tap(find.byKey(const Key('save-profile')));
     await tester.pumpAndSettle();
 
     expect(members!.updates, hasLength(1));
-    expect(members!.updates.single.name, 'Andy');
+    expect(members!.updates.single.username, 'Andy_1');
     expect(members!.updates.single.newsletters, isEmpty);
     expect(find.text('Saved.'), findsOneWidget);
+  });
+
+  testWidgets('the account screen insists on a valid username', (tester) async {
+    members = FakeMemberService()
+      ..profile = const MemberProfile(email: 'member@example.com');
+    await openSignIn(tester);
+    await tester.ensureVisible(find.byKey(const Key('google-sign-in')));
+    await tester.tap(find.byKey(const Key('google-sign-in')));
+    await tester.pumpAndSettle();
+    await openAccount(tester);
+
+    expect(find.textContaining('Choose a username.'), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('save-profile')));
+    await tester.tap(find.byKey(const Key('save-profile')));
+    await tester.pumpAndSettle();
+    expect(find.text('Choose a username'), findsOneWidget);
+    expect(members!.updates, isEmpty);
+
+    await tester.enterText(find.byKey(const Key('username')), 'no spaces');
+    await tester.tap(find.byKey(const Key('save-profile')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Username must be'), findsOneWidget);
+    expect(members!.updates, isEmpty);
+
+    // A username someone else holds is reported by the server.
+    await tester.enterText(find.byKey(const Key('username')), 'taken');
+    await tester.tap(find.byKey(const Key('save-profile')));
+    await tester.pumpAndSettle();
+    expect(find.text('That username is taken.'), findsOneWidget);
+    expect(members!.updates, isEmpty);
+  });
+
+  testWidgets('sign-up choices are sent once the email is verified', (
+    tester,
+  ) async {
+    members = FakeMemberService()
+      ..profile = const MemberProfile(
+        email: 'new@example.com',
+        newsletters: [Newsletter(id: 'weekly', name: 'Weekly')],
+      );
+    await openSignIn(tester);
+    await tester.tap(find.text('New here? Create an account'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).at(0), 'new@example.com');
+    await tester.enterText(find.byType(TextField).at(1), 'correct-horse');
+    // Sign-up needs a username; an unticked newsletter box is respected.
+    await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
+    await tester.pumpAndSettle();
+    expect(find.text('Choose a username'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('username')), 'newbie');
+    await tester.tap(find.byKey(const Key('newsletter')));
+    await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
+    await tester.pumpAndSettle();
+
+    // Nothing is sent until the email is verified.
+    expect(members!.updates, isEmpty);
+    expect(find.byKey(const Key('verify-email')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('verify-email')));
+    await tester.pumpAndSettle();
+    expect(members!.updates, hasLength(1));
+    expect(members!.updates.single.username, 'newbie');
+    expect(members!.updates.single.newsletters, isEmpty);
+
+    // The choices were used up: opening the account sends nothing more.
+    await openAccount(tester);
+    expect(find.text('newbie'), findsOneWidget);
+    expect(members!.updates, hasLength(1));
   });
 
   testWidgets('password accounts can change their password', (tester) async {
@@ -841,6 +907,7 @@ void main() {
   );
 
   Future<void> openSubmitForm(WidgetTester tester, String tab) async {
+    members ??= FakeMemberService(); // pre-fills From with the username
     await pumpApp(tester);
     await signInWithGoogle(tester);
     await tester.tap(find.text(tab));
@@ -856,13 +923,13 @@ void main() {
     expect(find.text('(e.g. 1991 Trek 970 mountain bike!)'), findsOneWidget);
     expect(find.text('(your name/nickname)'), findsOneWidget);
     expect(find.text('Description/Story'), findsOneWidget);
-    // The Google fake's display name pre-fills From.
+    // The member's username pre-fills From.
     expect(
       tester
           .widget<TextFormField>(find.byKey(const Key('from')))
           .controller
           ?.text,
-      'G',
+      'oldname',
     );
     await tester.pageBack();
     await tester.pumpAndSettle();

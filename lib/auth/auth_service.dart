@@ -11,14 +11,12 @@ class AppUser {
   const AppUser({
     required this.uid,
     this.email,
-    this.displayName,
     this.emailVerified = false,
     this.providerIds = const [],
   });
 
   final String uid;
   final String? email;
-  final String? displayName;
 
   /// Firebase provider IDs linked to the account: `password`, `google.com`,
   /// `apple.com`.
@@ -195,11 +193,9 @@ class FirebaseAuthService implements AuthService {
 
     final AuthorizationCredentialAppleID apple;
     try {
+      // Only the email is asked for: names are not kept.
       apple = await SignInWithApple.getAppleIDCredential(
-        scopes: const [
-          AppleIDAuthorizationScopes.email,
-          AppleIDAuthorizationScopes.fullName,
-        ],
+        scopes: const [AppleIDAuthorizationScopes.email],
         nonce: hashedNonce,
       );
     } on SignInWithAppleAuthorizationException catch (e) {
@@ -214,13 +210,11 @@ class FirebaseAuthService implements AuthService {
       throw AuthException('Apple did not return a sign-in token.');
     }
     await _auth.signInWithCredential(
+      // The name parameter is required by the API; nothing is passed.
       fb.AppleAuthProvider.credentialWithIDToken(
         idToken,
         rawNonce,
-        fb.AppleFullPersonName(
-          givenName: apple.givenName,
-          familyName: apple.familyName,
-        ),
+        fb.AppleFullPersonName(),
       ),
     );
   });
@@ -241,7 +235,6 @@ class FirebaseAuthService implements AuthService {
       : AppUser(
           uid: user.uid,
           email: user.email,
-          displayName: user.displayName,
           emailVerified: user.emailVerified,
           providerIds: [for (final p in user.providerData) p.providerId],
         );

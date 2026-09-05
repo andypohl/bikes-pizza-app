@@ -4,8 +4,10 @@ import '../auth/auth_service.dart';
 import '../auth/session_expiry.dart';
 import 'member_service.dart';
 
-/// Lets a signed-in member edit their name and newsletters, change their
-/// password (password accounts only), and sign out.
+/// Lets a signed-in member edit their username and newsletters, change
+/// their password (password accounts only), and sign out. A member without
+/// a username yet (a new account, or one from before usernames) is asked
+/// to choose one here.
 class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key, required this.auth, required this.members});
 
@@ -19,7 +21,8 @@ class AccountScreen extends StatefulWidget {
 class _AccountScreenState extends State<AccountScreen> {
   MemberProfile? _profile;
   String? _error;
-  final _name = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  final _username = TextEditingController();
   final _selected = <String>{};
   bool _saving = false;
 
@@ -31,7 +34,7 @@ class _AccountScreenState extends State<AccountScreen> {
 
   @override
   void dispose() {
-    _name.dispose();
+    _username.dispose();
     super.dispose();
   }
 
@@ -41,7 +44,11 @@ class _AccountScreenState extends State<AccountScreen> {
       _error = null;
     });
     try {
-      final profile = await widget.members.load();
+      final user = widget.auth.currentUser;
+      // Choices saved at sign-up are sent before the profile is shown.
+      final profile =
+          (user == null ? null : await widget.members.applyPending(user.uid)) ??
+          await widget.members.load();
       if (!mounted) return;
       setState(() => _apply(profile));
     } on MemberException catch (e) {
@@ -53,7 +60,7 @@ class _AccountScreenState extends State<AccountScreen> {
 
   void _apply(MemberProfile profile) {
     _profile = profile;
-    _name.text = profile.name;
+    _username.text = profile.username;
     _selected
       ..clear()
       ..addAll([
@@ -63,11 +70,12 @@ class _AccountScreenState extends State<AccountScreen> {
   }
 
   Future<void> _save() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _saving = true);
     try {
       final profile = await widget.members.update(
-        name: _name.text,
+        username: _username.text.trim(),
         newsletters: _selected.toList(),
       );
       if (!mounted) return;
@@ -122,12 +130,30 @@ class _AccountScreenState extends State<AccountScreen> {
             subtitle: Text(_signInMethods(user)),
           ),
           const _Heading('Profile'),
-          TextField(
-            key: const Key('name'),
-            controller: _name,
-            autocorrect: false,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(labelText: 'Name'),
+          if (profile.username.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                'Choose a username. It is shown when you are credited for '
+                'a post.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+          Form(
+            key: _formKey,
+            child: TextFormField(
+              key: const Key('username'),
+              controller: _username,
+              autocorrect: false,
+              enableSuggestions: false,
+              autofillHints: const [AutofillHints.username],
+              maxLength: 24,
+              decoration: const InputDecoration(
+                labelText: 'Username',
+                helperText: usernameRule,
+              ),
+              validator: validateUsername,
+            ),
           ),
           if (profile.newsletters.isNotEmpty) ...[
             const SizedBox(height: 8),
