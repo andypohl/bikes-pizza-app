@@ -193,7 +193,9 @@ defaults on first use.
   state).
 - `updateMember`: changes the member's username and/or the full list of
   newsletters they receive, validated against that same profile. A username
-  someone else holds fails with `already-exists`.
+  someone else holds fails with `already-exists`. After a rename it patches
+  the member's `member` document in Sanity (if they have published) and
+  requests a website rebuild; both are best effort and logged on failure.
 - `submitPost`: takes a member's bike or pizza submission (photo as base64,
   title, from, description), normalises the photo and makes a thumbnail
   (sharp), runs the photo through Cloud Vision in one call: SafeSearch
@@ -233,7 +235,10 @@ defaults on first use.
   request is logged but never retried (the post is already published).
   Approving a submission (`publish`)
   queues it rather than posting it; drafts are created in Sanity
-  immediately.
+  immediately. Publishing also finds or creates the submitter's `member`
+  document in Sanity (`functions/authors.js`, account id and username) and
+  references it from the post; if that fails the post still goes out
+  without the reference.
 
   Configuration: a Secret Manager secret holding a Sanity API token with
   the Editor role (`SANITY_WRITE_TOKEN`; create it with `npx sanity tokens
@@ -325,7 +330,8 @@ targets in `firebase.json` by `.firebaserc` (create the extra sites with
   API), one per dataset: "Rebuild website (production)" on `production` and
   "Rebuild website (development)" on `development`. Each has URL
   `https://api.github.com/repos/<owner>/<repo>/dispatches`, method POST,
-  triggers on create, update and delete, filter `_type == "post"`, the
+  triggers on create, update and delete, filter
+  `_type in ["post", "member"]` (a username change must rebuild too), the
   projection
   `{"event_type": "sanity-content-changed", "client_payload": {"environment": "<production|development>", "reason": "sanity " + sanity::dataset() + " " + _id}}`,
   and the headers `Accept: application/vnd.github+json`,

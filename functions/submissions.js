@@ -3,6 +3,7 @@
 // `store` (see submission_store.js) so this module has no Firebase imports.
 
 import { ValidationError } from "./account.js";
+import { ensureMember } from "./authors.js";
 import { AppError } from "./errors.js";
 import { buildPost, createPost } from "./post.js";
 import { countdown } from "./schedule.js";
@@ -98,15 +99,30 @@ function notPending(status) {
   }[status] ?? "That submission is not pending.";
 }
 
-/** Uploads the photo and creates the Sanity post; `status` is published or draft. */
-async function publishSubmission(data, { store, sanity, siteUrl, now }, status) {
+/**
+ * Uploads the photo and creates the Sanity post; `status` is published or
+ * draft. With a `members` store the post also references the submitter's
+ * member document (created on first publish, carrying their username). A
+ * failure there is logged and the post goes out without the reference:
+ * the credit text still names them.
+ */
+async function publishSubmission(data, { store, sanity, members, siteUrl, now, log = () => {} }, status) {
   const bytes = await store.readImage(data.image.path);
   const imageAssetId = await sanity.uploadImage({
     bytes,
     contentType: data.image.contentType ?? "image/jpeg",
     filename: `${data.feed}-submission.jpg`,
   });
-  const doc = buildPost(data, { imageAssetId, now: now instanceof Date ? now : new Date() });
+  let authorId;
+  if (data.uid && members) {
+    try {
+      const member = await members.get(data.uid);
+      authorId = await ensureMember(sanity, { uid: data.uid, username: member?.username ?? "" });
+    } catch (error) {
+      log("member document failed; posting without it", { id: data.id, uid: data.uid, message: error.message });
+    }
+  }
+  const doc = buildPost(data, { imageAssetId, now: now instanceof Date ? now : new Date(), authorId });
   return createPost(sanity, doc, { status, siteUrl });
 }
 

@@ -2,7 +2,10 @@
 
 Sanity Studio for the bikes.pizza content model, kept alongside the app so the
 schema and the app's readers evolve together. The project is set in
-`sanity.cli.ts` and `sanity.config.ts`.
+`sanity.cli.ts` and `sanity.config.ts`. Two document types: `post`, and
+`member`, which mirrors an app account (account id and username) and is
+written by the app's functions rather than edited here; posts reference it
+so the site shows the member's current username.
 
 The Studio has two workspaces, one per dataset. `production` is what
 bikes.pizza is built from. `development` is a copy that the development

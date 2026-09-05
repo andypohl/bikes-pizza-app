@@ -4,13 +4,19 @@ import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../data/post_repository.dart';
 import '../models/post.dart';
+import '../models/post_feed.dart';
+import 'post_list_screen.dart';
 
-/// Full post: hero image, title, date and the rendered HTML body.
+/// Full post: hero image, title, date, the rendered HTML body and who
+/// submitted it. With a [repository], the submitter's username opens the
+/// list of everything they have posted.
 class PostDetailScreen extends StatelessWidget {
-  const PostDetailScreen({super.key, required this.post});
+  const PostDetailScreen({super.key, required this.post, this.repository});
 
   final Post post;
+  final PostRepository? repository;
 
   static final _dateFormat = DateFormat.yMMMMd();
 
@@ -20,10 +26,63 @@ class PostDetailScreen extends StatelessWidget {
     return launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
+  void _openAuthor(BuildContext context, PostAuthor author) {
+    final repository = this.repository;
+    if (repository == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PostListScreen(
+          feed: PostFeed.all,
+          repository: repository,
+          author: author,
+        ),
+      ),
+    );
+  }
+
+  /// "Submitted by …", with the username tappable when it can be listed.
+  Widget? _credit(BuildContext context, ThemeData theme) {
+    final credit = post.credit;
+    if (credit == null) return null;
+    final author = post.author;
+    final linkable =
+        author != null && author.username.isNotEmpty && repository != null;
+    final style = theme.textTheme.bodyMedium?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    return Padding(
+      padding: const EdgeInsets.only(top: 24),
+      child: Row(
+        children: [
+          Text('Submitted by ', style: style),
+          if (linkable)
+            InkWell(
+              key: const Key('credit-link'),
+              onTap: () => _openAuthor(context, author),
+              borderRadius: BorderRadius.circular(4),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: Text(
+                  credit,
+                  style: style?.copyWith(
+                    color: theme.colorScheme.primary,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
+            )
+          else
+            Text(credit, style: style),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final image = post.featureImage;
+    final credit = _credit(context, theme);
 
     return Scaffold(
       appBar: AppBar(
@@ -71,6 +130,7 @@ class PostDetailScreen extends StatelessWidget {
                     )
                   else if (post.excerpt.isNotEmpty)
                     Text(post.excerpt, style: theme.textTheme.bodyLarge),
+                  ?credit,
                 ],
               ),
             ),

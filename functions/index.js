@@ -34,6 +34,7 @@ import { defineSecret, defineString } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import { profile, validateUpdate } from "./account.js";
 import { createApi } from "./api.js";
+import { syncMemberUsername } from "./authors.js";
 import { AppError, ValidationError, adminFromClaims, userFromClaims } from "./errors.js";
 import { processImage } from "./images.js";
 import { NEWSLETTERS, firestoreMemberStore, loadMember, updateMember as applyMemberUpdate } from "./members.js";
@@ -129,7 +130,8 @@ function withMember(request, what, work) {
   });
 }
 
-const memberOptions = { region: "us-central1" };
+// updateMember also patches the member's Sanity document after a rename.
+const memberOptions = { region: "us-central1", secrets: [sanityWriteToken] };
 
 export const member = onCall(memberOptions, (request) =>
   withMember(request, "load your account", async ({ member }) => profile(member, NEWSLETTERS)),
@@ -140,6 +142,16 @@ export const updateMember = onCall(memberOptions, (request) =>
     const patch = validateUpdate(request.data, NEWSLETTERS);
     const updated = await applyMemberUpdate(user, patch, { store });
     logger.info("member updated", { uid: user.uid, fields: Object.keys(patch) });
+    if ("username" in patch) {
+      // Best effort: the website reads the username from Sanity at build
+      // time; if this fails the next publish brings it up to date.
+      try {
+        const found = await syncMemberUsername(sanityClient(), { uid: user.uid, username: patch.username });
+        if (found) await rebuildWebsite(`member ${user.uid} renamed`);
+      } catch (error) {
+        logger.warn("member username not synced to Sanity", { uid: user.uid, message: error.message });
+      }
+    }
     return profile(updated, NEWSLETTERS);
   }),
 );
@@ -193,6 +205,7 @@ const service = {
     subs.reviewSubmission(subs.parseReview(input), admin, {
       store: store(),
       sanity: sanityClient(),
+      members: firestoreMemberStore(getFirestore()),
       siteUrl: siteUrl(),
       log: logger.info,
     }),
@@ -212,6 +225,7 @@ const service = {
       subs.submitNext(feed, {
         store: store(),
         sanity: sanityClient(),
+        members: firestoreMemberStore(getFirestore()),
         siteUrl: siteUrl(),
         log: logger.info,
       }),

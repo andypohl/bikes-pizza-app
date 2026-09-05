@@ -39,7 +39,7 @@ export function textToBlocks(text) {
  * @param {{id: string, feed: string, title: string, from: string, description?: string}} submission
  * @param {{imageAssetId: string, now?: Date}} options
  */
-export function buildPost(submission, { imageAssetId, now = new Date() }) {
+export function buildPost(submission, { imageAssetId, now = new Date(), authorId }) {
   const base = slugify(submission.title) || submission.feed;
   const suffix = String(submission.id).replace(/[^a-zA-Z0-9]/g, "").slice(0, 6).toLowerCase();
   return {
@@ -55,6 +55,7 @@ export function buildPost(submission, { imageAssetId, now = new Date() }) {
     },
     body: textToBlocks(submission.description),
     submittedBy: submission.from,
+    ...(authorId ? { author: { _type: "reference", _ref: authorId } } : {}),
     source: { system: "submission", id: submission.id },
   };
 }

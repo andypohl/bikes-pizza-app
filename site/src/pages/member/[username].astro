@@ -1,0 +1,32 @@
+---
+// Every post a member has submitted, newest first. Reached from the
+// "Submitted by" link on a post. Built for each member with a username and
+// at least one post; the page moves when the username changes, since the
+// path is the username.
+import Layout from '../../layouts/Layout.astro';
+import PostGrid from '../../components/PostGrid.astro';
+
+export async function getStaticPaths() {
+  const { getPosts, membersOf } = await import('../../lib/sanity');
+  const posts = await getPosts();
+  return membersOf(posts).map(({ author, posts }) => ({
+    params: { username: author.username.toLowerCase() },
+    props: { username: author.username, posts },
+  }));
+}
+
+const { username, posts } = Astro.props;
+const noun = posts.length === 1 ? 'post' : 'posts';
+---
+
+<Layout title={`Posts by ${username} | bikes.pizza`} description={`Bikes and pizzas submitted by ${username}.`}>
+  <main class="container mx-auto px-6 py-16">
+    <h1 class="text-5xl font-light tracking-wide mb-2 text-stone-900 dark:text-stone-100">
+      <a href="/">bikes.pizza</a>
+    </h1>
+    <p class="text-2xl font-light tracking-wide mb-10 text-stone-700 dark:text-slate-300">
+      {posts.length} {noun} by <span class="font-medium text-stone-900 dark:text-stone-100">{username}</span>
+    </p>
+    <PostGrid posts={posts} />
+  </main>
+</Layout>

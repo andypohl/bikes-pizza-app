@@ -18,8 +18,11 @@ dataset in `astro.config.mjs`; override with `PUBLIC_SANITY_PROJECT_ID` and
 URLs use `PUBLIC_SITE_URL` (default `https://bikes.pizza`); the development
 deploy sets it to its own domain. Images are served from
 Sanity's CDN with responsive `srcset`s. `src/lib/sanity.ts` holds the query
-and image helpers; `src/pages/` has the index, `category/[category]` and
-`post/[slug]` routes.
+and image helpers; `src/pages/` has the index, `category/[category]`,
+`post/[slug]` and `member/[username]` routes. The last lists everything a
+member has submitted and is linked from the credit on their posts; it is
+built for each member with a username and at least one post, at the
+lowercased username.
 
 The header's Sign in / Account button uses the shared account page, which
 `npm run build` copies from `../web/public` into `dist/account/` so both

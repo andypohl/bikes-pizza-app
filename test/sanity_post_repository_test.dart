@@ -58,6 +58,16 @@ void main() {
     expect(uri.queryParameters.containsKey(r'$feeds'), isFalse);
   });
 
+  test('lists one member with a reference match on the author', () {
+    final uri = repo(MockClient((_) async => http.Response('', 200)))
+        .buildUri(PostFeed.all, 1, author: 'm1');
+    expect(uri.queryParameters['query'], contains(r'author._ref == $author'));
+    expect(uri.queryParameters[r'$author'], '"m1"');
+    final plain = repo(MockClient((_) async => http.Response('', 200)))
+        .buildUri(PostFeed.all, 1);
+    expect(plain.queryParameters['query'], isNot(contains('author._ref')));
+  });
+
   test('filters feeds by the feed field', () {
     final r = repo(MockClient((_) async => http.Response('', 200)));
     final uri = r.buildUri(PostFeed.bikes, 1);
@@ -95,7 +105,37 @@ void main() {
     expect(first.excerpt, 'Body of a');
     expect(first.html, '<p>Body of a</p>');
     expect(first.publishedAt.toUtc().year, 2025);
+    expect(first.author, isNull);
+    expect(first.credit, isNull);
   });
+
+  test(
+    'parses the submitter and prefers their username as the credit',
+    () async {
+      final rows = [
+        {
+          ..._row('a'),
+          'submittedBy': 'Ada',
+          'author': {'id': 'm1', 'username': 'ada_bikes'},
+        },
+        {
+          ..._row('b'),
+          'submittedBy': 'Bob',
+          'author': {'id': 'm2', 'username': ''},
+        },
+        {..._row('c'), 'submittedBy': 'Cy'},
+      ];
+      final client = MockClient((_) async => http.Response(_result(rows), 200));
+      final posts = (await repo(client, pageSize: 3).fetchPosts(PostFeed.all))
+          .posts;
+      expect(posts[0].author?.id, 'm1');
+      expect(posts[0].credit, 'ada_bikes');
+      expect(posts[1].author?.id, 'm2');
+      expect(posts[1].credit, 'Bob'); // no username chosen yet
+      expect(posts[2].author, isNull);
+      expect(posts[2].credit, 'Cy');
+    },
+  );
 
   test('reports no more pages when the page is not full', () async {
     final client = MockClient(
