@@ -19,6 +19,7 @@
 #   SUBMISSION_NOTIFY_EMAIL         (optional) who to email about submissions
 #   SUBMISSION_FROM_EMAIL           (optional) sender address for the email
 #   REVIEW_PAGE_URL                 (optional) link in the notification email
+#   GITHUB_REPOSITORY               (optional) repository the functions ask to rebuild the site
 name: Deploy
 
 on:
@@ -81,6 +82,7 @@ jobs:
           echo "SUBMISSION_NOTIFY_EMAIL=${{ vars.SUBMISSION_NOTIFY_EMAIL }}" >> .env
           echo "SUBMISSION_FROM_EMAIL=${{ vars.SUBMISSION_FROM_EMAIL }}" >> .env
           echo "REVIEW_PAGE_URL=${{ vars.REVIEW_PAGE_URL }}" >> .env
+          echo "GITHUB_REPOSITORY=${{ vars.GITHUB_REPOSITORY }}" >> .env
 
       - name: Build the website
         working-directory: site

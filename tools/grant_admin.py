@@ -23,9 +23,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("email")
     ap.add_argument("--revoke", action="store_true")
+    ap.add_argument("--project", help="Firebase project ID (default: the default project in .firebaserc)")
     args = ap.parse_args()
 
-    project = json.load(open(os.path.join(ROOT, ".firebaserc")))["projects"]["default"]
+    project = args.project or json.load(open(os.path.join(ROOT, ".firebaserc")))["projects"]["default"]
     store = os.path.expanduser("~/.config/configstore/firebase-tools.json")
     try:
         token = json.load(open(store))["tokens"]["access_token"]
