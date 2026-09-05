@@ -46,7 +46,7 @@ void main() {
     final uri = repo(
       MockClient((_) async => http.Response('', 200)),
       pageSize: 15,
-    ).buildUri(PostFeed.blog, 3);
+    ).buildUri(PostFeed.all, 3);
 
     expect(uri.host, 'abc123.apicdn.sanity.io');
     expect(uri.path, '/v2025-02-19/data/query/production');
@@ -67,6 +67,7 @@ void main() {
       r.buildUri(PostFeed.pizza, 1).queryParameters[r'$feeds'],
       '["pizza"]',
     );
+    expect(r.buildUri(PostFeed.blog, 1).queryParameters[r'$feeds'], '["blog"]');
   });
 
   test('parses posts and detects further pages from the extra row', () async {

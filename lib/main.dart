@@ -131,6 +131,7 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
+      PostListScreen(feed: PostFeed.all, repository: widget.repository),
       PostListScreen(feed: PostFeed.blog, repository: widget.repository),
       PostListScreen(
         feed: PostFeed.pizza,
@@ -156,6 +157,11 @@ class _HomeShellState extends State<HomeShell> {
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.grid_view_outlined),
+            selectedIcon: Icon(Icons.grid_view),
+            label: 'All',
+          ),
           NavigationDestination(
             icon: Icon(Icons.article_outlined),
             selectedIcon: Icon(Icons.article),
