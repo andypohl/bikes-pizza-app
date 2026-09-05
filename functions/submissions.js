@@ -17,7 +17,8 @@ export const MAX_PAGE = 50;
 
 /**
  * Stores a validated submission with its processed photo. `safeSearch`
- * inspects the photo first (see safesearch.js) and throws when it fails.
+ * inspects the photo first (SafeSearch and people checks, see vision.js) and
+ * throws when it fails; what it saw is kept on the record for the reviewer.
  */
 export async function createSubmission(data, user, { store, processImage, safeSearch, notify, log = () => {} }) {
   const submission = validateSubmission(data);
@@ -45,6 +46,7 @@ export async function createSubmission(data, user, { store, processImage, safeSe
   await store.create(id, {
     ...submissionRecord(submission, { uid: user.uid, email: user.email, image }),
     safeSearch: inspection.likelihoods ?? null,
+    people: inspection.people ?? null,
   });
   log("submission stored", { uid: user.uid, feed: submission.feed, id });
 
@@ -267,6 +269,7 @@ export async function serialise(item, store) {
       thumbUrl: image.thumbPath ? store.imageUrl(image.thumbPath, token) : null,
     },
     safeSearch: item.safeSearch ?? null,
+    people: item.people ?? null,
     queue: item.queue
       ? {
           at: iso(item.queue.at),

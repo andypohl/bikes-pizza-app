@@ -188,6 +188,14 @@ function openDetail(row) {
     const pretty = (v) => (v ?? "unknown").toLowerCase().replace("_", " ");
     $("#d-safesearch").textContent = `SafeSearch: adult ${pretty(ss.adult)} · racy ${pretty(ss.racy)} · violence ${pretty(ss.violence)}`;
   }
+  const people = d.people;
+  $("#d-people").hidden = !people;
+  if (people) {
+    const seen = [];
+    if (people.faces) seen.push(`${people.faces} face${people.faces === 1 ? "" : "s"} (${people.faceConfidence})`);
+    if (people.persons) seen.push(`${people.persons} person${people.persons === 1 ? "" : "s"} (${people.personScore})`);
+    $("#d-people").textContent = `People: ${seen.length ? seen.join(" · ") : "none seen"}`;
+  }
   const full = d.image.photoUrl;
   $("#d-image").src = full || d.image.thumbUrl || "";
   $("#d-image-link").href = full || "#";

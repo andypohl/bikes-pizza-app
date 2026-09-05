@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import { ValidationError } from "./account.js";
 import { AppError } from "./errors.js";
-import { SAFE_SEARCH_MESSAGE } from "./safesearch.js";
+import { SAFE_SEARCH_MESSAGE } from "./vision.js";
 import {
   createSubmission,
   dequeue,
@@ -106,7 +106,8 @@ const processImage = async () => ({
   thumb: { bytes: Buffer.from("thumb"), width: 4, height: 2 },
 });
 const CLEAN = { adult: "VERY_UNLIKELY", spoof: "UNLIKELY", medical: "VERY_UNLIKELY", violence: "VERY_UNLIKELY", racy: "UNLIKELY" };
-const safeSearch = async () => ({ ok: true, flagged: [], likelihoods: CLEAN });
+const NOBODY = { faces: 0, faceConfidence: 0, persons: 0, personScore: 0 };
+const safeSearch = async () => ({ ok: true, likelihoods: CLEAN, people: NOBODY });
 
 async function seeded() {
   const store = memoryStore();
@@ -145,13 +146,15 @@ test("createSubmission inspects the processed photo and records the result", asy
   await createSubmission(body, user, {
     store,
     processImage,
-    safeSearch: async (bytes) => inspected.push(bytes.toString()) && { ok: true, flagged: [], likelihoods: CLEAN },
+    safeSearch: async (bytes) => inspected.push(bytes.toString()) && { ok: true, likelihoods: CLEAN, people: NOBODY },
     notify: async () => true,
   });
   assert.deepEqual(inspected, ["full"]);
   assert.deepEqual(store.docs.get("s1").safeSearch, CLEAN);
+  assert.deepEqual(store.docs.get("s1").people, NOBODY);
   const item = (await listSubmissions({ status: "", limit: 5, afterId: "" }, { store })).items[0];
   assert.deepEqual(item.safeSearch, CLEAN);
+  assert.deepEqual(item.people, NOBODY);
 });
 
 test("createSubmission stores nothing when the photo fails SafeSearch", async () => {

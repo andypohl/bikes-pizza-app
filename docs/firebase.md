@@ -176,10 +176,13 @@ defaults on first use.
   newsletters they receive, validated against that same profile.
 - `submitPost`: takes a member's bike or pizza submission (photo as base64,
   title, from, description), normalises the photo and makes a thumbnail
-  (sharp), runs the photo through Cloud Vision SafeSearch (the request is
-  refused with a user-facing message when `adult` or `violence` is
-  LIKELY or above, or `racy` is VERY_LIKELY; thresholds in
-  `functions/safesearch.js`), stores both images in Cloud Storage and a
+  (sharp), runs the photo through Cloud Vision in one call: SafeSearch
+  (the request is refused with a user-facing message when `adult` or
+  `violence` is LIKELY or above, or `racy` is VERY_LIKELY), face detection
+  and object localisation (refused when a face is detected with confidence
+  0.5 or more, or a person-like object scores 0.5 or more; the counts and
+  top scores are kept on the record for the reviewer). Thresholds are in
+  `functions/vision.js`. Then it stores both images in Cloud Storage and a
   `submissions` document in Firestore, and emails `SUBMISSION_NOTIFY_EMAIL` through Mailgun with a
   link to the review page (`REVIEW_PAGE_URL`, the submissions domain when
   empty). Needs the `MAILGUN_API_KEY` secret and `MAILGUN_DOMAIN`; without
