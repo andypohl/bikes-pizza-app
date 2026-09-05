@@ -490,3 +490,23 @@ button.danger {
   user-select: all;
   word-break: break-all;
 }
+
+/* The pager's buttons keep to their own width; the label sits between. */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.pager button {
+  width: auto;
+  flex: 0 0 auto;
+  min-width: 7rem;
+  margin: 0;
+}
+
+.pager span {
+  white-space: nowrap;
+}
