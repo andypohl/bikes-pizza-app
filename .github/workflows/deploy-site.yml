@@ -1,6 +1,8 @@
-# Rebuilds the website from Sanity when content changes (a webhook sends a
-# `repository_dispatch` of type `sanity-content-changed`; see docs/firebase.md)
-# or when started by hand. Production is rebuilt from the latest release, so
+# Rebuilds the website from Sanity when content changes: the Sanity webhook
+# and the scheduled functions (functions/rebuild.js) send a
+# `repository_dispatch` of type `sanity-content-changed` (see
+# docs/firebase.md), or it is started by hand. A dispatch whose payload
+# names an `environment` rebuilds only that one; without it, both. Production is rebuilt from the latest release, so
 # a content change never ships unreleased code; development is rebuilt from
 # main. Only the home Hosting target is deployed; code changes reach
 # production with the release deploy (deploy-firebase.yml).
@@ -26,16 +28,23 @@ jobs:
       - id: latest
         env:
           GH_TOKEN: ${{ github.token }}
-        # `releases/latest` is the newest published release that is neither a
-        # draft nor a pre-release; 404 means there has been no release yet.
+          GH_REPO: ${{ github.repository }}
+        # The newest published release that is neither a draft nor a
+        # pre-release. When there is none the production site is not
+        # rebuilt: production only ever runs released code, so publish a
+        # release first.
         run: |
-          tag=$(gh api "repos/${{ github.repository }}/releases/latest" --jq .tag_name 2>/dev/null || true)
+          if tag=$(gh release view --json tagName --jq .tagName 2>/dev/null) && [ -n "$tag" ]; then
+            echo "Latest release: $tag"
+          else
+            tag=""
+            echo "::warning::No published release yet; the production site is not rebuilt until one exists."
+          fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "Latest release: ${tag:-none}"
 
   production:
     needs: release
-    if: ${{ needs.release.outputs.tag != '' }}
+    if: ${{ needs.release.outputs.tag != '' && (github.event_name != 'repository_dispatch' || !github.event.client_payload.environment || github.event.client_payload.environment == 'production') }}
     uses: ./.github/workflows/deploy.yml
     with:
       environment: production
@@ -43,6 +52,7 @@ jobs:
       only: hosting:home
 
   development:
+    if: ${{ github.event_name != 'repository_dispatch' || !github.event.client_payload.environment || github.event.client_payload.environment == 'development' }}
     uses: ./.github/workflows/deploy.yml
     with:
       environment: development

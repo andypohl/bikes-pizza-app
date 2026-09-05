@@ -202,7 +202,16 @@ defaults on first use.
   Central for bikes and 9am/1pm/5pm/9pm for pizza (`functions/schedule.js`,
   America/Chicago so daylight saving is followed). They are Cloud Scheduler
   jobs, so deploying them needs the Cloud Scheduler API enabled and the
-  deployer to hold Cloud Scheduler Admin. Approving a submission (`publish`)
+  deployer to hold Cloud Scheduler Admin. A run that posts something then
+  asks GitHub to rebuild the website (`functions/rebuild.js`): a
+  `repository_dispatch` of type `sanity-content-changed` whose payload names
+  the environment (`production` when the functions publish to the
+  `production` dataset, otherwise `development`), so only that site is
+  rebuilt. It needs the `GITHUB_DISPATCH_TOKEN` secret, a fine-grained GitHub
+  personal access token for the repository with "Contents: read and write";
+  with a placeholder value the request is skipped and logged, and a failed
+  request is logged but never retried (the post is already published).
+  Approving a submission (`publish`)
   queues it rather than posting it; drafts are created in Sanity
   immediately.
 
@@ -287,8 +296,10 @@ targets in `firebase.json` by `.firebaserc` (create the extra sites with
   website" workflow (`.github/workflows/deploy-site.yml`) builds `site/`
   and deploys only the home target of each environment (see Environments
   above); it runs on a `repository_dispatch` event of type
-  `sanity-content-changed`, or by hand.
-  Sanity sends that event through a webhook (Manage → API → Webhooks on the
+  `sanity-content-changed`, or by hand. A dispatch whose payload names an
+  `environment` rebuilds that one only; without a payload both are rebuilt.
+  The scheduled functions send it after posting (above). Sanity can also
+  send it, which covers edits made in the Studio, through a webhook (Manage → API → Webhooks on the
   project): URL `https://api.github.com/repos/<owner>/<repo>/dispatches`,
   method POST, dataset `production`, trigger on create, update and delete,
   filter `_type == "post"`, projection `{"event_type": "sanity-content-changed"}`,

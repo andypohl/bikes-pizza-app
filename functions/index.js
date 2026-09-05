@@ -15,6 +15,8 @@
 //                    reviewer.
 // reviewSubmission:  admin only; queues, drafts (in Sanity) or rejects a
 //                    pending submission.
+//                    Each run that posts something then asks GitHub to
+//                    rebuild the website (rebuild.js).
 // api:               HTTPS; the REST API behind /api/ on the submissions
 //                    Hosting site (list, fetch, review, create, queues,
 //                    site settings such as the website's submit button).
@@ -37,6 +39,7 @@ import { processImage } from "./images.js";
 import { NEWSLETTERS, firestoreMemberStore, loadMember, updateMember as applyMemberUpdate } from "./members.js";
 import { isMailConfigured, sendMail } from "./mail.js";
 import { inspectImage } from "./vision.js";
+import { requestRebuild } from "./rebuild.js";
 import { TIME_ZONE, cronFor } from "./schedule.js";
 import { notificationEmail } from "./submission.js";
 import { SanityClient } from "./sanity.js";
@@ -71,6 +74,21 @@ const notifyEmail = defineString("SUBMISSION_NOTIFY_EMAIL", { default: "" });
 const fromEmail = defineString("SUBMISSION_FROM_EMAIL", { default: "" });
 // Link put in the notification email; empty means the submissions site.
 const reviewPageUrl = defineString("REVIEW_PAGE_URL", { default: "" });
+
+// The website is static: after a post is published, the "Rebuild website"
+// workflow has to run. The token is a fine-grained GitHub personal access
+// token for the repository with "Contents: read and write", set with
+// `firebase functions:secrets:set GITHUB_DISPATCH_TOKEN` (the same token the
+// Sanity webhook uses); a placeholder value skips the request.
+const githubDispatchToken = defineSecret("GITHUB_DISPATCH_TOKEN");
+const githubRepository = defineString("GITHUB_REPOSITORY", { default: "" });
+/** Which environment's site to rebuild: production builds from the `production` dataset. */
+const siteEnvironment = () => ((sanityDataset.value().trim() || SANITY_DEFAULTS.dataset) === "production" ? "production" : "development");
+const rebuildWebsite = (reason) =>
+  requestRebuild(
+    { repository: githubRepository.value().trim() || undefined, environment: siteEnvironment(), reason },
+    { token: githubDispatchToken.value(), log: logger.info },
+  );
 
 const heavy = { memory: "512MiB", timeoutSeconds: 120 };
 
@@ -214,13 +232,24 @@ export const reviewSubmission = onCall({ region: "us-central1", secrets: [sanity
   ),
 );
 
-/** Posts a feed's oldest queued submission at each of its scheduled times. */
+/**
+ * Posts a feed's oldest queued submission at each of its scheduled times,
+ * then asks GitHub to rebuild the website so the post appears.
+ */
 const queueRunner = (feed) =>
   onSchedule(
-    { schedule: cronFor(feed), timeZone: TIME_ZONE, region: "us-central1", secrets: [sanityWriteToken], retryCount: 2, ...heavy },
+    {
+      schedule: cronFor(feed),
+      timeZone: TIME_ZONE,
+      region: "us-central1",
+      secrets: [sanityWriteToken, githubDispatchToken],
+      retryCount: 2,
+      ...heavy,
+    },
     async () => {
       const result = await service.queue.submitNext(feed);
       logger.info("queue run", { feed, posted: result.posted?.id ?? null, remaining: result.length });
+      if (result.posted) await rebuildWebsite(`${feed} queue posted ${result.posted.id}`);
     },
   );
 
