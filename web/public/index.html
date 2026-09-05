@@ -38,6 +38,17 @@
             Password
             <input type="password" name="password" autocomplete="current-password" minlength="6" required />
           </label>
+          <div data-signup hidden>
+            <label>
+              Username
+              <input type="text" name="username" autocomplete="username" maxlength="24" autocapitalize="off" spellcheck="false" />
+              <span class="muted small">3 to 24 letters, digits or underscores. Shown when you're credited for a post.</span>
+            </label>
+            <label class="choice">
+              <input type="checkbox" name="newsletter" checked />
+              <span>Email me the bikes.pizza newsletter<span class="muted small">An occasional email when new bikes and pizzas are posted.</span></span>
+            </label>
+          </div>
           <button type="submit" class="primary" id="submit">Sign in</button>
         </form>
 
@@ -64,6 +75,24 @@
         <button type="button" class="link" id="signout-verify">Use a different account</button>
       </section>
 
+      <section data-view="setup" hidden>
+        <h1>Choose a username</h1>
+        <p class="muted">
+          It's shown when you're credited for a post. 3 to 24 letters, digits or underscores.
+        </p>
+        <form id="setup-form" novalidate>
+          <label>
+            Username
+            <input type="text" name="username" autocomplete="username" maxlength="24" autocapitalize="off" spellcheck="false" required />
+          </label>
+          <fieldset id="setup-newsletters" hidden>
+            <legend>Newsletters</legend>
+          </fieldset>
+          <button type="submit" class="primary" id="setup-continue">Continue</button>
+        </form>
+        <button type="button" class="link" id="signout-setup">Use a different account</button>
+      </section>
+
       <section data-view="account" hidden>
         <h1>Your account</h1>
         <p>
@@ -73,8 +102,8 @@
 
         <form id="profile-form" novalidate>
           <label>
-            Name
-            <input type="text" name="name" autocomplete="name" maxlength="191" />
+            Username
+            <input type="text" name="username" autocomplete="username" maxlength="24" autocapitalize="off" spellcheck="false" required />
           </label>
           <fieldset id="newsletters" hidden>
             <legend>Newsletters</legend>

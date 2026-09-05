@@ -7,7 +7,6 @@ export type SiteUser = {
   uid: string;
   email: string | null;
   emailVerified: boolean;
-  displayName: string | null;
   /** Firebase's User methods; `getIdToken(true)` mints a token with current claims. */
   getIdToken: (forceRefresh?: boolean) => Promise<string>;
   reload: () => Promise<void>;

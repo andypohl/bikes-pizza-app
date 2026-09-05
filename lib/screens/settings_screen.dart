@@ -92,12 +92,8 @@ class _AccountSection extends StatelessWidget {
           children: [
             ListTile(
               leading: const Icon(Icons.person),
-              title: Text(user.displayName ?? user.email ?? 'Signed in'),
-              subtitle: Text(
-                user.displayName != null && user.email != null
-                    ? user.email!
-                    : 'Signed in',
-              ),
+              title: Text(user.email ?? 'Signed in'),
+              subtitle: const Text('Signed in'),
               trailing: TextButton(
                 onPressed: auth.signOut,
                 child: const Text('Sign out'),
@@ -108,7 +104,7 @@ class _AccountSection extends StatelessWidget {
                 key: const Key('manage-account'),
                 leading: const Icon(Icons.manage_accounts_outlined),
                 title: const Text('Manage account'),
-                subtitle: const Text('Name, newsletters and password'),
+                subtitle: const Text('Username, newsletters and password'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
@@ -117,7 +113,7 @@ class _AccountSection extends StatelessWidget {
                 ),
               )
             else if (members != null)
-              _VerifyEmailTile(auth: auth),
+              _VerifyEmailTile(auth: auth, members: members),
           ],
         );
       },
@@ -126,11 +122,13 @@ class _AccountSection extends StatelessWidget {
 }
 
 /// Shown to password accounts until their email address is verified, which
-/// account management requires.
+/// account management requires. Once it is, the username and newsletter
+/// choice made at sign-up are sent.
 class _VerifyEmailTile extends StatefulWidget {
-  const _VerifyEmailTile({required this.auth});
+  const _VerifyEmailTile({required this.auth, required this.members});
 
   final AuthService auth;
+  final MemberService members;
 
   @override
   State<_VerifyEmailTile> createState() => _VerifyEmailTileState();
@@ -138,6 +136,14 @@ class _VerifyEmailTile extends StatefulWidget {
 
 class _VerifyEmailTileState extends State<_VerifyEmailTile> {
   bool _sent = false;
+
+  Future<void> _check() async {
+    await widget.auth.reloadUser();
+    final user = widget.auth.currentUser;
+    if (user != null && user.emailVerified) {
+      await widget.members.applyPending(user.uid);
+    }
+  }
 
   Future<void> _send() async {
     final messenger = ScaffoldMessenger.of(context);
@@ -167,7 +173,7 @@ class _VerifyEmailTileState extends State<_VerifyEmailTile> {
         onPressed: _send,
         child: Text(_sent ? 'Resend' : 'Send email'),
       ),
-      onTap: widget.auth.reloadUser,
+      onTap: _check,
     );
   }
 }

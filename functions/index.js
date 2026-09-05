@@ -6,9 +6,9 @@
 // (submissions.js, post.js); they are reachable both as callables and
 // through the REST API in api.js.
 //
-// member:            the member's profile (name, email, newsletter choices)
+// member:            the member's profile (email, username, newsletters)
 //                    for the account page and the app.
-// updateMember:      changes the member's name and/or newsletters.
+// updateMember:      changes the member's username and/or newsletters.
 // submitPost:        checks a bike/pizza submission's photo with Google
 //                    Vision (SafeSearch, and no people or faces), stores it
 //                    (photo + text) in Firestore and Storage and emails the
@@ -32,9 +32,9 @@ import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret, defineString } from "firebase-functions/params";
 import { logger } from "firebase-functions";
-import { ValidationError, profile, validateUpdate } from "./account.js";
+import { profile, validateUpdate } from "./account.js";
 import { createApi } from "./api.js";
-import { AppError, adminFromClaims, userFromClaims } from "./errors.js";
+import { AppError, ValidationError, adminFromClaims, userFromClaims } from "./errors.js";
 import { processImage } from "./images.js";
 import { NEWSLETTERS, firestoreMemberStore, loadMember, updateMember as applyMemberUpdate } from "./members.js";
 import { isMailConfigured, sendMail } from "./mail.js";

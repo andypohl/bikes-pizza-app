@@ -42,7 +42,7 @@ Messages are safe to show to the person.
 
 ### `GET /api/me`
 
-Who the token belongs to: `{ "uid", "email", "name", "admin" }`.
+Who the token belongs to: `{ "uid", "email", "admin" }`.
 
 ### `GET /api/submissions` (admin)
 

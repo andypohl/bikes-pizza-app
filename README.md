@@ -13,7 +13,7 @@ Five bottom-bar tabs:
 | Pizza    | Posts tagged `pizza`                                           |
 | Bikes    | Posts tagged `biking` or `off-road-biking`                     |
 | Store    | Shopify product grid and checkout (placeholder if unconfigured) |
-| Settings | Account (sign-in, name, newsletters, password), theme          |
+| Settings | Account (sign-in, username, newsletters, password), theme      |
 
 Tapping a post opens it in-app with the hero image and full HTML body. A
 toolbar button opens the post in the browser.
@@ -183,13 +183,25 @@ structured and the console steps needed to rebuild it.
 ## Members
 
 Every Firebase user has a member profile in Firestore (`members/{uid}`,
-server-only): name and newsletter choices. Two Cloud Functions, both
-requiring a signed-in user with a verified email, are the only way in:
+server-only): email, username and newsletter choices. Names are not kept.
+Two Cloud Functions, both requiring a signed-in user with a verified email,
+are the only way in:
 
-- `member` returns the profile (email, name, and every newsletter with a
-  subscribed flag), creating it with defaults on first use. New members
+- `member` returns the profile (email, username, and every newsletter with
+  a subscribed flag), creating it with defaults on first use. New members
   start subscribed to the one newsletter (`functions/members.js`).
-- `updateMember` changes the name and/or the set of newsletters.
+- `updateMember` changes the username and/or the set of newsletters.
+
+Usernames are 3 to 24 letters, digits or underscores and unique regardless
+of case; each is reserved at `usernames/{lowercased}` in the same
+transaction that stores it, so two members can never share one. A member
+without a username (Google and Apple sign-ins, and accounts from before
+usernames existed) is asked to choose one: on the website right after
+signing in, in the app on the account screen. Creating a password account
+asks for the username and the newsletter choice up front; because the
+member functions need a verified email, those wait on the device (browser
+`localStorage`, or the app's preferences) and are sent once the email is
+verified. The username is the default credit on the submission form.
 
 The app's Settings → Account → Manage account screen (`lib/account/`) and
 the website's account page use them; the app adds a password change for
@@ -210,7 +222,7 @@ which is also its own Hosting site. It signs people in with Firebase Auth
 verify their address first.
 
 The same page is the members' account screen (`?mode=account`): it shows the
-email and sign-in method, lets them edit their name and newsletter choices
+email and sign-in method, lets them edit their username and newsletter choices
 (through the `member` and `updateMember` functions) and, for email/password
 accounts, change their password or request a reset email.
 

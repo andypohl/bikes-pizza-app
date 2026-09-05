@@ -143,6 +143,7 @@ import { API_URL as apiUrl } from '../lib/api';
 
 <script>
   import { onAuth, signInHref, type SiteUser } from '../scripts/auth';
+  import { memberUsername } from '../scripts/member';
   import { watchSettings } from '../scripts/site-settings';
 
   const MAX_EDGE = 2048; // downscale photos before upload; the API's ceiling is 8 MB
@@ -180,9 +181,13 @@ import { API_URL as apiUrl } from '../lib/api';
       location.replace(signInHref('/submit/'));
       return;
     }
-    const from = form.elements.namedItem('from') as HTMLInputElement;
-    if (!from.value && user.displayName) from.value = user.displayName;
     show('form');
+    // Credit defaults to the member's username; it arrives after the form
+    // shows so a slow function never holds the form up.
+    const from = form.elements.namedItem('from') as HTMLInputElement;
+    memberUsername().then((username) => {
+      if (username && !from.value) from.value = username;
+    });
   }
 
   let authKnown = false;

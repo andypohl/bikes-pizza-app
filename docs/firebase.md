@@ -128,10 +128,15 @@ deploy with `firebase deploy --only firestore`.
 Current:
 
 - `members/{uid}`: the member profile behind a Firebase user. Fields:
-  `email`, `name`, `newsletters` (IDs of the newsletters chosen; see
-  `functions/members.js`), `createdAt`, `updatedAt`. Written only by the
-  member functions through the Admin SDK; no client access. (Older
-  `users/{uid}` documents from the Ghost era may remain; nothing reads them.)
+  `email`, `username` (empty until chosen), `newsletters` (IDs of the
+  newsletters chosen; see `functions/members.js`), `createdAt`,
+  `updatedAt`. Written only by the member functions through the Admin SDK;
+  no client access. Records from before usernames carried a `name`, which
+  the member functions delete on their next load. (Older `users/{uid}`
+  documents from the Ghost era may remain; nothing reads them.)
+- `usernames/{lowercased username}`: `{ uid, username }`, the reservation
+  that keeps usernames unique regardless of case. Written in the same
+  transaction as the member's `username`; server-only.
 - `submissions/{id}`: a member submission. Fields: `feed`, `title`, `from`,
   `description`, `uid`, `email`, `status` (`pending`, `approved`,
   `rejected`), `createdAt`, `image` (`path`, `thumbPath`, `contentType`,
@@ -184,9 +189,11 @@ callables load the caller's profile from `members/{uid}`, creating it with
 defaults on first use.
 
 - `member`: the member's profile for the account page and the app (email,
-  name, and the available newsletters with the member's subscription state).
-- `updateMember`: changes the member's name and/or the full list of
-  newsletters they receive, validated against that same profile.
+  username, and the available newsletters with the member's subscription
+  state).
+- `updateMember`: changes the member's username and/or the full list of
+  newsletters they receive, validated against that same profile. A username
+  someone else holds fails with `already-exists`.
 - `submitPost`: takes a member's bike or pizza submission (photo as base64,
   title, from, description), normalises the photo and makes a thumbnail
   (sharp), runs the photo through Cloud Vision in one call: SafeSearch
@@ -333,7 +340,7 @@ targets in `firebase.json` by `.firebaserc` (create the extra sites with
   to the site's `web.app` host).
 - The project's default site serves `web/public/`: the account page that
   signs people in with Firebase Auth and sends them on to the website, and
-  doubles as the members' account screen (name, newsletters, password). The
+  doubles as the members' account screen (username, newsletters, password). The
   same page is copied into the website at `/account/` (below), which is the
   copy the site links to.
 - The submissions site serves `web/review/`, the review page, at
