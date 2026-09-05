@@ -2,6 +2,7 @@ import { sanityClient } from 'sanity:client';
 import { createImageUrlBuilder } from '@sanity/image-url';
 import type { SanityImageSource } from '@sanity/image-url/lib/types/types';
 import { defineQuery } from 'groq';
+import { BIKE_COLORS, BIKE_TYPES, BIKE_YEARS, type Option } from '../../../studio/schemaTypes/bikeOptions';
 
 /** Human labels for the `feed` field; these double as the gallery categories. */
 export const FEED_LABELS: Record<string, string> = {
@@ -26,6 +27,14 @@ export interface Author {
   username: string;
 }
 
+/** The structured details of a bike post, as the stored option values. */
+export interface BikeDetails {
+  brand: string | null;
+  year: string | null;
+  color: string | null;
+  type: string | null;
+}
+
 export interface Post {
   id: string;
   title: string;
@@ -38,6 +47,8 @@ export interface Post {
   /** The credit typed at submission; the fallback when there is no author. */
   submittedBy: string | null;
   author: Author | null;
+  /** Filled in for bike posts through the Post details app; null otherwise. */
+  bike: BikeDetails | null;
 }
 
 const POSTS_QUERY = defineQuery(`
@@ -52,6 +63,7 @@ const POSTS_QUERY = defineQuery(`
     body,
     submittedBy,
     "author": author->{ "id": _id, "username": coalesce(username, "") },
+    "bike": bike { brand, year, color, type },
     "image": mainImage {
       asset,
       hotspot,
@@ -84,6 +96,37 @@ export function memberPath(author: Author): string {
 /** The credit line for a post: the member's current username, else the text typed at submission. */
 export function creditOf(post: Post): string | null {
   return post.author?.username || post.submittedBy || null;
+}
+
+export interface Spec {
+  label: string;
+  value: string;
+}
+
+const titleOf = (options: Option[], value: string) => options.find((option) => option.value === value)?.title ?? value;
+
+/**
+ * The bike details of a post as labelled display values, in the order they
+ * are shown. Empty for posts that are not bikes or have no details yet.
+ */
+export function bikeSpecs(post: Post): Spec[] {
+  const bike = post.feed === 'bikes' ? post.bike : null;
+  if (!bike) return [];
+  const specs: Spec[] = [];
+  if (bike.brand) specs.push({ label: 'Brand', value: bike.brand });
+  if (bike.year) specs.push({ label: 'Year', value: titleOf(BIKE_YEARS, bike.year) });
+  if (bike.color) specs.push({ label: 'Color', value: titleOf(BIKE_COLORS, bike.color) });
+  if (bike.type) specs.push({ label: 'Type', value: titleOf(BIKE_TYPES, bike.type) });
+  return specs;
+}
+
+/** One line of bike details for tiles: brand, type and year, e.g. "GT · MTB · 1990s". */
+export function bikeLine(post: Post): string | null {
+  const bike = post.feed === 'bikes' ? post.bike : null;
+  if (!bike) return null;
+  const parts = [bike.brand, bike.type && titleOf(BIKE_TYPES, bike.type), bike.year && titleOf(BIKE_YEARS, bike.year)];
+  const line = parts.filter((part): part is string => !!part).join(' · ');
+  return line || null;
 }
 
 /**

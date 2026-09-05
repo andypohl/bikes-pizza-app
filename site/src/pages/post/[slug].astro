@@ -4,7 +4,7 @@ import Layout from '../../layouts/Layout.astro';
 import PostGrid from '../../components/PostGrid.astro';
 import ImageBlock from '../../components/portable-text/ImageBlock.astro';
 import Link from '../../components/portable-text/Link.astro';
-import { categoryOf, creditOf, memberPath, responsive, summaryOf, urlFor, type Post } from '../../lib/sanity';
+import { bikeSpecs, categoryOf, creditOf, memberPath, responsive, summaryOf, urlFor, type Post } from '../../lib/sanity';
 import { formatDate } from '../../utils/format';
 
 export async function getStaticPaths() {
@@ -33,6 +33,7 @@ const { src, srcset } = responsive(post.image, [800, 1200, 1600]);
 const largeSrc = urlFor(post.image).width(2400).quality(80).url();
 const ogImage = urlFor(post.image).width(1200).height(630).quality(80).url();
 const components = { type: { image: ImageBlock }, mark: { link: Link } };
+const specs = bikeSpecs(post);
 ---
 
 <Layout title={`${post.title} | bikes.pizza`} description={summaryOf(post)} image={ogImage}>
@@ -78,6 +79,19 @@ const components = { type: { image: ImageBlock }, mark: { link: Link } };
         <h2 class="text-lg font-light mb-8 text-stone-600 dark:text-slate-300 tracking-wide">
           {category} · {formatDate(post.publishedAt)}
         </h2>
+
+        {
+          specs.length > 0 && (
+            <dl class="mb-8 text-sm">
+              {specs.map((spec) => (
+                <div class="flex py-1">
+                  <dt class="font-medium w-28 text-stone-600 dark:text-slate-400">{spec.label}:</dt>
+                  <dd class="text-stone-700 dark:text-slate-300 font-light">{spec.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )
+        }
 
         <div class="post-body mb-8 text-stone-700 dark:text-gray-200 leading-relaxed font-light">
           <PortableText value={post.body} components={components} />

@@ -1,5 +1,6 @@
 import { defineField, defineType } from 'sanity'
 import { DocumentTextIcon } from '@sanity/icons/DocumentText'
+import { BIKE_COLORS, BIKE_TYPES, BIKE_YEARS } from './bikeOptions'
 
 /** A bikes.pizza post. `feed` is what the app's tabs filter on. */
 export const post = defineType({
@@ -59,6 +60,19 @@ export const post = defineType({
       type: 'blockContent',
     }),
     defineField({
+      name: 'bike',
+      title: 'Bike details',
+      type: 'object',
+      description: 'Structured details for a bike post, filled in with the Post details app.',
+      hidden: ({ document }) => document?.feed !== 'bikes',
+      fields: [
+        defineField({ name: 'brand', type: 'string' }),
+        defineField({ name: 'year', type: 'string', options: { list: BIKE_YEARS } }),
+        defineField({ name: 'color', type: 'string', options: { list: BIKE_COLORS } }),
+        defineField({ name: 'type', type: 'string', options: { list: BIKE_TYPES } }),
+      ],
+    }),
+    defineField({
       name: 'submittedBy',
       title: 'Submitted by',
       type: 'string',
@@ -71,7 +85,7 @@ export const post = defineType({
       to: [{ type: 'member' }],
       readOnly: true,
       description:
-        'The account that submitted this. Set by the app; the username shown on the site comes from here.',
+        'The member credited for this. Set by the app on submission, or linked with the Post details app; the username shown on the site comes from here.',
     }),
     defineField({
       name: 'source',

@@ -313,13 +313,19 @@ class FakeStoreRepository implements StoreRepository {
   }
 }
 
-Post _post(String title, DateTime date, {PostAuthor? author}) => Post(
+Post _post(
+  String title,
+  DateTime date, {
+  PostAuthor? author,
+  BikeDetails? bike,
+}) => Post(
   id: title,
   title: title,
   url: 'https://example.com/$title/',
   publishedAt: date,
   html: '<p>$title body</p>',
   author: author,
+  bike: bike,
 );
 
 const _ada = PostAuthor(id: 'm1', username: 'ada_bikes');
@@ -356,7 +362,18 @@ void main() {
       ],
       PostFeed.blog: [_post('Older post', DateTime(2025, 3, 3))],
       PostFeed.pizza: [_post('Detroit style', DateTime(2025, 2, 1))],
-      PostFeed.bikes: [],
+      PostFeed.bikes: [
+        _post(
+          '1992 GT Outpost',
+          DateTime(2025, 1, 5),
+          bike: const BikeDetails(
+            brand: 'GT',
+            year: '1990s',
+            color: 'orange',
+            type: 'mtb',
+          ),
+        ),
+      ],
     });
     await tester.pumpWidget(
       BikesPizzaApp(
@@ -450,6 +467,33 @@ void main() {
     expect(find.text('Older post'), findsNothing);
   });
 
+  testWidgets('bike posts show their details in the list and on the post', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    await tester.tap(find.text('Bikes'));
+    await tester.pumpAndSettle();
+    expect(find.text('GT · MTB · 1990s'), findsOneWidget);
+
+    await tester.tap(find.text('1992 GT Outpost'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('bike-details')), findsOneWidget);
+    expect(find.text('Brand'), findsOneWidget);
+    expect(find.text('GT'), findsOneWidget);
+    expect(find.text('Color'), findsOneWidget);
+    expect(find.text('Orange'), findsOneWidget);
+    expect(find.text('MTB'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    // Posts without details keep the plain layout.
+    await tester.tap(find.text('All'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Older post'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('bike-details')), findsNothing);
+  });
+
   testWidgets('Blog, Pizza and Bikes tabs request their own feeds', (
     tester,
   ) async {
@@ -466,7 +510,8 @@ void main() {
 
     await tester.tap(find.text('Bikes'));
     await tester.pumpAndSettle();
-    expect(find.text('No posts yet'), findsOneWidget);
+    expect(find.text('1992 GT Outpost'), findsOneWidget);
+    expect(find.text('Detroit style'), findsNothing);
 
     expect(repo.requestedFeeds, containsAll(PostFeed.values));
   });

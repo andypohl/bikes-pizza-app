@@ -9,8 +9,8 @@ import '../models/post.dart';
 import '../models/post_feed.dart';
 import 'post_list_screen.dart';
 
-/// Full post: hero image, title, date, the rendered HTML body and who
-/// submitted it. With a [repository], the submitter's username opens the
+/// Full post: hero image, title, date, a bike's details when it has them,
+/// the rendered HTML body and who submitted it. With a [repository], the submitter's username opens the
 /// list of everything they have posted.
 class PostDetailScreen extends StatelessWidget {
   const PostDetailScreen({super.key, required this.post, this.repository});
@@ -78,11 +78,46 @@ class PostDetailScreen extends StatelessWidget {
     );
   }
 
+  /// The bike details as label/value rows, for bike posts that have some.
+  Widget? _bikeDetails(ThemeData theme) {
+    final specs = post.bike?.specs ?? const [];
+    if (specs.isEmpty) return null;
+    final labelStyle = theme.textTheme.bodyMedium?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    return Padding(
+      key: const Key('bike-details'),
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final spec in specs)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 72,
+                    child: Text(spec.label, style: labelStyle),
+                  ),
+                  Expanded(
+                    child: Text(spec.value, style: theme.textTheme.bodyMedium),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final image = post.featureImage;
     final credit = _credit(context, theme);
+    final bikeDetails = _bikeDetails(theme);
 
     return Scaffold(
       appBar: AppBar(
@@ -121,6 +156,7 @@ class PostDetailScreen extends StatelessWidget {
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
+                  ?bikeDetails,
                   const SizedBox(height: 20),
                   if (post.html.isNotEmpty)
                     HtmlWidget(

@@ -137,6 +137,64 @@ void main() {
     },
   );
 
+  test(
+    'parses bike details on bike posts and ignores them elsewhere',
+    () async {
+      final rows = [
+        {
+          ..._row('a', feed: 'bikes'),
+          'bike': {
+            'brand': 'GT',
+            'year': '1990s',
+            'color': 'orange',
+            'type': 'mtb',
+          },
+        },
+        {
+          ..._row('b', feed: 'bikes'),
+          'bike': {'brand': null, 'year': null, 'color': null, 'type': null},
+        },
+        {
+          ..._row('c', feed: 'bikes'),
+          'bike': {'brand': ' Trek ', 'type': 'hovercraft'},
+        },
+        {
+          ..._row('d'),
+          'bike': {
+            'brand': 'GT',
+            'year': '1990s',
+            'color': 'orange',
+            'type': 'mtb',
+          },
+        },
+      ];
+      final client = MockClient((_) async => http.Response(_result(rows), 200));
+      final r = repo(client, pageSize: 4);
+      expect(
+        r.buildUri(PostFeed.all, 1).queryParameters['query'],
+        contains('"bike": bike { brand, year, color, type }'),
+      );
+      final posts = (await r.fetchPosts(PostFeed.all)).posts;
+
+      final full = posts[0].bike!;
+      expect(full.specs.map((s) => '${s.label}: ${s.value}'), [
+        'Brand: GT',
+        'Year: 1990s',
+        'Color: Orange',
+        'Type: MTB',
+      ]);
+      expect(full.line, 'GT · MTB · 1990s');
+      expect(posts[1].bike, isNull); // nothing filled in
+      final partial = posts[2].bike!;
+      expect(
+        partial.line,
+        'Trek · hovercraft',
+      ); // unknown values shown as stored
+      expect(partial.specs.length, 2);
+      expect(posts[3].bike, isNull); // not a bike post
+    },
+  );
+
   test('reports no more pages when the page is not full', () async {
     final client = MockClient(
       (_) async => http.Response(_result([_row('a')]), 200),

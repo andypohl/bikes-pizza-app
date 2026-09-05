@@ -63,7 +63,9 @@ for the production dataset behind bikes.pizza, and
 https://bikes-pizza-dev.sanity.studio/ for the development copy behind
 bikes-pizza.dev.
 See `studio/README.md` for running it, deploying the schema, and importing
-posts from the old Ghost site.
+posts from the old Ghost site. `apps/post-details/` is a Sanity App SDK app
+in the Dashboard for filling in a bike post's brand, year, color and type
+and for linking a post to a member by username; see its README.
 
 `site/` is the public website at https://bikes.pizza/, an Astro site that
 renders the posts as a photo gallery (the Astro Frame Shift theme by Ema
@@ -310,6 +312,7 @@ lib/
 test/                           unit tests for both backends, widget tests
 functions/                      Cloud Functions (submissions, members, REST API)
 site/                           Astro website; studio/ the Sanity Studio
+apps/post-details/              Sanity Dashboard app: bike details, member links
 web/                            account page and submissions review page
 infra/                          Pulumi program for the cloud resources (dev, prod stacks)
 ```
@@ -353,7 +356,7 @@ renaming tabs: edit `PostFeed` in `lib/models/post_feed.dart` and the
 App icon: the source files live in `assets/icon/` (`icon.png` for Android's
 legacy launcher icon, `icon_ios.png` as an opaque square for iOS, and
 `icon_android_fg.png`, the padded foreground of the Android adaptive icon;
-its background colour is set in `pubspec.yaml`). After replacing them run
+its background color is set in `pubspec.yaml`). After replacing them run
 `dart run flutter_launcher_icons` to regenerate the platform icon sets, and
 discard the change the tool makes to `ios/Runner.xcodeproj/project.pbxproj`
 (it rewrites an unrelated build setting).
