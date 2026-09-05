@@ -471,6 +471,193 @@ button.danger {
   opacity: 0.6;
 }
 
+/* ---- admin page (users) ---------------------------------------------- */
+
+.card.admin {
+  max-width: min(64rem, 100%);
+  min-width: 0;
+}
+
+table.users th,
+table.users td {
+  text-align: left;
+  padding: 0.55rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+table.users {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+table.users th {
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+table.users td.post {
+  white-space: normal;
+  max-width: 24rem;
+}
+
+table.users .num {
+  text-align: right;
+}
+
+button.link.user {
+  display: inline;
+  width: auto;
+  margin: 0;
+  padding: 0;
+  font-weight: 600;
+  text-align: left;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.pager button {
+  width: auto;
+  flex: 0 0 auto;
+  min-width: 7rem;
+  margin: 0;
+}
+
+.pager span {
+  white-space: nowrap;
+}
+
+.yes {
+  color: #2e7d32;
+}
+
+.no {
+  color: var(--muted);
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  gap: 0.6rem 0.9rem;
+  align-items: center;
+  margin: 1rem 0;
+}
+
+.fields > span.key {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.fields input[type="text"],
+.fields input[type="email"] {
+  margin: 0;
+}
+
+.fields .value {
+  font-size: 0.95rem;
+}
+
+.fields .choice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-weight: 400;
+  font-size: 0.95rem;
+}
+
+.fields .choice input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.fields .choice span {
+  display: inline;
+}
+
+.status-line {
+  min-height: 1.2rem;
+  margin: 0.25rem 0 0.75rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.status-line.ok {
+  color: #2e7d32;
+}
+
+.status-line.bad {
+  color: var(--error);
+}
+
+.posts {
+  margin: 0.25rem 0 1rem;
+  padding-left: 1.1rem;
+  font-size: 0.9rem;
+}
+
+.posts li {
+  margin-bottom: 0.25rem;
+}
+
+.posts a {
+  color: inherit;
+}
+
+dialog.detail-dialog {
+  width: min(40rem, 92vw);
+}
+
+button.primary[disabled] {
+  background: var(--muted);
+  border-color: var(--muted);
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+button.secondary.delete {
+  background: var(--error);
+  border-color: var(--error);
+  color: #fff;
+}
+
+button.secondary.delete:hover {
+  filter: brightness(0.9);
+}
+
+.actions.spread {
+  justify-content: space-between;
+}
+
+.actions.spread button {
+  flex: 0 1 auto;
+  min-width: 8rem;
+}
+
+dialog.confirm {
+  width: min(24rem, 90vw);
+}
+
+dialog.confirm .actions button {
+  flex: 1;
+}
+
+.actions button.secondary + button.secondary {
+  margin-top: 0;
+}
+
 /* Two-factor setup */
 .qr {
   display: flex;
@@ -489,24 +676,4 @@ button.danger {
 #secret-key {
   user-select: all;
   word-break: break-all;
-}
-
-/* The pager's buttons keep to their own width; the label sits between. */
-.pager {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.pager button {
-  width: auto;
-  flex: 0 0 auto;
-  min-width: 7rem;
-  margin: 0;
-}
-
-.pager span {
-  white-space: nowrap;
 }

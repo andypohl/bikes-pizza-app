@@ -29,9 +29,12 @@ const region = cfg.get("region") ?? "us-central1";
 /** Website apex, e.g. bikes-pizza.dev, and the submissions / API host. */
 const domain = cfg.require("domain");
 const submissionsDomain = cfg.get("submissionsDomain") ?? `submissions.${domain}`;
+/** The admin page's host (user administration). */
+const adminDomain = cfg.get("adminDomain") ?? `admin.${domain}`;
 /** Hosting site IDs for the website and the submissions site. */
 const homeSiteId = cfg.require("homeSiteId");
 const submissionsSiteId = cfg.require("submissionsSiteId");
+const adminSiteId = cfg.require("adminSiteId");
 
 /** Cloudflare zone of `domain`; DNS is skipped while `manageDns` is false. */
 const cloudflareZoneId = cfg.require("cloudflareZoneId");
@@ -148,14 +151,20 @@ const auth = new gcp.identityplatform.Config(
   {
     project: project.projectId,
     signIn: { email: { enabled: true, passwordRequired: true }, phoneNumber: { enabled: false } },
+    // Second factor by authenticator app (TOTP), available to any account and
+    // required of administrators by the admin page and its API. ENABLED, not
+    // MANDATORY: ordinary members are not made to enroll.
+    mfa: { state: "ENABLED", providerConfigs: [{ state: "ENABLED", totpProviderConfig: { adjacentIntervals: 5 } }] },
     authorizedDomains: [
       "localhost",
       pulumi.interpolate`${project.projectId}.firebaseapp.com`,
       pulumi.interpolate`${project.projectId}.web.app`,
       `${homeSiteId}.web.app`,
       `${submissionsSiteId}.web.app`,
+      `${adminSiteId}.web.app`,
       domain,
       submissionsDomain,
+      adminDomain,
     ],
   },
   firebaseReady,
@@ -171,7 +180,9 @@ const submissionsSite = new gcp.firebase.HostingSite(
   firebaseReady,
 );
 
-const domainOpts = { ...opts, customTimeouts: { create: "5m" }, dependsOn: [homeSite, submissionsSite] };
+const adminSite = new gcp.firebase.HostingSite("admin-site", { project: project.projectId, siteId: adminSiteId }, firebaseReady);
+
+const domainOpts = { ...opts, customTimeouts: { create: "5m" }, dependsOn: [homeSite, submissionsSite, adminSite] };
 const homeDomain = new gcp.firebase.HostingCustomDomain(
   "home-domain",
   { project: project.projectId, siteId: homeSiteId, customDomain: domain, certPreference: "PROJECT_GROUPED", waitDnsVerification: false },
@@ -183,6 +194,18 @@ const submissionsCustomDomain = new gcp.firebase.HostingCustomDomain(
     project: project.projectId,
     siteId: submissionsSiteId,
     customDomain: submissionsDomain,
+    certPreference: "PROJECT_GROUPED",
+    waitDnsVerification: false,
+  },
+  domainOpts,
+);
+
+const adminCustomDomain = new gcp.firebase.HostingCustomDomain(
+  "admin-domain",
+  {
+    project: project.projectId,
+    siteId: adminSiteId,
+    customDomain: adminDomain,
     certPreference: "PROJECT_GROUPED",
     waitDnsVerification: false,
   },
@@ -213,10 +236,12 @@ if (manageDns) {
   dns("dns-apex-a", { name: domain, type: "A", content: hostingIp });
   dns("dns-apex-txt", { name: domain, type: "TXT", content: `hosting-site=${homeSiteId}` });
   dns("dns-submissions-cname", { name: submissionsDomain, type: "CNAME", content: `${submissionsSiteId}.web.app` });
+  dns("dns-admin-cname", { name: adminDomain, type: "CNAME", content: `${adminSiteId}.web.app` });
 
   for (const [label, customDomain] of [
     ["apex", homeDomain],
     ["submissions", submissionsCustomDomain],
+    ["admin", adminCustomDomain],
   ] as const) {
     acmeRecords(customDomain).apply((records) =>
       records.forEach((r, i) => dns(`dns-${label}-acme${i ? `-${i}` : ""}`, { name: r.name, type: "TXT", content: r.value })),
@@ -338,6 +363,7 @@ export const deployServiceAccount = deployer.email;
 export const workloadIdentityProvider = providerResourceName;
 export const websiteUrl = `https://${domain}/`;
 export const submissionsUrl = `https://${submissionsDomain}/`;
+export const adminUrl = `https://${adminDomain}/`;
 export const bucketName = bucket.name;
 export const firestoreName = firestore.name;
 export const firebaseBucketName = firebaseBucket.bucketId;

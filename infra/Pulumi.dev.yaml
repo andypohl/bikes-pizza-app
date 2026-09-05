@@ -7,6 +7,7 @@ config:
   bikes-pizza:domain: bikes-pizza.dev
   bikes-pizza:homeSiteId: bikes-pizza-dev-home
   bikes-pizza:submissionsSiteId: bikes-pizza-dev-submissions
+  bikes-pizza:adminSiteId: bikes-pizza-dev-admin
   bikes-pizza:cloudflareZoneId: 1e1c7fbd918a26c83cb32e2e563cad42
   bikes-pizza:manageDns: "false"
   bikes-pizza:githubEnvironment: development

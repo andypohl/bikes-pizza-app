@@ -8,6 +8,7 @@ config:
   bikes-pizza:domain: bikes.pizza
   bikes-pizza:homeSiteId: bikes-pizza-home
   bikes-pizza:submissionsSiteId: pizzapredator-submissions
+  bikes-pizza:adminSiteId: bikes-pizza-admin
   bikes-pizza:cloudflareZoneId: 222cbf1d898ee7aad24ef8d6c8b506a2
   bikes-pizza:manageDns: "false"
   bikes-pizza:githubEnvironment: production

@@ -7,6 +7,7 @@ import { AppError } from "./errors.js";
 
 const TOKENS = {
   admin: { uid: "a1", email: "admin@example.com", email_verified: true, admin: true },
+  admin2fa: { uid: "a1", email: "admin@example.com", email_verified: true, admin: true, firebase: { sign_in_second_factor: "totp" } },
   member: { uid: "u1", email: "ada@example.com", email_verified: true },
   unverified: { uid: "u2", email: "new@example.com", email_verified: false },
 };
@@ -42,6 +43,15 @@ const service = {
       settingsState.submitButton = data.submitButton;
       return { submitButton: settingsState.submitButton };
     },
+  },
+  users: {
+    list: async (query) => calls.push(["users.list", { ...query }]) && { page: 1, users: [{ uid: "u1" }] },
+    get: async (uid) => {
+      if (uid === "nope") throw new AppError("not-found", "No such user.");
+      return { uid };
+    },
+    update: async (uid, data, admin) => calls.push(["users.update", uid, data, admin.uid]) && { uid, ...data },
+    remove: async (uid, admin) => calls.push(["users.remove", uid, admin.uid]) && { deleted: uid },
   },
   queue: {
     info: async (feed) => {
@@ -105,24 +115,24 @@ test("listing and fetching need the admin claim", async () => {
   assert.equal(denied.status, 403);
   assert.equal(denied.body.error.code, "permission-denied");
   calls.length = 0;
-  const ok = await call("/api/submissions?status=pending&limit=5", { token: "admin" });
+  const ok = await call("/api/submissions?status=pending&limit=5", { token: "admin2fa" });
   assert.equal(ok.status, 200);
   assert.deepEqual(ok.body.items, [{ id: "s1" }]);
   assert.deepEqual(calls, [["list", { status: "pending", limit: "5" }]]);
-  assert.equal((await call("/api/submissions/s1", { token: "admin" })).status, 200);
-  assert.equal((await call("/api/submissions/missing", { token: "admin" })).status, 404);
+  assert.equal((await call("/api/submissions/s1", { token: "admin2fa" })).status, 200);
+  assert.equal((await call("/api/submissions/missing", { token: "admin2fa" })).status, 404);
 });
 
 test("review maps service errors to statuses", async () => {
   calls.length = 0;
-  const ok = await call("/api/submissions/s1/review", { token: "admin", method: "POST", body: { action: "reject", note: "n" } });
+  const ok = await call("/api/submissions/s1/review", { token: "admin2fa", method: "POST", body: { action: "reject", note: "n" } });
   assert.equal(ok.status, 200);
   assert.deepEqual(calls, [["review", { action: "reject", note: "n", id: "s1" }, "a1"]]);
-  const again = await call("/api/submissions/s1/review", { token: "admin", method: "POST", body: { action: "again" } });
+  const again = await call("/api/submissions/s1/review", { token: "admin2fa", method: "POST", body: { action: "again" } });
   assert.equal(again.status, 409);
-  const bad = await call("/api/submissions/s1/review", { token: "admin", method: "POST", body: { action: "bad" } });
+  const bad = await call("/api/submissions/s1/review", { token: "admin2fa", method: "POST", body: { action: "bad" } });
   assert.equal(bad.status, 400);
-  const boom = await call("/api/submissions/s1/review", { token: "admin", method: "POST", body: { action: "boom" } });
+  const boom = await call("/api/submissions/s1/review", { token: "admin2fa", method: "POST", body: { action: "boom" } });
   assert.equal(boom.status, 503);
   assert.equal(boom.body.error.message, "Something went wrong. Please try again.");
   const member = await call("/api/submissions/s1/review", { token: "member", method: "POST", body: { action: "reject" } });
@@ -149,18 +159,18 @@ test("queue reads are for members, queue changes for admins", async () => {
   assert.equal(cd.body.nextPostAt, "2026-09-04T17:00:00.000Z");
   assert.equal((await call("/api/queue/blog/length", { token: "member" })).status, 400);
   assert.equal((await call("/api/queue/pizza", { token: "member" })).status, 403);
-  const items = await call("/api/queue/pizza", { token: "admin" });
+  const items = await call("/api/queue/pizza", { token: "admin2fa" });
   assert.equal(items.status, 200);
   assert.equal(items.body.items[0].position, 1);
 
   calls.length = 0;
   assert.equal((await call("/api/queue/pizza/add", { token: "member", method: "POST", body: { id: "s1" } })).status, 403);
-  const add = await call("/api/queue/pizza/add", { token: "admin", method: "POST", body: { id: "s1", note: "n" } });
+  const add = await call("/api/queue/pizza/add", { token: "admin2fa", method: "POST", body: { id: "s1", note: "n" } });
   assert.equal(add.status, 200);
   assert.equal(add.body.position, 3);
-  const rm = await call("/api/queue/bikes/remove", { token: "admin", method: "POST", body: { id: "s2" } });
+  const rm = await call("/api/queue/bikes/remove", { token: "admin2fa", method: "POST", body: { id: "s2" } });
   assert.equal(rm.status, 200);
-  const next = await call("/api/queue/bikes/submit-next", { token: "admin", method: "POST" });
+  const next = await call("/api/queue/bikes/submit-next", { token: "admin2fa", method: "POST" });
   assert.equal(next.status, 200);
   assert.equal(next.body.posted.id, "s1");
   assert.deepEqual(calls, [
@@ -171,7 +181,7 @@ test("queue reads are for members, queue changes for admins", async () => {
 });
 
 test("unknown endpoints are JSON 404s", async () => {
-  const r = await call("/api/nothing", { token: "admin" });
+  const r = await call("/api/nothing", { token: "admin2fa" });
   assert.equal(r.status, 404);
   assert.equal(r.body.error.code, "not-found");
   assert.equal((await call("/elsewhere")).status, 404);
@@ -193,11 +203,42 @@ test("site settings: public read, admin-only write, validated", async () => {
 
   const user = await call("/api/site/settings", { token: "member", method: "POST", body: { submitButton: false } });
   assert.equal(user.status, 403);
-  const bad = await call("/api/site/settings", { token: "admin", method: "POST", body: { submitButton: "no" } });
+  const bad = await call("/api/site/settings", { token: "admin2fa", method: "POST", body: { submitButton: "no" } });
   assert.equal(bad.status, 400);
-  const off = await call("/api/site/settings", { token: "admin", method: "POST", body: { submitButton: false } });
+  const off = await call("/api/site/settings", { token: "admin2fa", method: "POST", body: { submitButton: false } });
   assert.equal(off.status, 200);
   assert.deepEqual(off.body, { submitButton: false });
   assert.deepEqual((await call("/api/site/settings")).body, { submitButton: false });
-  await call("/api/site/settings", { token: "admin", method: "POST", body: { submitButton: true } });
+  await call("/api/site/settings", { token: "admin2fa", method: "POST", body: { submitButton: true } });
+});
+
+test("admin user routes need an admin who used a second factor, and pass the body through", async () => {
+  for (const token of ["member", "admin"]) {
+    assert.equal((await call("/api/admin/users", { token })).status, 403);
+    assert.equal((await call("/api/admin/users/u1", { token })).status, 403);
+    assert.equal((await call("/api/admin/users/u1", { token, method: "PATCH", body: { username: "x" } })).status, 403);
+    assert.equal((await call("/api/admin/users/u1", { token, method: "DELETE" })).status, 403);
+  }
+  const refused = await call("/api/admin/users", { token: "admin" });
+  assert.match(refused.body.error.message, /Two-factor/);
+  // Every other admin route asks the same.
+  assert.equal((await call("/api/submissions", { token: "admin" })).status, 403);
+  assert.equal((await call("/api/queue/bikes", { token: "admin" })).status, 403);
+  assert.equal((await call("/api/site/settings", { token: "admin", method: "POST", body: { submitButton: true } })).status, 403);
+
+  const list = await call("/api/admin/users?page=2&pageSize=10", { token: "admin2fa" });
+  assert.equal(list.status, 200);
+  assert.deepEqual(calls.at(-1), ["users.list", { page: "2", pageSize: "10" }]);
+
+  assert.equal((await call("/api/admin/users/nope", { token: "admin2fa" })).status, 404);
+  assert.equal((await call("/api/admin/users/u1", { token: "admin2fa" })).status, 200);
+
+  const patched = await call("/api/admin/users/u1", { token: "admin2fa", method: "PATCH", body: { username: "ada", newsletters: [] } });
+  assert.equal(patched.status, 200);
+  assert.deepEqual(calls.at(-1), ["users.update", "u1", { username: "ada", newsletters: [] }, "a1"]);
+
+  const removed = await call("/api/admin/users/u1", { token: "admin2fa", method: "DELETE" });
+  assert.equal(removed.status, 200);
+  assert.deepEqual(removed.body, { deleted: "u1" });
+  assert.deepEqual(calls.at(-1), ["users.remove", "u1", "a1"]);
 });

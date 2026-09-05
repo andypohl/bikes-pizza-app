@@ -35,3 +35,16 @@ export function adminFromClaims(claims) {
   if (!user.admin) throw new AppError("permission-denied", "Admins only.");
   return user;
 }
+
+/**
+ * An admin whose ID token was minted after a second factor (Firebase sets
+ * `firebase.sign_in_second_factor` on such tokens). The admin page requires
+ * it; this keeps the API from being a way around that.
+ */
+export function secondFactorAdminFromClaims(claims) {
+  const user = adminFromClaims(claims);
+  if (!claims.firebase?.sign_in_second_factor) {
+    throw new AppError("permission-denied", "Two-factor authentication is required for this.");
+  }
+  return user;
+}
