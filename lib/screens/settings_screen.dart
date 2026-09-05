@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../account/account_screen.dart';
 import '../account/member_service.dart';
@@ -11,8 +12,6 @@ class SettingsScreen extends StatelessWidget {
 
   final AuthService auth;
   final MemberService? members;
-
-  static const _appVersion = '0.1.0';
 
   @override
   Widget build(BuildContext context) {
@@ -50,11 +49,7 @@ class SettingsScreen extends StatelessWidget {
           ),
           const Divider(),
           const _SectionHeader('About'),
-          const ListTile(
-            leading: Icon(Icons.info_outline),
-            title: Text('bikes.pizza'),
-            subtitle: Text('Version $_appVersion'),
-          ),
+          const _AboutTile(),
         ],
       ),
     );
@@ -188,6 +183,30 @@ class _SectionHeader extends StatelessWidget {
           color: theme.colorScheme.primary,
         ),
       ),
+    );
+  }
+}
+
+/// The app's name and the version it was built with (from pubspec.yaml,
+/// via the platform's package info), so this never goes stale.
+class _AboutTile extends StatelessWidget {
+  const _AboutTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<PackageInfo>(
+      future: PackageInfo.fromPlatform(),
+      builder: (context, snapshot) {
+        final info = snapshot.data;
+        final version = info == null
+            ? 'Version …'
+            : 'Version ${info.version} (build ${info.buildNumber})';
+        return ListTile(
+          leading: const Icon(Icons.info_outline),
+          title: const Text('bikes.pizza'),
+          subtitle: Text(version),
+        );
+      },
     );
   }
 }

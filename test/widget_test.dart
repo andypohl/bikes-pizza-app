@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pizza_predator/account/member_service.dart';
 import 'package:pizza_predator/app_settings.dart';
 import 'package:pizza_predator/auth/auth_service.dart';
@@ -319,6 +320,13 @@ void main() {
   late FakePhotoPicker photos;
 
   setUp(() {
+    PackageInfo.setMockInitialValues(
+      appName: 'bikes.pizza',
+      packageName: 'com.pizzapredator.pizza_predator',
+      version: '1.0.0',
+      buildNumber: '1',
+      buildSignature: '',
+    );
     store = null;
     members = null;
     submissions = FakeSubmissionService();
@@ -502,6 +510,8 @@ void main() {
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
     expect(find.text('Sign in'), findsOneWidget);
+    // The About tile shows the version the app was built with.
+    expect(find.text('Version 1.0.0 (build 1)'), findsOneWidget);
 
     await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();

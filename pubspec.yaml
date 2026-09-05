@@ -47,6 +47,7 @@ dependencies:
   crypto: ^3.0.7
   cloud_functions: ^6.4.0
   image_picker: ^1.2.1
+  package_info_plus: ^10.2.1
 
 dev_dependencies:
   flutter_test:
