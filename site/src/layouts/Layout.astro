@@ -2,6 +2,7 @@
 import { ClientRouter } from 'astro:transitions';
 import AccountButton from '../components/AccountButton.astro';
 import StoreButton from '../components/StoreButton.astro';
+import HomeButton from '../components/HomeButton.astro';
 import SubmitButton from '../components/SubmitButton.astro';
 import ThemeToggle from '../components/ThemeToggle.astro';
 import '../styles/global.css';
@@ -68,6 +69,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     transition:animate="initial"
   >
     <div class="fixed top-6 right-6 z-50 flex items-center gap-3">
+      <HomeButton />
       <SubmitButton />
       <StoreButton />
       <AccountButton />
