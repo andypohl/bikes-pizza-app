@@ -10,8 +10,9 @@
 //                    for the account page and the app.
 // updateMember:      changes the member's name and/or newsletters.
 // submitPost:        checks a bike/pizza submission's photo with Google
-//                    SafeSearch, stores it (photo + text) in Firestore and
-//                    Storage and emails the reviewer.
+//                    Vision (SafeSearch, and no people or faces), stores it
+//                    (photo + text) in Firestore and Storage and emails the
+//                    reviewer.
 // reviewSubmission:  admin only; queues, drafts (in Sanity) or rejects a
 //                    pending submission.
 // api:               HTTPS; the REST API behind /api/ on the submissions
@@ -35,7 +36,7 @@ import { AppError, adminFromClaims, userFromClaims } from "./errors.js";
 import { processImage } from "./images.js";
 import { NEWSLETTERS, firestoreMemberStore, loadMember, updateMember as applyMemberUpdate } from "./members.js";
 import { isMailConfigured, sendMail } from "./mail.js";
-import { inspectImage } from "./safesearch.js";
+import { inspectImage } from "./vision.js";
 import { TIME_ZONE, cronFor } from "./schedule.js";
 import { notificationEmail } from "./submission.js";
 import { SanityClient } from "./sanity.js";
@@ -162,7 +163,7 @@ async function notify(submission, user) {
   }
 }
 
-// Cloud Vision is called with the function's own service account.
+// Cloud Vision (vision.js) is called with the function's own service account.
 const googleAuth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
 const safeSearch = (bytes) => inspectImage(bytes, { getToken: () => googleAuth.getAccessToken() });
 
