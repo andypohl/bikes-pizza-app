@@ -67,6 +67,19 @@ export function categoryOf(post: Post): string {
   return FEED_LABELS[post.feed] ?? post.feed;
 }
 
+/** Feeds whose newest post is featured on the front page, in row order. */
+export const FEATURED_FEEDS = ['bikes', 'pizza'];
+
+/**
+ * Splits `posts` (newest first) into the newest post of each of `feeds`,
+ * in that order, and everything else in the original order.
+ */
+export function splitFeatured(posts: Post[], feeds: string[] = FEATURED_FEEDS): { featured: Post[]; rest: Post[] } {
+  const featured = feeds.map((feed) => posts.find((post) => post.feed === feed)).filter((post): post is Post => !!post);
+  const ids = new Set(featured.map((post) => post.id));
+  return { featured, rest: posts.filter((post) => !ids.has(post.id)) };
+}
+
 /** Short text for cards and meta descriptions. */
 export function summaryOf(post: Post, max = 160): string {
   const text = (post.excerpt ?? post.plain ?? '').replace(/\s+/g, ' ').trim();

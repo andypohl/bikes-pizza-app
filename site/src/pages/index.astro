@@ -2,10 +2,12 @@
 import Layout from '../layouts/Layout.astro';
 import CategoryFilters from '../components/CategoryFilters.astro';
 import PostMasonry from '../components/PostMasonry.astro';
-import { categoryOf, getPosts } from '../lib/sanity';
+import FeaturedRow from '../components/FeaturedRow.astro';
+import { categoryOf, getPosts, splitFeatured } from '../lib/sanity';
 
 const posts = await getPosts();
 const categories = [...new Set(posts.map(categoryOf))].sort((a, b) => a.localeCompare(b));
+const { featured, rest } = splitFeatured(posts);
 ---
 
 <Layout title="bikes.pizza">
@@ -15,6 +17,7 @@ const categories = [...new Set(posts.map(categoryOf))].sort((a, b) => a.localeCo
     </h1>
 
     <CategoryFilters categories={categories} active="all" />
-    <PostMasonry posts={posts} />
+    <FeaturedRow posts={featured} />
+    <PostMasonry posts={rest} />
   </main>
 </Layout>

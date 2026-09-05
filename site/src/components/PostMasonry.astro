@@ -8,8 +8,8 @@
 // columns round-robin (post 0 → column 0, post 1 → column 1, ...), which
 // keeps the masonry look with rows that read newest to oldest. Without
 // JavaScript the fallback is a plain grid in the same order.
-import { categoryOf, responsive, type Post } from '../lib/sanity';
-import { formatDate } from '../utils/format';
+import PostTile from './PostTile.astro';
+import type { Post } from '../lib/sanity';
 
 interface Props {
   posts: Post[];
@@ -17,46 +17,15 @@ interface Props {
 }
 
 const { posts, eager = 4 } = Astro.props;
-const WIDTHS = [400, 800, 1200];
 ---
 
 <div class="masonry" data-masonry>
   {
-    posts.map((post, i) => {
-      const { src, srcset } = responsive(post.image, WIDTHS);
-      return (
-        <div class="masonry-item" data-index={i}>
-          <a
-            href={`/post/${post.id}/`}
-            class="group block overflow-hidden rounded-lg transition-all duration-300 relative"
-            transition:name={`post-${post.id}`}
-          >
-            <div class="overflow-hidden relative">
-              <img
-                src={src}
-                srcset={srcset}
-                sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw"
-                alt={post.image.alt}
-                width={post.image.width}
-                height={post.image.height}
-                loading={i < eager ? 'eager' : 'lazy'}
-                decoding="async"
-                style={post.image.lqip ? `background: url(${post.image.lqip}) center / cover` : undefined}
-                class="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-102"
-              />
-              <div class="absolute inset-0 bg-slate-900 opacity-0 group-hover:opacity-50 transition-opacity duration-300 flex items-center justify-center pointer-events-none">
-                <div class="text-stone-100 text-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 p-4">
-                  <h3 class="text-lg font-medium mb-1">{post.title}</h3>
-                  <p class="text-sm font-light tracking-wide opacity-90">
-                    {categoryOf(post)} · {formatDate(post.publishedAt)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </a>
-        </div>
-      );
-    })
+    posts.map((post, i) => (
+      <div class="masonry-item" data-index={i}>
+        <PostTile post={post} eager={i < eager} />
+      </div>
+    ))
   }
 </div>
 

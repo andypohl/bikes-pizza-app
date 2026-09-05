@@ -2,6 +2,8 @@
 import Layout from '../../layouts/Layout.astro';
 import CategoryFilters from '../../components/CategoryFilters.astro';
 import PostMasonry from '../../components/PostMasonry.astro';
+import FeaturedRow from '../../components/FeaturedRow.astro';
+import { splitFeatured } from '../../lib/sanity';
 import { slugify } from '../../utils/slug';
 
 export async function getStaticPaths() {
@@ -19,6 +21,7 @@ export async function getStaticPaths() {
 }
 
 const { category, categories, posts } = Astro.props;
+const { featured, rest } = splitFeatured(posts, posts.length ? [posts[0].feed] : []);
 ---
 
 <Layout title={`${category} | bikes.pizza`}>
@@ -28,6 +31,7 @@ const { category, categories, posts } = Astro.props;
     </h1>
 
     <CategoryFilters categories={categories} active={slugify(category)} />
-    <PostMasonry posts={posts} />
+    <FeaturedRow posts={featured} />
+    <PostMasonry posts={rest} />
   </main>
 </Layout>
