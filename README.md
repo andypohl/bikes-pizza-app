@@ -57,8 +57,11 @@ needed because the dataset is public.
 
 `studio/` is the Sanity Studio for the `post` content model (title, slug,
 feed, main image, excerpt, Portable Text body, `submittedBy`, a reference
-to the submitting `member`, and a record of where a post came from),
-hosted at https://bikes-pizza.sanity.studio/.
+to the submitting `member`, and a record of where a post came from).
+There is a hosted Studio per environment: https://bikes-pizza.sanity.studio/
+for the production dataset behind bikes.pizza, and
+https://bikes-pizza-dev.sanity.studio/ for the development copy behind
+bikes-pizza.dev.
 See `studio/README.md` for running it, deploying the schema, and importing
 posts from the old Ghost site.
 
