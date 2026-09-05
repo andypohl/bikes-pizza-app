@@ -33,7 +33,8 @@ const bikeColors = <String, String>{
 };
 
 const bikeTypes = <String, String>{
-  'mtb': 'MTB',
+  'mtb': 'Mountain',
+  'fat-mtb': 'Fat MTB',
   'road': 'Road',
   'bmx': 'BMX',
   'gravel': 'Gravel',

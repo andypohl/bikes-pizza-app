@@ -33,7 +33,8 @@ export const BIKE_COLORS: Option[] = [
 ]
 
 export const BIKE_TYPES: Option[] = [
-  {title: 'MTB', value: 'mtb'},
+  {title: 'Mountain', value: 'mtb'},
+  {title: 'Fat MTB', value: 'fat-mtb'},
   {title: 'Road', value: 'road'},
   {title: 'BMX', value: 'bmx'},
   {title: 'Gravel', value: 'gravel'},

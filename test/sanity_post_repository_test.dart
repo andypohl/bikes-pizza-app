@@ -181,9 +181,9 @@ void main() {
         'Brand: GT',
         'Year: 1990s',
         'Color: Orange',
-        'Type: MTB',
+        'Type: Mountain',
       ]);
-      expect(full.line, 'GT · MTB · 1990s');
+      expect(full.line, 'GT · Mountain · 1990s');
       expect(posts[1].bike, isNull); // nothing filled in
       final partial = posts[2].bike!;
       expect(

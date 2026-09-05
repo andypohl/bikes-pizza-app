@@ -10,7 +10,7 @@ class PostAuthor {
   final String username;
 }
 
-/// One labelled bike detail ready to display, e.g. `Type: MTB`.
+/// One labelled bike detail ready to display, e.g. `Type: Mountain`.
 class BikeSpec {
   const BikeSpec(this.label, this.value);
 
@@ -43,7 +43,7 @@ class BikeDetails {
     if (typeTitle != null) BikeSpec('Type', typeTitle!),
   ];
 
-  /// One line for lists: brand, type and year, e.g. `GT · MTB · 1990s`.
+  /// One line for lists: brand, type and year, e.g. `GT · Mountain · 1990s`.
   String? get line {
     final parts = [if (!_blank(brand)) brand!.trim(), ?typeTitle, ?yearTitle];
     return parts.isEmpty ? null : parts.join(' · ');
