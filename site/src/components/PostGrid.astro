@@ -1,0 +1,53 @@
+---
+// Gallery of posts in reading order: newest first, left to right, then the
+// next row. Every tile is cropped to the same aspect ratio (PostTile), so
+// the rows line up. The theme's original masonry (CSS multi-column) filled
+// each column top to bottom, which put the second-newest post under the
+// newest instead of beside it.
+import PostTile from './PostTile.astro';
+import type { Post } from '../lib/sanity';
+
+interface Props {
+  posts: Post[];
+  eager?: number;
+}
+
+const { posts, eager = 4 } = Astro.props;
+---
+
+<div class="post-grid">
+  {
+    posts.map((post, i) => (
+      <div class="post-grid-item">
+        <PostTile post={post} eager={i < eager} />
+      </div>
+    ))
+  }
+</div>
+
+<style>
+  .post-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--post-columns, 1), minmax(0, 1fr));
+    gap: 1.5rem;
+  }
+  .post-grid-item {
+    min-width: 0;
+  }
+  /* Same breakpoints as the theme's columns-1 / sm:2 / md:3 / lg:4. */
+  @media (min-width: 640px) {
+    .post-grid {
+      --post-columns: 2;
+    }
+  }
+  @media (min-width: 768px) {
+    .post-grid {
+      --post-columns: 3;
+    }
+  }
+  @media (min-width: 1024px) {
+    .post-grid {
+      --post-columns: 4;
+    }
+  }
+</style>

@@ -1,7 +1,7 @@
 ---
 import { PortableText } from 'astro-portabletext';
 import Layout from '../../layouts/Layout.astro';
-import PostMasonry from '../../components/PostMasonry.astro';
+import PostGrid from '../../components/PostGrid.astro';
 import ImageBlock from '../../components/portable-text/ImageBlock.astro';
 import Link from '../../components/portable-text/Link.astro';
 import { categoryOf, responsive, summaryOf, urlFor, type Post } from '../../lib/sanity';
@@ -100,7 +100,7 @@ const components = { type: { image: ImageBlock }, mark: { link: Link } };
           <h2 class="text-2xl font-light tracking-wide mb-8 text-stone-900 dark:text-stone-100">
             More {category}
           </h2>
-          <PostMasonry posts={related} eager={0} />
+          <PostGrid posts={related} eager={0} />
         </div>
       )
     }

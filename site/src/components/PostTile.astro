@@ -2,7 +2,7 @@
 // One post in a gallery: the photo, with title and category revealed on
 // hover. Shared by the featured row and the masonry; `widths` and `sizes`
 // describe how wide the tile can be so the browser picks a fitting image.
-import { categoryOf, responsive, type Post } from '../lib/sanity';
+import { categoryOf, responsive, TILE_RATIO, type Post } from '../lib/sanity';
 import { formatDate } from '../utils/format';
 
 interface Props {
@@ -18,7 +18,9 @@ const {
   widths = [400, 800, 1200],
   sizes = '(min-width: 1024px) 25vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw',
 } = Astro.props;
-const { src, srcset } = responsive(post.image, widths);
+const { src, srcset } = responsive(post.image, widths, 80, TILE_RATIO);
+const width = post.image.width;
+const height = Math.round(width / TILE_RATIO);
 ---
 
 <a
@@ -32,12 +34,12 @@ const { src, srcset } = responsive(post.image, widths);
       srcset={srcset}
       sizes={sizes}
       alt={post.image.alt}
-      width={post.image.width}
-      height={post.image.height}
+      width={width}
+      height={height}
       loading={eager ? 'eager' : 'lazy'}
       decoding="async"
       style={post.image.lqip ? `background: url(${post.image.lqip}) center / cover` : undefined}
-      class="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-102"
+      class="w-full h-auto aspect-[4/3] object-cover transition-transform duration-500 group-hover:scale-102"
     />
     <div class="absolute inset-0 bg-slate-900 opacity-0 group-hover:opacity-50 transition-opacity duration-300 flex items-center justify-center pointer-events-none">
       <div class="text-stone-100 text-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 p-4">
