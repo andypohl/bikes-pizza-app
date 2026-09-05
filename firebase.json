@@ -179,7 +179,10 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
-  "storage": {
-    "rules": "storage.rules"
-  }
+  "storage": [
+    {
+      "target": "photos",
+      "rules": "storage.rules"
+    }
+  ]
 }
