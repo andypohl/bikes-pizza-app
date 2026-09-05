@@ -253,6 +253,15 @@ Content changes rebuild both websites ("Rebuild website" workflow):
 production from the latest published release, so an edit never ships
 unreleased code, and development from `main`.
 
+## Storage rules target
+
+`firebase.json` deploys `storage.rules` to the `photos` Storage target, which
+`.firebaserc` maps to each project's default bucket. Naming the bucket
+avoids the CLI's default-bucket lookup, which the deploy service account is
+not allowed to make (it answers "Firebase Storage has not been set up on
+project", even though the bucket exists). When a project's bucket changes,
+run `firebase target:apply storage photos <bucket> --project <alias>`.
+
 ## Hosting
 
 Three sites on each project, mapped to the `home`, `account` and `review`

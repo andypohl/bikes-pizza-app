@@ -15,6 +15,11 @@
         "review": [
           "pizzapredator-submissions"
         ]
+      },
+      "storage": {
+        "photos": [
+          "pizzapredator-a445e.firebasestorage.app"
+        ]
       }
     },
     "bikes-pizza-dev": {
@@ -27,6 +32,11 @@
         ],
         "review": [
           "bikes-pizza-dev-submissions"
+        ]
+      },
+      "storage": {
+        "photos": [
+          "bikes-pizza-dev.firebasestorage.app"
         ]
       }
     }
