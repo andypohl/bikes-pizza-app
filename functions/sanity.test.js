@@ -44,3 +44,21 @@ test("errors carry the status and Sanity's description", async () => {
     (e) => e instanceof SanityApiError && e.status === 403 && /Insufficient permissions/.test(e.message),
   );
 });
+
+test("query GETs the query endpoint with JSON-encoded params and unwraps the result", async () => {
+  const { calls, fetchImpl } = fakeFetch(() => ({ body: { result: { _id: "m1" } } }));
+  const out = await client(fetchImpl).query('*[uid == $uid][0]{_id}', { uid: "u 1" });
+  assert.deepEqual(out, { _id: "m1" });
+  assert.equal(calls[0].init.method, "GET");
+  assert.equal(calls[0].init.body, undefined);
+  const url = new URL(calls[0].url);
+  assert.equal(url.pathname, "/v2025-02-19/data/query/production");
+  assert.equal(url.searchParams.get("query"), "*[uid == $uid][0]{_id}");
+  assert.equal(url.searchParams.get("$uid"), '"u 1"');
+});
+
+test("patchDocument sends a set patch", async () => {
+  const { calls, fetchImpl } = fakeFetch(() => ({ body: { results: [] } }));
+  await client(fetchImpl).patchDocument("m1", { username: "ada" });
+  assert.deepEqual(JSON.parse(calls[0].init.body), { mutations: [{ patch: { id: "m1", set: { username: "ada" } } }] });
+});

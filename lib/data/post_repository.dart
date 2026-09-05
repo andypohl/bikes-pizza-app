@@ -17,8 +17,9 @@ class PostPage {
 /// fake in tests.
 abstract class PostRepository {
   /// Fetch a page of posts for [feed] in reverse chronological order.
-  /// Pages are 1-based.
-  Future<PostPage> fetchPosts(PostFeed feed, {int page = 1});
+  /// Pages are 1-based. With [author] (a member document id) only that
+  /// member's posts are returned.
+  Future<PostPage> fetchPosts(PostFeed feed, {int page = 1, String? author});
 
   /// The Sanity repository for this build (see [SanityConfig]).
   factory PostRepository.forConfig() => SanityPostRepository(

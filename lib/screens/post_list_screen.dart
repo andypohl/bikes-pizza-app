@@ -25,6 +25,7 @@ class PostListScreen extends StatefulWidget {
     this.submissions,
     this.photos,
     this.members,
+    this.author,
   });
 
   final PostFeed feed;
@@ -35,6 +36,10 @@ class PostListScreen extends StatefulWidget {
 
   /// Pre-fills the submission's credit with the member's username.
   final MemberService? members;
+
+  /// When set, only this member's posts are listed (reached from the
+  /// credit on a post) and the submit bar is left out.
+  final PostAuthor? author;
 
   @override
   State<PostListScreen> createState() => _PostListScreenState();
@@ -69,7 +74,11 @@ class _PostListScreenState extends State<PostListScreen> {
       _error = null;
     });
     try {
-      final page = await widget.repository.fetchPosts(widget.feed, page: 1);
+      final page = await widget.repository.fetchPosts(
+        widget.feed,
+        page: 1,
+        author: widget.author?.id,
+      );
       if (!mounted) return;
       setState(() {
         _posts
@@ -100,7 +109,11 @@ class _PostListScreenState extends State<PostListScreen> {
     setState(() => _loadingMore = true);
     try {
       final next = _page + 1;
-      final page = await widget.repository.fetchPosts(widget.feed, page: next);
+      final page = await widget.repository.fetchPosts(
+        widget.feed,
+        page: next,
+        author: widget.author?.id,
+      );
       if (!mounted) return;
       setState(() {
         _posts.addAll(page.posts);
@@ -124,7 +137,10 @@ class _PostListScreenState extends State<PostListScreen> {
 
   void _openPost(Post post) {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => PostDetailScreen(post: post)),
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            PostDetailScreen(post: post, repository: widget.repository),
+      ),
     );
   }
 
@@ -154,14 +170,21 @@ class _PostListScreenState extends State<PostListScreen> {
     final submitLabel = widget.feed.submitLabel;
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.feed.isFiltered ? widget.feed.label : 'bikes.pizza'),
+        title: Text(
+          widget.author != null
+              ? 'Posts by ${widget.author!.username}'
+              : widget.feed.isFiltered
+              ? widget.feed.label
+              : 'bikes.pizza',
+        ),
       ),
       body: _buildBody(context),
       // Sits between the list and the app's tab bar rather than floating
       // over the posts. The post detail is a pushed route, so it is not
       // shown there.
       bottomNavigationBar:
-          auth != null &&
+          widget.author == null &&
+              auth != null &&
               submissions != null &&
               photos != null &&
               submitLabel != null

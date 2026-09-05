@@ -31,16 +31,19 @@ class SanityPostRepository implements PostRepository {
     "slug": slug.current, title, feed, publishedAt, excerpt,
     "plain": pt::text(body),
     "image": mainImage.asset->url,
+    submittedBy,
+    "author": author->{ "id": _id, "username": coalesce(username, "") },
     body[]{ ..., _type == "image" => { "url": asset->url } }
   }''';
 
-  static String query(PostFeed feed) {
+  static String query(PostFeed feed, {bool byAuthor = false}) {
     final filter = feed.isFiltered ? ' && feed in \$feeds' : '';
-    return '*[_type == "post" && defined(slug.current)$filter]'
+    final author = byAuthor ? ' && author._ref == \$author' : '';
+    return '*[_type == "post" && defined(slug.current)$filter$author]'
         ' | order(publishedAt desc) [\$start...\$end] $projection';
   }
 
-  Uri buildUri(PostFeed feed, int page) {
+  Uri buildUri(PostFeed feed, int page, {String? author}) {
     final start = (page - 1) * pageSize;
     // One extra row tells us whether another page exists.
     final end = start + pageSize + 1;
@@ -48,18 +51,23 @@ class SanityPostRepository implements PostRepository {
       '$projectId.apicdn.sanity.io',
       '/v$apiVersion/data/query/$dataset',
       {
-        'query': query(feed),
+        'query': query(feed, byAuthor: author != null),
         '\$start': '$start',
         '\$end': '$end',
         if (feed.isFiltered) '\$feeds': jsonEncode(feed.feeds),
+        if (author != null) '\$author': jsonEncode(author),
       },
     );
   }
 
   @override
-  Future<PostPage> fetchPosts(PostFeed feed, {int page = 1}) async {
+  Future<PostPage> fetchPosts(
+    PostFeed feed, {
+    int page = 1,
+    String? author,
+  }) async {
     final response = await _client.get(
-      buildUri(feed, page),
+      buildUri(feed, page, author: author),
       headers: const {'Accept': 'application/json'},
     );
     if (response.statusCode != 200) {

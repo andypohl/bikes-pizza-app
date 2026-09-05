@@ -56,8 +56,9 @@ needed because the dataset is public.
 ## Website and Studio
 
 `studio/` is the Sanity Studio for the `post` content model (title, slug,
-feed, main image, excerpt, Portable Text body, `submittedBy`, and a record
-of where a post came from), hosted at https://bikes-pizza.sanity.studio/.
+feed, main image, excerpt, Portable Text body, `submittedBy`, a reference
+to the submitting `member`, and a record of where a post came from),
+hosted at https://bikes-pizza.sanity.studio/.
 See `studio/README.md` for running it, deploying the schema, and importing
 posts from the old Ghost site.
 
@@ -108,7 +109,9 @@ its next post, and the API exposes the queues under `/api/queue/`.
 **Publishing** (`functions/post.js`) uploads the photo to Sanity as an
 image asset and creates a `post` document: title, a slug made from the title
 plus a suffix from the submission id, the feed, the description as Portable
-Text paragraphs, `submittedBy` (the name the member gave), and
+Text paragraphs, `submittedBy` (the name the member gave), `author` (a
+reference to the member's `member` document, created on their first post
+with their username; see Members) and
 `source: {system: "submission", id}`. "Queue to post" publishes it when its
 turn comes; "Save as draft" creates it as a Sanity draft for editing in the
 Studio. The submitter's email never reaches the post. The website's Sanity
@@ -202,6 +205,17 @@ asks for the username and the newsletter choice up front; because the
 member functions need a verified email, those wait on the device (browser
 `localStorage`, or the app's preferences) and are sent once the email is
 verified. The username is the default credit on the submission form.
+
+**Usernames on posts.** Sanity holds a `member` document per member who
+has published (account id and current username, nothing else), and each
+submitted post references it. The website and the app read the username
+through that reference at query time, so a rename is one patch to the
+member document (`updateMember` does it and asks for a site rebuild) rather
+than a rewrite of every post. The credit on a post links to everything the
+member has posted: `/member/<username>/` on the website, a "Posts by"
+list in the app. Posts whose member has not chosen a username yet show the
+typed credit instead. `tools/backfill_post_authors.py` adds the reference
+to posts published before this existed.
 
 The app's Settings → Account → Manage account screen (`lib/account/`) and
 the website's account page use them; the app adds a password change for

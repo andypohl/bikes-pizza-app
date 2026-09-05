@@ -65,6 +65,15 @@ export const post = defineType({
       description: 'Name given by a member who submitted this through the app, if any.',
     }),
     defineField({
+      name: 'author',
+      title: 'Member',
+      type: 'reference',
+      to: [{ type: 'member' }],
+      readOnly: true,
+      description:
+        'The account that submitted this. Set by the app; the username shown on the site comes from here.',
+    }),
+    defineField({
       name: 'source',
       title: 'Imported from',
       type: 'object',

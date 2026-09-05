@@ -20,6 +20,12 @@ export interface PostImage {
   lqip?: string;
 }
 
+/** The member who submitted a post, from their `member` document. */
+export interface Author {
+  id: string;
+  username: string;
+}
+
 export interface Post {
   id: string;
   title: string;
@@ -29,7 +35,9 @@ export interface Post {
   plain: string;
   body: unknown[];
   image: PostImage;
+  /** The credit typed at submission; the fallback when there is no author. */
   submittedBy: string | null;
+  author: Author | null;
 }
 
 const POSTS_QUERY = defineQuery(`
@@ -43,6 +51,7 @@ const POSTS_QUERY = defineQuery(`
     "plain": pt::text(body),
     body,
     submittedBy,
+    "author": author->{ "id": _id, "username": coalesce(username, "") },
     "image": mainImage {
       asset,
       hotspot,
@@ -65,6 +74,32 @@ export function getPosts(): Promise<Post[]> {
 
 export function categoryOf(post: Post): string {
   return FEED_LABELS[post.feed] ?? post.feed;
+}
+
+/** Path of a member's page: their username lowercased, as usernames differ only by case are one name. */
+export function memberPath(author: Author): string {
+  return `/member/${author.username.toLowerCase()}/`;
+}
+
+/** The credit line for a post: the member's current username, else the text typed at submission. */
+export function creditOf(post: Post): string | null {
+  return post.author?.username || post.submittedBy || null;
+}
+
+/**
+ * Every member with at least one post that carries their username, with
+ * their posts newest first. Members who have not chosen a username yet
+ * have no page; their posts show the typed credit instead.
+ */
+export function membersOf(posts: Post[]): { author: Author; posts: Post[] }[] {
+  const byId = new Map<string, { author: Author; posts: Post[] }>();
+  for (const post of posts) {
+    if (!post.author?.username) continue;
+    const entry = byId.get(post.author.id) ?? { author: post.author, posts: [] };
+    entry.posts.push(post);
+    byId.set(post.author.id, entry);
+  }
+  return [...byId.values()];
 }
 
 /**

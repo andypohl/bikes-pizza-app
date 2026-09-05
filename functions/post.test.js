@@ -28,6 +28,12 @@ test("textToBlocks makes one paragraph block per blank-line-separated paragraph"
   assert.deepEqual(textToBlocks(""), []);
 });
 
+test("buildPost references the member document when given one", () => {
+  const doc = buildPost(submission, { imageAssetId: "image-x", authorId: "m1" });
+  assert.deepEqual(doc.author, { _type: "reference", _ref: "m1" });
+  assert.equal("author" in buildPost(submission, { imageAssetId: "image-x" }), false);
+});
+
 test("buildPost shapes the document without the member's email", () => {
   const now = new Date("2026-09-04T17:00:00Z");
   const doc = buildPost(submission, { imageAssetId: "image-abc-2000x1500-jpg", now });

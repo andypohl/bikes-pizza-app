@@ -25,11 +25,24 @@ class FakePostRepository implements PostRepository {
 
   final Map<PostFeed, List<Post>> byFeed;
   final requestedFeeds = <PostFeed>[];
+  final requestedAuthors = <String>[];
 
   @override
-  Future<PostPage> fetchPosts(PostFeed feed, {int page = 1}) async {
+  Future<PostPage> fetchPosts(
+    PostFeed feed, {
+    int page = 1,
+    String? author,
+  }) async {
     requestedFeeds.add(feed);
-    return PostPage(posts: page == 1 ? byFeed[feed] ?? [] : [], hasMore: false);
+    if (author != null) requestedAuthors.add(author);
+    final posts = author == null
+        ? byFeed[feed] ?? []
+        : [
+            for (final list in byFeed.values)
+              for (final p in list)
+                if (p.author?.id == author) p,
+          ];
+    return PostPage(posts: page == 1 ? posts : [], hasMore: false);
   }
 }
 
@@ -300,13 +313,16 @@ class FakeStoreRepository implements StoreRepository {
   }
 }
 
-Post _post(String title, DateTime date) => Post(
+Post _post(String title, DateTime date, {PostAuthor? author}) => Post(
   id: title,
   title: title,
   url: 'https://example.com/$title/',
   publishedAt: date,
   html: '<p>$title body</p>',
+  author: author,
 );
+
+const _ada = PostAuthor(id: 'm1', username: 'ada_bikes');
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -335,7 +351,7 @@ void main() {
     auth = FakeAuthService();
     final repo = FakePostRepository({
       PostFeed.all: [
-        _post('Newest post', DateTime(2025, 4, 12)),
+        _post('Newest post', DateTime(2025, 4, 12), author: _ada),
         _post('Older post', DateTime(2025, 3, 3)),
       ],
       PostFeed.blog: [_post('Older post', DateTime(2025, 3, 3))],
@@ -409,6 +425,29 @@ void main() {
 
     expect(find.text('Newest post body', findRichText: true), findsOneWidget);
     expect(find.byIcon(Icons.open_in_browser), findsOneWidget);
+  });
+
+  testWidgets('the credit on a post opens everything that member posted', (
+    tester,
+  ) async {
+    final repo = await pumpApp(tester);
+    await tester.tap(find.text('Older post'));
+    await tester.pumpAndSettle();
+    // Written in the Studio: no credit line at all.
+    expect(find.textContaining('Submitted by'), findsNothing);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Newest post'));
+    await tester.pumpAndSettle();
+    expect(find.text('Submitted by '), findsOneWidget);
+    await tester.tap(find.byKey(const Key('credit-link')));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(AppBar, 'Posts by ada_bikes'), findsOneWidget);
+    expect(repo.requestedAuthors, ['m1']);
+    expect(find.text('Newest post'), findsOneWidget);
+    expect(find.text('Older post'), findsNothing);
   });
 
   testWidgets('Blog, Pizza and Bikes tabs request their own feeds', (

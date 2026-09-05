@@ -1,5 +1,14 @@
 import '../data/portable_text_html.dart';
 
+/// The member who submitted a post: their Sanity `member` document id
+/// (stable, used to list their posts) and current username.
+class PostAuthor {
+  const PostAuthor({required this.id, required this.username});
+
+  final String id;
+  final String username;
+}
+
 /// A single post as loaded from Sanity.
 class Post {
   const Post({
@@ -11,6 +20,8 @@ class Post {
     this.html = '',
     this.featureImage,
     this.tags = const [],
+    this.submittedBy,
+    this.author,
   });
 
   final String id;
@@ -32,6 +43,21 @@ class Post {
   /// Feed values the post belongs to, e.g. `pizza`, `bikes`.
   final List<String> tags;
 
+  /// The credit typed when the post was submitted, if any.
+  final String? submittedBy;
+
+  /// The submitting member, when the post carries a member reference.
+  final PostAuthor? author;
+
+  /// Who to credit: the member's current username when known, else the
+  /// text typed at submission. Null for posts written in the Studio.
+  String? get credit {
+    final username = author?.username;
+    if (username != null && username.isNotEmpty) return username;
+    final typed = submittedBy?.trim();
+    return typed == null || typed.isEmpty ? null : typed;
+  }
+
   bool hasTag(String slug) => tags.contains(slug);
 
   /// Image transformation parameters for Sanity's image CDN.
@@ -48,6 +74,8 @@ class Post {
     final body = rawBody is List ? rawBody : const <dynamic>[];
     final image = json['image'] as String?;
     final custom = (json['excerpt'] as String?)?.trim() ?? '';
+    final rawAuthor = json['author'];
+    final authorId = rawAuthor is Map ? rawAuthor['id'] as String? : null;
 
     return Post(
       id: slug.isNotEmpty ? slug : json['_id'] as String? ?? '',
@@ -64,6 +92,13 @@ class Post {
           ? null
           : '$image?$_imageParams',
       tags: feed == null || feed.isEmpty ? const [] : [feed],
+      submittedBy: json['submittedBy'] as String?,
+      author: authorId == null
+          ? null
+          : PostAuthor(
+              id: authorId,
+              username: (rawAuthor as Map)['username'] as String? ?? '',
+            ),
     );
   }
 

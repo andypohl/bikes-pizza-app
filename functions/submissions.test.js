@@ -315,6 +315,37 @@ test("submitNext posts the oldest entry and leaves the rest queued", async () =>
   assert.equal((await store.queueHead("bikes")).id, "s3");
 });
 
+test("submitNext references the submitter's member document, creating it with their username", async () => {
+  const store = await seeded();
+  await enqueue({ feed: "bikes", id: "s1", note: "" }, admin, { store, now: NOW });
+  const created = [];
+  const sanity = {
+    uploadImage: async () => "image-x",
+    query: async () => null,
+    createDocument: async (doc) => created.push(doc) && (doc._type === "member" ? "m1" : "p1"),
+  };
+  const members = { get: async (uid) => ({ email: "x@y.z", username: uid === user.uid ? "ada_bikes" : "" }) };
+  await submitNext("bikes", { store, sanity, members, siteUrl: "https://example.com", now: NOW });
+  const [member, post] = created;
+  assert.deepEqual(member, { _type: "member", uid: user.uid, username: "ada_bikes" });
+  assert.deepEqual(post.author, { _type: "reference", _ref: "m1" });
+});
+
+test("submitNext still posts when the member document cannot be made", async () => {
+  const store = await seeded();
+  await enqueue({ feed: "bikes", id: "s1", note: "" }, admin, { store, now: NOW });
+  const logs = [];
+  const sanity = {
+    uploadImage: async () => "image-x",
+    query: async () => { throw new Error("query down"); },
+    createDocument: async (doc) => (assert.equal(doc._type, "post"), "p1"),
+  };
+  const members = { get: async () => ({ username: "ada" }) };
+  const result = await submitNext("bikes", { store, sanity, members, siteUrl: "https://example.com", now: NOW, log: (m, d) => logs.push([m, d]) });
+  assert.equal(result.posted.status, "approved");
+  assert.ok(logs.some(([m]) => /member document failed/.test(m)));
+});
+
 test("submitNext puts the entry back in the queue when Sanity fails", async () => {
   const store = await seeded();
   await enqueue({ feed: "bikes", id: "s1", note: "" }, admin, { store, now: NOW });

@@ -1,6 +1,7 @@
 // Minimal client for the parts of Sanity's HTTP API that publishing needs:
-// uploading an image asset and creating a document. Docs:
-// https://www.sanity.io/docs/http-mutations, https://www.sanity.io/docs/http-api-assets
+// uploading an image asset, creating and patching documents, and a GROQ
+// query. Docs: https://www.sanity.io/docs/http-mutations,
+// https://www.sanity.io/docs/http-api-assets, https://www.sanity.io/docs/http-query
 
 export class SanityApiError extends Error {
   constructor(status, message) {
@@ -30,8 +31,8 @@ export class SanityClient {
   async #request(path, { method = "POST", body, contentType = "application/json" } = {}) {
     const response = await this.fetch(`${this.base}${path}`, {
       method,
-      headers: { Authorization: `Bearer ${this.token}`, "Content-Type": contentType },
-      body: contentType === "application/json" ? JSON.stringify(body) : body,
+      headers: { Authorization: `Bearer ${this.token}`, ...(body === undefined ? {} : { "Content-Type": contentType }) },
+      body: body === undefined ? undefined : contentType === "application/json" ? JSON.stringify(body) : body,
     });
     const text = await response.text();
     let json;
@@ -60,6 +61,30 @@ export class SanityClient {
     const id = result?.document?._id;
     if (!id) throw new SanityApiError(500, "Sanity did not return an asset id");
     return id;
+  }
+
+  /**
+   * Runs a GROQ query (against the live API, not the CDN, so writes made a
+   * moment ago are seen) and returns its result.
+   * @param {string} groq
+   * @param {Record<string, unknown>} [params]
+   */
+  async query(groq, params = {}) {
+    const search = new URLSearchParams({ query: groq });
+    for (const [key, value] of Object.entries(params)) search.set(`$${key}`, JSON.stringify(value));
+    const result = await this.#request(`/data/query/${this.dataset}?${search}`, { method: "GET" });
+    return result?.result ?? null;
+  }
+
+  /**
+   * Sets fields on an existing document.
+   * @param {string} id
+   * @param {object} set  field → value
+   */
+  async patchDocument(id, set) {
+    await this.#request(`/data/mutate/${this.dataset}`, {
+      body: { mutations: [{ patch: { id, set } }] },
+    });
   }
 
   /**
