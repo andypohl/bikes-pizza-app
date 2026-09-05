@@ -6,6 +6,8 @@
     <meta name="robots" content="noindex" />
     <title>bikes.pizza submissions</title>
     <link rel="stylesheet" href="/review.css" />
+    <!-- Renders the authenticator QR code during two-factor setup. -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
   </head>
   <body class="wide">
     <main class="card review" id="app" data-state="loading">
@@ -46,6 +48,31 @@
       <section data-view="forbidden" hidden>
         <h2>Not a reviewer</h2>
         <p>This account is signed in but does not have review access.</p>
+      </section>
+
+      <section data-view="mfa-code" hidden>
+        <h2>Enter your authenticator code</h2>
+        <p class="muted">Open your authenticator app and type the 6-digit code for bikes.pizza.</p>
+        <form id="mfa-code-form" novalidate>
+          <label>Code <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" required /></label>
+          <button type="submit" class="primary">Verify</button>
+        </form>
+        <button type="button" class="link" id="mfa-code-cancel">Use a different account</button>
+      </section>
+
+      <section data-view="mfa-setup" hidden>
+        <h2>Set up two-factor authentication</h2>
+        <p>
+          Reviewers must sign in with a second factor. Scan this code with an authenticator app
+          (Google Authenticator, 1Password, Authy…), then enter the 6-digit code it shows.
+        </p>
+        <div class="qr" id="qr"></div>
+        <p class="muted small">Can't scan? Enter this key by hand: <code id="secret-key"></code></p>
+        <form id="mfa-setup-form" novalidate>
+          <label>Code from the app <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" required /></label>
+          <button type="submit" class="primary">Turn on two-factor authentication</button>
+        </form>
+        <button type="button" class="link" id="mfa-setup-cancel">Sign out</button>
       </section>
 
       <section data-view="list" hidden>

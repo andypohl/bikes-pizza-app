@@ -77,11 +77,11 @@ OAuth token that has the cloud-platform scope.
   what allows a second factor.
 - Multi-factor authentication is `ENABLED` (not `MANDATORY`) with the TOTP
   provider (authenticator apps), so any account may enroll and none is
-  forced to. Administrators are the exception: the admin page walks an
-  admin without a second factor through enrolling before showing anything,
-  and the user-administration API only accepts ID tokens carrying
-  `firebase.sign_in_second_factor` (`secondFactorAdminFromClaims` in
-  `functions/errors.js`). The setting lives in `infra/index.ts` (`mfa`);
+  forced to. Administrators are the exception: the review and admin pages
+  walk an admin without a second factor through enrolling before showing
+  anything, and every admin route of the REST API only accepts ID tokens
+  carrying `firebase.sign_in_second_factor` (`secondFactorAdminFromClaims`
+  in `functions/errors.js`). The setting lives in `infra/index.ts` (`mfa`);
   production was set by hand to match.
 - Enabled providers: Email/Password, Google, and Apple.
   - Email/Password was turned on by hand in the console under

@@ -4,6 +4,10 @@
 //
 //   GET  /api/me                        who the token belongs to
 //   GET  /api/submissions               admin; ?status=&limit=&after=
+//
+// "admin" means a user with the `admin` claim whose token was minted after
+// a second factor (see secondFactorAdminFromClaims in errors.js): the
+// review and admin pages make administrators enrol an authenticator app.
 //   GET  /api/submissions/:id           admin
 //   POST /api/submissions/:id/review    admin; {action, note}
 //   POST /api/submissions               verified user; same body as submitPost
@@ -15,10 +19,10 @@
 //   POST /api/queue/:feed/submit-next   admin; posts the oldest entry now
 //   GET  /api/site/settings             public (no token); {submitButton}
 //   POST /api/site/settings             admin; {submitButton: boolean}
-//   GET  /api/admin/users               admin + 2FA; ?page=&pageSize= — by most recent post
-//   GET  /api/admin/users/:uid          admin + 2FA
-//   PATCH /api/admin/users/:uid         admin + 2FA; {username?, email?, newsletters?}
-//   DELETE /api/admin/users/:uid        admin + 2FA
+//   GET  /api/admin/users               admin; ?page=&pageSize= — by most recent post
+//   GET  /api/admin/users/:uid          admin
+//   PATCH /api/admin/users/:uid         admin; {username?, email?, newsletters?}
+//   DELETE /api/admin/users/:uid        admin
 //
 // The admin page (web/admin/) reaches these through the same rewrite on its
 // own Hosting site.
@@ -29,7 +33,7 @@ import cors from "cors";
 import express from "express";
 
 import { ValidationError } from "./account.js";
-import { AppError, adminFromClaims, secondFactorAdminFromClaims, userFromClaims } from "./errors.js";
+import { AppError, secondFactorAdminFromClaims, userFromClaims } from "./errors.js";
 
 export const STATUS_FOR_CODE = {
   "invalid-argument": 400,
@@ -77,7 +81,7 @@ export function createApi({ verifyToken, service, log = () => {} }) {
 
   api.post(
     "/site/settings",
-    wrap((req) => service.site.updateSettings(req.body, adminFromClaims(req.claims))),
+    wrap((req) => service.site.updateSettings(req.body, secondFactorAdminFromClaims(req.claims))),
   );
 
   api.get("/me", wrap((req) => userFromClaims(req.claims)));
@@ -85,7 +89,7 @@ export function createApi({ verifyToken, service, log = () => {} }) {
   api.get(
     "/submissions",
     wrap((req) => {
-      adminFromClaims(req.claims);
+      secondFactorAdminFromClaims(req.claims);
       return service.list(req.query);
     }),
   );
@@ -98,21 +102,21 @@ export function createApi({ verifyToken, service, log = () => {} }) {
   api.get(
     "/submissions/:id",
     wrap((req) => {
-      adminFromClaims(req.claims);
+      secondFactorAdminFromClaims(req.claims);
       return service.get(req.params.id);
     }),
   );
 
   api.post(
     "/submissions/:id/review",
-    wrap((req) => service.review({ ...req.body, id: req.params.id }, adminFromClaims(req.claims))),
+    wrap((req) => service.review({ ...req.body, id: req.params.id }, secondFactorAdminFromClaims(req.claims))),
   );
 
   const queue = service.queue;
   api.get(
     "/queue/:feed",
     wrap((req) => {
-      adminFromClaims(req.claims);
+      secondFactorAdminFromClaims(req.claims);
       return queue.items(req.params.feed);
     }),
   );
@@ -133,23 +137,22 @@ export function createApi({ verifyToken, service, log = () => {} }) {
   );
   api.post(
     "/queue/:feed/add",
-    wrap((req) => queue.add({ ...req.body, feed: req.params.feed }, adminFromClaims(req.claims))),
+    wrap((req) => queue.add({ ...req.body, feed: req.params.feed }, secondFactorAdminFromClaims(req.claims))),
   );
   api.post(
     "/queue/:feed/remove",
-    wrap((req) => queue.remove({ ...req.body, feed: req.params.feed }, adminFromClaims(req.claims))),
+    wrap((req) => queue.remove({ ...req.body, feed: req.params.feed }, secondFactorAdminFromClaims(req.claims))),
   );
   api.post(
     "/queue/:feed/submit-next",
     wrap((req) => {
-      adminFromClaims(req.claims);
+      secondFactorAdminFromClaims(req.claims);
       return queue.submitNext(req.params.feed);
     }),
   );
 
   const users = service.users;
   if (users) {
-    // User administration needs an admin who signed in with a second factor.
     api.get(
       "/admin/users",
       wrap((req) => {

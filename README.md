@@ -97,7 +97,11 @@ https://submissions.bikes.pizza/. It works through the REST API at
 `/api/` on the same site (`functions/api.js`, documented in `docs/api.md`),
 which the app can use too.
 Only Firebase users with the `admin` custom claim can open it; grant it
-with `tools/grant_admin.py you@example.com` (revoke with `--revoke`). It
+with `tools/grant_admin.py you@example.com` (revoke with `--revoke`).
+Reviewers must also use two-factor authentication: on first sign-in the
+page shows a QR code to scan with an authenticator app and asks for a
+code, and every sign-in afterwards asks for the code; the API refuses admin
+tokens without it. It
 lists submissions as a paginated table with thumbnails and Pending / Posted
 / Rejected / All filters. Opening a row shows the full photo and story, and
 offers Queue to post, Save as draft, or Reject. Queued submissions wait in a
@@ -252,11 +256,8 @@ Google, Apple), verification, join and last sign-in dates and their posts;
 username, email and newsletter are editable, with Save enabled only once
 something changed and Close never asking about unsaved edits. Email
 accounts get a Reset password button (Firebase emails the usual reset
-link). Administrators must use two-factor authentication: an admin who
-signs in without a second factor enrolled is shown a QR code to scan with
-an authenticator app and must enter a code before the page opens, and
-every later sign-in asks for the code; the user endpoints refuse tokens
-without it. Delete user, in red, asks "Are you sure?" and then removes the Auth
+link). Two-factor authentication is required, as on the review page.
+Delete user, in red, asks "Are you sure?" and then removes the Auth
 user and the member profile, freeing the username; the member's posts, and
 the Sanity member document they reference, stay.
 
