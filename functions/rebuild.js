@@ -7,7 +7,7 @@
 // published and the scheduled run must not retry because of GitHub.
 
 export const EVENT_TYPE = "sanity-content-changed";
-export const DEFAULT_REPOSITORY = "andypohl/pizza-predator-app";
+export const DEFAULT_REPOSITORY = "andypohl/bikes-pizza-app";
 
 /** Values a placeholder secret might hold; treated as "no token". */
 const PLACEHOLDERS = new Set(["", "unset", "placeholder", "none"]);
