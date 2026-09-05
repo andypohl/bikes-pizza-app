@@ -20,6 +20,8 @@ Firestore and Storage rules go out through the Firebase CLI in the GitHub
 workflows on every merge (development) or release (production). Pulumi only
 runs when something in this directory changes.
 
+Open items are tracked in `TODO.md`, next to this file.
+
 ## What is deliberately not managed
 
 - Google sign-in: enabling it needs an OAuth client that only the Firebase
