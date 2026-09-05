@@ -67,6 +67,14 @@ export function categoryOf(post: Post): string {
   return FEED_LABELS[post.feed] ?? post.feed;
 }
 
+/**
+ * The category pages, in the order the filter shows them. Every feed has
+ * one, whether or not it has posts yet, so the Blog page exists before the
+ * first blog post.
+ */
+export const CATEGORY_FEEDS = ['bikes', 'pizza', 'blog'];
+export const CATEGORIES = CATEGORY_FEEDS.map((feed) => FEED_LABELS[feed]);
+
 /** Feeds whose newest post is featured on the front page, in row order. */
 export const FEATURED_FEEDS = ['bikes', 'pizza'];
 

@@ -4,10 +4,10 @@ import CategoryFilters from '../components/CategoryFilters.astro';
 import PostGrid from '../components/PostGrid.astro';
 import FeaturedRow from '../components/FeaturedRow.astro';
 import WavyDivider from '../components/WavyDivider.astro';
-import { categoryOf, getPosts, splitFeatured } from '../lib/sanity';
+import { CATEGORIES, getPosts, splitFeatured } from '../lib/sanity';
 
 const posts = await getPosts();
-const categories = [...new Set(posts.map(categoryOf))].sort((a, b) => a.localeCompare(b));
+const categories = CATEGORIES;
 const { featured, rest } = splitFeatured(posts);
 ---
 
