@@ -1,6 +1,11 @@
+import 'package:flutter/foundation.dart';
+
 /// Where posts come from: the public Sanity dataset behind bikes.pizza.
 ///
-/// The dataset is public, so reads need no token. The identifiers are not
+/// The dataset is public, so reads need no token. Release builds read the
+/// `production` dataset that bikes.pizza is built from; debug and profile
+/// builds read `development`, the copy behind bikes-pizza.dev, matching the
+/// Firebase project they use (see main.dart). The identifiers are not
 /// secrets; they can still be overridden at build time with
 /// `--dart-define=SANITY_PROJECT_ID=...` / `SANITY_DATASET=...` to point a
 /// build at another project or dataset.
@@ -12,17 +17,21 @@ class SanityConfig {
     defaultValue: 'nva9b0ia',
   );
 
-  static const String dataset = String.fromEnvironment(
+  static const String _definedDataset = String.fromEnvironment(
     'SANITY_DATASET',
-    defaultValue: 'production',
   );
+
+  static String get dataset => _definedDataset.isNotEmpty
+      ? _definedDataset
+      : (kReleaseMode ? 'production' : 'development');
 
   /// Sanity API version (a date), see
   /// https://www.sanity.io/docs/api-versioning
   static const String apiVersion = '2025-02-19';
 
   /// Canonical origin of the website that renders the same posts.
-  static const String siteUrl = 'https://bikes.pizza';
+  static String get siteUrl =>
+      kReleaseMode ? 'https://bikes.pizza' : 'https://bikes-pizza.dev';
 
   /// Posts fetched per page.
   static const int pageSize = 15;

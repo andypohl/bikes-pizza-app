@@ -1,1 +1,10 @@
 #include "Generated.xcconfig"
+
+// Google Sign-In iOS client of the Firebase project this configuration
+// talks to (Info.plist reads GIDClientID and the URL scheme from here).
+// Debug builds use bikes-pizza-dev, which has no Google provider yet, so
+// these still name the production client and Google sign-in fails there
+// with an auth error. Once Google is enabled on the dev project, put its
+// iOS client (CLIENT_ID and REVERSED_CLIENT_ID in ios/dev/GoogleService-Info.plist) here.
+GID_CLIENT_ID=79972934725-homgdv3a0uf97m156pkuq8ucqki8au7r.apps.googleusercontent.com
+GID_REVERSED_CLIENT_ID=com.googleusercontent.apps.79972934725-homgdv3a0uf97m156pkuq8ucqki8au7r

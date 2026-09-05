@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "35386977394",
+    "project_id": "bikes-pizza-dev",
+    "storage_bucket": "bikes-pizza-dev.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:35386977394:android:7121c44ba41d5e148326eb",
+        "android_client_info": {
+          "package_name": "com.pizzapredator.pizza_predator"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCJ2_2Llec7Wy7WtCpArfQeAN6SNdAbtIk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
