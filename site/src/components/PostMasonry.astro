@@ -1,4 +1,13 @@
 ---
+// Masonry grid of posts, newest first, read left to right.
+//
+// The theme laid this out with CSS multi-column (`columns-*`), which fills
+// each column top to bottom before starting the next, so the second-newest
+// post landed under the newest instead of beside it. Here the posts are
+// rendered in order as a flat list and a small script deals them into
+// columns round-robin (post 0 → column 0, post 1 → column 1, ...), which
+// keeps the masonry look with rows that read newest to oldest. Without
+// JavaScript the fallback is a plain grid in the same order.
 import { categoryOf, responsive, type Post } from '../lib/sanity';
 import { formatDate } from '../utils/format';
 
@@ -11,12 +20,12 @@ const { posts, eager = 4 } = Astro.props;
 const WIDTHS = [400, 800, 1200];
 ---
 
-<div class="masonry-container columns-1 sm:columns-2 md:columns-3 lg:columns-4 gap-6 space-y-6">
+<div class="masonry" data-masonry>
   {
     posts.map((post, i) => {
       const { src, srcset } = responsive(post.image, WIDTHS);
       return (
-        <div class="masonry-item break-inside-avoid mb-6">
+        <div class="masonry-item" data-index={i}>
           <a
             href={`/post/${post.id}/`}
             class="group block overflow-hidden rounded-lg transition-all duration-300 relative"
@@ -50,3 +59,64 @@ const WIDTHS = [400, 800, 1200];
     })
   }
 </div>
+
+<style>
+  /* Fallback and initial layout: a plain grid, in document order. */
+  .masonry {
+    display: grid;
+    grid-template-columns: repeat(var(--masonry-columns, 1), minmax(0, 1fr));
+    gap: 1.5rem;
+    align-items: start;
+  }
+  .masonry-column {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    min-width: 0;
+  }
+  /* Same breakpoints as the theme's columns-1 / sm:2 / md:3 / lg:4. */
+  @media (min-width: 640px) {
+    .masonry {
+      --masonry-columns: 2;
+    }
+  }
+  @media (min-width: 768px) {
+    .masonry {
+      --masonry-columns: 3;
+    }
+  }
+  @media (min-width: 1024px) {
+    .masonry {
+      --masonry-columns: 4;
+    }
+  }
+</style>
+
+<script>
+  // Deal the posts into columns in reading order. Re-run when the column
+  // count changes (resize) and after view transitions.
+  function layout(container: HTMLElement) {
+    const columns = Number(getComputedStyle(container).getPropertyValue('--masonry-columns')) || 1;
+    if (container.dataset.columns === String(columns)) return;
+    container.dataset.columns = String(columns);
+    const items = Array.from(container.querySelectorAll<HTMLElement>('.masonry-item')).sort(
+      (a, b) => Number(a.dataset.index) - Number(b.dataset.index),
+    );
+    container.replaceChildren();
+    const cols = Array.from({ length: columns }, () => {
+      const col = document.createElement('div');
+      col.className = 'masonry-column';
+      container.appendChild(col);
+      return col;
+    });
+    items.forEach((item, i) => cols[i % columns].appendChild(item));
+  }
+
+  function layoutAll() {
+    document.querySelectorAll<HTMLElement>('[data-masonry]').forEach(layout);
+  }
+
+  layoutAll();
+  window.addEventListener('resize', layoutAll);
+  document.addEventListener('astro:page-load', layoutAll);
+</script>
