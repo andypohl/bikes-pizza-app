@@ -425,8 +425,13 @@ button.secondary + button.secondary {
   outline-offset: 2px;
 }
 
+.switch:has(input:disabled) {
+  cursor: default;
+  color: var(--muted);
+}
+
 .switch input:disabled + .track {
-  opacity: 0.5;
+  opacity: 0.4;
 }
 
 .switch > span:last-child {

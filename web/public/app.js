@@ -330,7 +330,7 @@ function renderProfile(user, profile) {
   $("#profile-form").username.value = profile.username;
   renderNewsletters($("#newsletters"), profile.newsletters);
   renderPassword(user);
-  renderMfa(user);
+  void renderMfa(user);
 }
 
 /**
@@ -388,12 +388,29 @@ function enrolledFactor(user) {
   return multiFactor(user).enrolledFactors[0] ?? null;
 }
 
-function renderMfa(user) {
+/** Whether the account has the admin claim; admins must keep a second factor. */
+async function isAdmin(user) {
+  try {
+    const { claims } = await user.getIdTokenResult();
+    return claims.admin === true;
+  } catch {
+    return false;
+  }
+}
+
+async function renderMfa(user) {
   const on = enrolledFactor(user) !== null;
-  $("#mfa-toggle").checked = on;
-  $("#mfa-status").textContent = on
-    ? "On. You're asked for a code from your authenticator app when you sign in."
-    : "Off. Add a second step at sign-in: a code from an authenticator app on your phone.";
+  // The admin and submissions pages insist on a second factor, so an
+  // administrator can turn it on here but not off.
+  const locked = on && (await isAdmin(user));
+  const toggle = $("#mfa-toggle");
+  toggle.checked = on;
+  toggle.disabled = locked;
+  $("#mfa-status").textContent = locked
+    ? "On, and required for administrators."
+    : on
+      ? "On. You're asked for a code from your authenticator app when you sign in."
+      : "Off. Add a second step at sign-in: a code from an authenticator app on your phone.";
   $("#mfa-confirm").hidden = true;
 }
 
@@ -477,7 +494,7 @@ $("#mfa-setup-form").addEventListener("submit", async (event) => {
   try {
     await multiFactor(user).enroll(TotpMultiFactorGenerator.assertionForEnrollment(enrolling, code), FACTOR_NAME);
     enrolling = null;
-    renderMfa(user);
+    await renderMfa(user);
     show("account");
     say("Two-factor authentication is on. You'll be asked for a code next time you sign in.", true);
   } catch (error) {
@@ -489,7 +506,7 @@ $("#mfa-setup-form").addEventListener("submit", async (event) => {
 
 $("#mfa-setup-cancel").addEventListener("click", () => {
   enrolling = null;
-  renderMfa(auth.currentUser); // the switch goes back to off
+  void renderMfa(auth.currentUser); // the switch goes back to off
   show("account");
 });
 
@@ -500,7 +517,7 @@ $("#mfa-toggle").addEventListener("change", async (event) => {
   if (event.currentTarget.checked) {
     if (enrolledFactor(user)) return;
     await startEnrollment(user);
-    if (!enrolling) renderMfa(user); // setup could not start
+    if (!enrolling) await renderMfa(user); // setup could not start
     return;
   }
   // Keep the switch on until the person confirms.
@@ -519,7 +536,7 @@ $("#mfa-off").addEventListener("click", async () => {
   busy(true);
   try {
     await multiFactor(user).unenroll(factor);
-    renderMfa(user);
+    await renderMfa(user);
     say("Two-factor authentication is off.", true);
   } catch (error) {
     say(describe(error) ?? "Could not turn off two-factor authentication.");

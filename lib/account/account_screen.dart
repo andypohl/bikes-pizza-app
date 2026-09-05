@@ -358,6 +358,7 @@ class _SecondFactorSection extends StatefulWidget {
 
 class _SecondFactorSectionState extends State<_SecondFactorSection> {
   List<SecondFactor>? _factors;
+  bool _admin = false;
   bool _busy = false;
 
   @override
@@ -368,7 +369,13 @@ class _SecondFactorSectionState extends State<_SecondFactorSection> {
 
   Future<void> _load() async {
     final factors = await widget.auth.enrolledFactors();
-    if (mounted) setState(() => _factors = factors);
+    final admin = await widget.auth.isAdmin();
+    if (mounted) {
+      setState(() {
+        _factors = factors;
+        _admin = admin;
+      });
+    }
   }
 
   Future<void> _turnOn() async {
@@ -436,19 +443,24 @@ class _SecondFactorSectionState extends State<_SecondFactorSection> {
       );
     }
     final on = factors.isNotEmpty;
+    // The admin and submissions pages insist on a second factor, so an
+    // administrator can turn it on here but not off.
+    final locked = on && _admin;
     return SwitchListTile(
       key: const Key('second-factor'),
       contentPadding: EdgeInsets.zero,
       title: const Text('Authenticator app'),
       subtitle: Text(
-        on
+        locked
+            ? 'On, and required for administrators.'
+            : on
             ? "On. You're asked for a code from your authenticator app when "
                   'you sign in.'
             : 'Off. Add a second step at sign-in: a code from an '
                   'authenticator app on your phone.',
       ),
       value: on,
-      onChanged: _busy
+      onChanged: _busy || locked
           ? null
           : (next) {
               if (next) {

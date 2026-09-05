@@ -140,6 +140,10 @@ abstract class AuthService {
 
   /// Turns two-factor authentication off by removing [factor].
   Future<void> removeSecondFactor(SecondFactor factor);
+
+  /// Whether the signed-in account is an administrator (the `admin` claim).
+  /// Administrators must keep a second factor for the admin pages.
+  Future<bool> isAdmin();
 }
 
 /// [AuthService] backed by Firebase Authentication.
@@ -356,6 +360,18 @@ class FirebaseAuthService implements AuthService {
     if (user == null) throw AuthException('Sign in first.');
     await user.multiFactor.unenroll(factorUid: factor.id);
   });
+
+  @override
+  Future<bool> isAdmin() async {
+    final user = _auth.currentUser;
+    if (user == null) return false;
+    try {
+      final token = await user.getIdTokenResult();
+      return token.claims?['admin'] == true;
+    } on fb.FirebaseAuthException {
+      return false;
+    }
+  }
 
   static AppUser? _toAppUser(fb.User? user) => user == null
       ? null

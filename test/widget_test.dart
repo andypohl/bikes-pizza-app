@@ -140,6 +140,11 @@ class FakeAuthService implements AuthService {
     factors.removeWhere((f) => f.id == factor.id);
   }
 
+  bool admin = false;
+
+  @override
+  Future<bool> isAdmin() async => admin;
+
   @override
   Future<void> createAccount({
     required String email,
@@ -907,6 +912,27 @@ void main() {
     await tester.pumpAndSettle();
     expect(auth.factors, isEmpty);
     expect(find.text('Two-factor authentication is off.'), findsOneWidget);
+  });
+
+  testWidgets('administrators cannot turn two-factor authentication off', (
+    tester,
+  ) async {
+    members = FakeMemberService();
+    await openSignIn(tester);
+    auth
+      ..admin = true
+      ..factors.add(const SecondFactor(id: 'f1', name: 'Authenticator app'));
+    await tester.ensureVisible(find.byKey(const Key('google-sign-in')));
+    await tester.tap(find.byKey(const Key('google-sign-in')));
+    await tester.pumpAndSettle();
+    await openAccount(tester);
+
+    final toggle = find.byKey(const Key('second-factor'));
+    await scrollTo(tester, toggle);
+    final tile = tester.widget<SwitchListTile>(toggle);
+    expect(tile.value, isTrue);
+    expect(tile.onChanged, isNull);
+    expect(find.text('On, and required for administrators.'), findsOneWidget);
   });
 
   testWidgets('the account screen insists on a valid username', (tester) async {
