@@ -38,7 +38,7 @@ const cloudflareZoneId = cfg.require("cloudflareZoneId");
 const manageDns = cfg.getBoolean("manageDns") ?? true;
 
 /** GitHub repository (owner/name) and the environment the stack deploys. */
-const repository = cfg.get("repository") ?? "andypohl/pizza-predator-app";
+const repository = cfg.get("repository") ?? "andypohl/bikes-pizza-app";
 const repoName = repository.split("/")[1];
 const githubEnvironment = cfg.require("githubEnvironment");
 /** Sanity dataset the environment's website is built from. */

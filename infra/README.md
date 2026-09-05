@@ -94,7 +94,7 @@ Set with `pulumi config set <key> <value>` on the selected stack.
 | `homeSiteId`, `submissionsSiteId` | Hosting site IDs |
 | `cloudflareZoneId`   | Cloudflare zone of the domain |
 | `manageDns`          | manage the Cloudflare records (default true) |
-| `repository`         | GitHub `owner/name` (default `andypohl/pizza-predator-app`) |
+| `repository`         | GitHub `owner/name` (default `andypohl/bikes-pizza-app`) |
 | `githubEnvironment`  | GitHub environment the deploy workflow targets |
 | `sanityDataset`      | Sanity dataset the environment builds from |
 | `gcp:project`, `gcp:userProjectOverride`, `github:owner` | provider settings |
