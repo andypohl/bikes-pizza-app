@@ -15,15 +15,19 @@ void main() {
   testWidgets('artwork spans 80% of the width in portrait', (tester) async {
     await pumpSplash(tester, const Size(400, 800));
     expect(tester.getSize(find.byKey(const Key('splash-art'))).width, 320);
-    expect(tester.getCenter(find.byKey(const Key('splash-art'))),
-        const Offset(200, 400));
+    expect(
+      tester.getCenter(find.byKey(const Key('splash-art'))),
+      const Offset(200, 400),
+    );
   });
 
   testWidgets('artwork keeps the portrait size in landscape', (tester) async {
     await pumpSplash(tester, const Size(800, 400));
     expect(tester.getSize(find.byKey(const Key('splash-art'))).width, 320);
-    expect(tester.getCenter(find.byKey(const Key('splash-art'))),
-        const Offset(400, 200));
+    expect(
+      tester.getCenter(find.byKey(const Key('splash-art'))),
+      const Offset(400, 200),
+    );
   });
 
   const app = Directionality(
@@ -31,8 +35,9 @@ void main() {
     child: Text('the app'),
   );
 
-  testWidgets('bootstrap shows the splash for the minimum, then the app',
-      (tester) async {
+  testWidgets('bootstrap shows the splash for the minimum, then the app', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       AppBootstrap(
         load: () async => app,
@@ -56,8 +61,9 @@ void main() {
     expect(find.byType(SplashScreen), findsNothing);
   });
 
-  testWidgets('the minimum counts from the first frame, after warm-up',
-      (tester) async {
+  testWidgets('the minimum counts from the first frame, after warm-up', (
+    tester,
+  ) async {
     final artwork = Completer<void>();
     await tester.pumpWidget(
       AppBootstrap(
