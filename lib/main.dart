@@ -12,6 +12,7 @@ import 'models/post_feed.dart';
 import 'screens/post_list_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/store_screen.dart';
+import 'store/cart.dart';
 import 'store/store_repository.dart';
 import 'submissions/photo_picker.dart';
 import 'submissions/submission_service.dart';
@@ -27,11 +28,13 @@ Future<void> main() async {
         : DevFirebaseOptions.currentPlatform,
   );
   final settings = await AppSettings.load();
+  final cart = await Cart.load();
   runApp(
     BikesPizzaApp(
       settings: settings,
       repository: PostRepository.forConfig(),
       store: StoreRepository.forConfig(),
+      cart: cart,
       auth: FirebaseAuthService(),
       members: CloudFunctionsMemberService(),
       submissions: CloudFunctionsSubmissionService(),
@@ -46,7 +49,8 @@ class BikesPizzaApp extends StatelessWidget {
     required this.settings,
     required this.repository,
     required this.auth,
-    this.store,
+    required this.store,
+    required this.cart,
     this.members,
     this.submissions,
     this.photos,
@@ -55,10 +59,10 @@ class BikesPizzaApp extends StatelessWidget {
   final AppSettings settings;
   final PostRepository repository;
   final AuthService auth;
+  final StoreRepository store;
 
-  /// Null when the build has no Shopify settings; the Store tab then shows
-  /// a placeholder.
-  final StoreRepository? store;
+  /// The shopping cart, shared by the Store tab and the product pages.
+  final Cart cart;
 
   /// Null when account management is unavailable; Settings then hides it.
   final MemberService? members;
@@ -90,6 +94,7 @@ class BikesPizzaApp extends StatelessWidget {
             repository: repository,
             auth: auth,
             store: store,
+            cart: cart,
             members: members,
             submissions: submissions,
             photos: photos,
@@ -108,7 +113,8 @@ class HomeShell extends StatefulWidget {
     super.key,
     required this.repository,
     required this.auth,
-    this.store,
+    required this.store,
+    required this.cart,
     this.members,
     this.submissions,
     this.photos,
@@ -116,7 +122,8 @@ class HomeShell extends StatefulWidget {
 
   final PostRepository repository;
   final AuthService auth;
-  final StoreRepository? store;
+  final StoreRepository store;
+  final Cart cart;
   final MemberService? members;
   final SubmissionService? submissions;
   final PhotoPicker? photos;
@@ -149,7 +156,11 @@ class _HomeShellState extends State<HomeShell> {
         photos: widget.photos,
         members: widget.members,
       ),
-      StoreScreen(repository: widget.store, auth: widget.auth),
+      StoreScreen(
+        repository: widget.store,
+        auth: widget.auth,
+        cart: widget.cart,
+      ),
       SettingsScreen(auth: widget.auth, members: widget.members),
     ];
 

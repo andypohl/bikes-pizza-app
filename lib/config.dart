@@ -37,18 +37,28 @@ class SanityConfig {
   static const int pageSize = 15;
 }
 
-/// Shopify Storefront API settings. Both values come from the Shopify admin
+/// Shopify settings. The catalogue itself comes from Sanity (see
+/// `store/store_repository.dart`); Shopify is only where checkout happens.
+///
+/// The store domain and Storefront access token come from the Shopify admin
 /// (a Headless channel or a custom app with Storefront API access) and are
 /// supplied at build time, typically via `--dart-define-from-file`:
 ///
 ///   flutter run --dart-define-from-file=config/local.json
 ///
-/// The Storefront access token is a *public* token by Shopify's design: it
-/// can only read the catalogue and create carts, so shipping it inside the
-/// app is expected. It is still kept out of the repo so the store can be
-/// swapped without a code change.
+/// With them, checkout goes through the Storefront API, which lets the
+/// signed-in member's email pre-fill it. Without them, checkout uses the
+/// store's cart permalink, which needs no token. The Storefront access
+/// token is a *public* token by Shopify's design: it can only read the
+/// catalogue and create carts, so shipping it inside the app is expected.
 class ShopifyConfig {
   ShopifyConfig._();
+
+  /// The store's own site, where the cart permalink opens checkout.
+  static const String storeUrl = String.fromEnvironment(
+    'SHOPIFY_STORE_URL',
+    defaultValue: 'https://shop.bikes.pizza',
+  );
 
   /// Host for Storefront API calls: `your-store.myshopify.com`, or a custom
   /// domain connected to the store. Checkout uses Shopify's primary domain.
@@ -66,6 +76,4 @@ class ShopifyConfig {
 
   static bool get isConfigured =>
       storeDomain.isNotEmpty && storefrontToken.isNotEmpty;
-
-  static const int pageSize = 20;
 }

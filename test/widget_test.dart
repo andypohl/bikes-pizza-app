@@ -12,6 +12,7 @@ import 'package:pizza_predator/data/post_repository.dart';
 import 'package:pizza_predator/main.dart';
 import 'package:pizza_predator/models/post.dart';
 import 'package:pizza_predator/models/post_feed.dart';
+import 'package:pizza_predator/store/cart.dart';
 import 'package:pizza_predator/store/product.dart';
 import 'package:pizza_predator/store/store_repository.dart';
 import 'package:pizza_predator/submissions/photo_picker.dart';
@@ -324,62 +325,65 @@ class FakePhotoPicker implements PhotoPicker {
 
 /// In-memory store with two products; records checkout requests.
 class FakeStoreRepository implements StoreRepository {
+  /// Each checkout as "variant x quantity" lines, e.g. `v-m x2`.
   final checkouts = <String>[];
   String? lastEmail;
+  bool empty = false;
 
   static const _usd = Money(amount: 20, currencyCode: 'USD');
 
-  @override
-  Future<ProductPage> fetchProducts({String? after}) async => const ProductPage(
-    products: [
-      Product(
-        id: 'p1',
-        title: 'Pizza Predator Tee',
-        handle: 'tee',
-        description: 'Soft cotton.',
-        price: _usd,
-        availableForSale: true,
-        variants: [
-          ProductVariant(
-            id: 'v-s',
-            title: 'S',
-            price: _usd,
-            availableForSale: true,
-          ),
-          ProductVariant(
-            id: 'v-m',
-            title: 'M',
-            price: _usd,
-            availableForSale: true,
-          ),
-        ],
-      ),
-      Product(
-        id: 'p2',
-        title: 'Sticker Pack',
-        handle: 'stickers',
-        description: '',
-        price: Money(amount: 5, currencyCode: 'USD'),
-        availableForSale: false,
-        variants: [
-          ProductVariant(
-            id: 'v-st',
-            title: 'Default Title',
-            price: Money(amount: 5, currencyCode: 'USD'),
-            availableForSale: false,
-          ),
-        ],
-      ),
-    ],
-  );
+  static const products = [
+    Product(
+      id: 'p1',
+      title: 'Pizza Predator Tee',
+      handle: 'tee',
+      description: 'Soft cotton.',
+      category: 'Apparel',
+      price: _usd,
+      availableForSale: true,
+      variants: [
+        ProductVariant(
+          id: 'v-s',
+          numericId: 1,
+          title: 'S',
+          price: _usd,
+          availableForSale: true,
+        ),
+        ProductVariant(
+          id: 'v-m',
+          numericId: 2,
+          title: 'M',
+          price: _usd,
+          availableForSale: true,
+        ),
+      ],
+    ),
+    Product(
+      id: 'p2',
+      title: 'Sticker Pack',
+      handle: 'stickers',
+      description: '',
+      category: 'Stickers',
+      price: Money(amount: 5, currencyCode: 'USD'),
+      availableForSale: false,
+      variants: [
+        ProductVariant(
+          id: 'v-st',
+          numericId: 3,
+          title: 'Default Title',
+          price: Money(amount: 5, currencyCode: 'USD'),
+          availableForSale: false,
+        ),
+      ],
+    ),
+  ];
 
   @override
-  Future<Uri> createCheckout({
-    required String variantId,
-    int quantity = 1,
-    String? email,
-  }) async {
-    checkouts.add(variantId);
+  Future<List<Product>> fetchProducts() async => empty ? const [] : products;
+
+  @override
+  Future<Uri> checkout(List<CartItem> items, {String? email}) async {
+    checkouts.add(items.map((i) => '${i.variantId} x${i.quantity}').join(', '));
     lastEmail = email;
     return Uri.parse('https://example.myshopify.com/checkouts/1');
   }
@@ -409,6 +413,7 @@ void main() {
 
   late FakeAuthService auth;
   FakeStoreRepository? store;
+  Cart cart = Cart();
   FakeMemberService? members;
   late FakeSubmissionService submissions;
   late FakePhotoPicker photos;
@@ -422,6 +427,7 @@ void main() {
       buildSignature: '',
     );
     store = null;
+    cart = Cart();
     members = null;
     submissions = FakeSubmissionService();
     photos = FakePhotoPicker();
@@ -471,7 +477,8 @@ void main() {
         settings: AppSettings(),
         repository: repo,
         auth: auth,
-        store: store,
+        store: store ??= FakeStoreRepository(),
+        cart: cart,
         members: members,
         submissions: submissions,
         photos: photos,
@@ -619,22 +626,18 @@ void main() {
     expect(repo.requestedFeeds, containsAll(PostFeed.values));
   });
 
-  testWidgets('Store tab shows the coming-soon placeholder when unconfigured', (
-    tester,
-  ) async {
-    store = null;
+  testWidgets('an empty store says so', (tester) async {
+    store = FakeStoreRepository()..empty = true;
     await pumpApp(tester);
 
     await tester.tap(find.text('Store'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Coming Soon!'), findsOneWidget);
+    expect(find.text('Nothing in the shop yet'), findsOneWidget);
   });
 
-  testWidgets('Store tab lists products with prices and sold-out state', (
-    tester,
-  ) async {
-    store = FakeStoreRepository();
+  testWidgets('Store tab lists products with prices, sold-out state and '
+      'category chips', (tester) async {
     await pumpApp(tester);
 
     await tester.tap(find.text('Store'));
@@ -644,12 +647,56 @@ void main() {
     expect(find.text('\$20.00'), findsOneWidget);
     expect(find.text('Sticker Pack'), findsOneWidget);
     expect(find.text('Sold out'), findsOneWidget);
+    // No badge while the cart is empty.
+    expect(find.text('0'), findsNothing);
+
+    // Chips: All products first, then one per category.
+    expect(find.widgetWithText(ChoiceChip, 'All products'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Stickers'));
+    await tester.pumpAndSettle();
+    expect(find.text('Sticker Pack'), findsOneWidget);
+    expect(find.text('Pizza Predator Tee'), findsNothing);
   });
 
-  testWidgets('buying a variant creates a checkout with the signed-in email', (
-    tester,
-  ) async {
-    store = FakeStoreRepository();
+  testWidgets('adding to the cart bumps the badge by the quantity and stays '
+      'on the page', (tester) async {
+    await pumpApp(tester);
+    await tester.tap(find.text('Store'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pizza Predator Tee'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Soft cotton.'), findsOneWidget);
+    await scrollTo(tester, find.text('M'));
+    await tester.tap(find.text('M'));
+    await scrollTo(tester, find.byKey(const Key('quantity-inc')));
+    await tester.tap(find.byKey(const Key('quantity-inc')));
+    await tester.pump();
+    expect(tester.widget<Text>(find.byKey(const Key('quantity'))).data, '2');
+
+    await scrollTo(tester, find.byKey(const Key('add-to-cart')));
+    await tester.tap(find.byKey(const Key('add-to-cart')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Added 2 to your cart.'), findsOneWidget);
+    expect(cart.count, 2);
+    expect(cart.items.single.variantId, 'v-m');
+    // Still on the product page; the cart did not open.
+    expect(find.byKey(const Key('buy-now')), findsOneWidget);
+    expect(find.text('Your cart'), findsNothing);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    final badge = find.byKey(const Key('cart-badge'));
+    expect(tester.widget<Badge>(badge).isLabelVisible, isTrue);
+    expect(
+      find.descendant(of: badge, matching: find.text('2')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Buy it now with an empty cart checks out that quantity with '
+      'the signed-in email', (tester) async {
     await pumpApp(tester);
     await auth.signIn(email: 'andy@example.com', password: 'correct-horse');
 
@@ -658,22 +705,134 @@ void main() {
     await tester.tap(find.text('Pizza Predator Tee'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Soft cotton.'), findsOneWidget);
-    await tester.ensureVisible(find.text('M'));
+    await scrollTo(tester, find.text('M'));
     await tester.tap(find.text('M'));
+    await scrollTo(tester, find.byKey(const Key('quantity-inc')));
+    await tester.tap(find.byKey(const Key('quantity-inc')));
     await tester.pump();
-    await tester.ensureVisible(find.byKey(const Key('buy-now')));
+    await tester.tap(find.byKey(const Key('quantity-inc')));
+    await tester.pump();
+    await scrollTo(tester, find.byKey(const Key('buy-now')));
     await tester.tap(find.byKey(const Key('buy-now')));
     // url_launcher has no platform implementation under test, so the busy
-    // spinner never settles; a single frame is enough for the checkout call.
+    // spinner never settles; a few frames are enough for the checkout call.
+    await tester.pump();
     await tester.pump();
 
-    expect(store!.checkouts, ['v-m']);
+    expect(find.text('Check out what?'), findsNothing);
+    expect(store!.checkouts, ['v-m x3']);
     expect(store!.lastEmail, 'andy@example.com');
+    expect(cart.isEmpty, isTrue); // buying does not touch the cart
   });
 
-  testWidgets('sold-out product cannot be bought', (tester) async {
-    store = FakeStoreRepository();
+  testWidgets('Buy it now with items in the cart asks, and can include '
+      'them', (tester) async {
+    await pumpApp(tester);
+    await cart.add(
+      CartItem.of(
+        FakeStoreRepository.products[0],
+        FakeStoreRepository.products[0].variants[0],
+        quantity: 1,
+      ),
+    );
+
+    await tester.tap(find.text('Store'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pizza Predator Tee'));
+    await tester.pumpAndSettle();
+    await scrollTo(tester, find.text('M'));
+    await tester.tap(find.text('M'));
+    await tester.pump();
+    await scrollTo(tester, find.byKey(const Key('buy-now')));
+
+    await tester.tap(find.byKey(const Key('buy-now')));
+    await tester.pumpAndSettle();
+    expect(find.text('Check out what?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(store!.checkouts, isEmpty);
+
+    // Checkout never settles under test (url_launcher has no platform
+    // implementation), so each test gets one real checkout.
+    await tester.tap(find.byKey(const Key('buy-now')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('buy-with-cart')));
+    await tester.pump();
+    await tester.pump();
+    expect(store!.checkouts, ['v-s x1, v-m x1']);
+    expect(cart.count, 1); // the cart itself is untouched
+  });
+
+  testWidgets('Buy it now can check out just this item, leaving the cart', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    await cart.add(
+      CartItem.of(
+        FakeStoreRepository.products[0],
+        FakeStoreRepository.products[0].variants[0],
+        quantity: 1,
+      ),
+    );
+
+    await tester.tap(find.text('Store'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pizza Predator Tee'));
+    await tester.pumpAndSettle();
+    await scrollTo(tester, find.text('M'));
+    await tester.tap(find.text('M'));
+    await tester.pump();
+    await scrollTo(tester, find.byKey(const Key('buy-now')));
+
+    await tester.tap(find.byKey(const Key('buy-now')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('buy-just-this')));
+    await tester.pump();
+    await tester.pump();
+    expect(store!.checkouts, ['v-m x1']);
+    expect(cart.count, 1);
+  });
+
+  testWidgets('the cart screen adjusts quantities and checks everything out', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    await cart.add(
+      CartItem.of(
+        FakeStoreRepository.products[0],
+        FakeStoreRepository.products[0].variants[1],
+        quantity: 1,
+      ),
+    );
+
+    await tester.tap(find.text('Store'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('cart-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Your cart'), findsOneWidget);
+    expect(find.text('M'), findsOneWidget); // the variant
+    expect(find.byKey(const Key('cart-subtotal')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('quantity-inc')));
+    await tester.pumpAndSettle();
+    expect(cart.count, 2);
+    expect(
+      tester.widget<Text>(find.byKey(const Key('cart-subtotal'))).data,
+      '\$40.00',
+    );
+
+    await tester.tap(find.byKey(const Key('cart-checkout')));
+    await tester.pump();
+    await tester.pump();
+    expect(store!.checkouts, ['v-m x2']);
+
+    await tester.tap(find.byKey(const Key('cart-remove-2')));
+    await tester.pumpAndSettle();
+    expect(find.text('Your cart is empty.'), findsOneWidget);
+  });
+
+  testWidgets('sold-out product cannot be bought or added', (tester) async {
     await pumpApp(tester);
 
     await tester.tap(find.text('Store'));
@@ -681,10 +840,16 @@ void main() {
     await tester.tap(find.text('Sticker Pack'));
     await tester.pumpAndSettle();
 
-    final button = tester.widget<FilledButton>(
-      find.byKey(const Key('buy-now')),
+    expect(
+      tester.widget<FilledButton>(find.byKey(const Key('buy-now'))).onPressed,
+      isNull,
     );
-    expect(button.onPressed, isNull);
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('add-to-cart')))
+          .onPressed,
+      isNull,
+    );
   });
 
   testWidgets('user can sign in from Settings and sign out again', (
