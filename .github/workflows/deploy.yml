@@ -8,12 +8,15 @@
 #
 # Variables, read from the environment (which overrides the repository):
 #   FIREBASE_PROJECT                Firebase project ID to deploy to
+#   SANITY_DATASET                  dataset the environment is built from; also
+#                                   picks which Studio and app the sanity job
+#                                   deploys, so it must be set on both environments
 #   GCP_WORKLOAD_IDENTITY_PROVIDER  projects/<number>/locations/global/
 #                                   workloadIdentityPools/<pool>/providers/<id>
 #   GCP_DEPLOY_SERVICE_ACCOUNT      deploy service account email
 #   SITE_URL                        where the website is served from
 #   PUBLIC_API_URL                  (optional) submissions API origin the site calls
-#   SANITY_PROJECT_ID, SANITY_DATASET  (optional) overrides for functions/.env
+#   SANITY_PROJECT_ID               (optional) override for functions/.env
 #   MAILGUN_DOMAIN                  (optional) Mailgun sending domain; production only
 #   MAILGUN_API_BASE                (optional) Mailgun API base, EU accounts only
 #   SUBMISSION_NOTIFY_EMAIL         (optional) who to email about submissions
