@@ -47,6 +47,21 @@ const githubEnvironment = cfg.require("githubEnvironment");
 /** Sanity dataset the environment's website is built from. */
 const sanityDataset = cfg.require("sanityDataset");
 
+/**
+ * The Flutter app's store identifiers, registered as Firebase apps so the
+ * app can use Auth, Firestore and Storage (`flutterfire configure` reads
+ * these registrations back into the config files the app ships with).
+ * The Android hashes are the SHA-1 and SHA-256 fingerprints of every key
+ * that signs the app, needed for Google sign-in; the Apple team ID is
+ * optional and only informs App Store links. Leave the identifiers unset
+ * for an environment with no app.
+ */
+const iosBundleId = cfg.get("iosBundleId");
+const androidPackageName = cfg.get("androidPackageName");
+const androidSha1Hashes = cfg.getObject<string[]>("androidSha1Hashes") ?? [];
+const androidSha256Hashes = cfg.getObject<string[]>("androidSha256Hashes") ?? [];
+const appleTeamId = cfg.get("appleTeamId");
+
 // ---------------------------------------------------------------------------
 // Project
 
@@ -104,6 +119,29 @@ const webApp = new gcp.firebase.WebApp(
   { project: project.projectId, displayName: webAppName, deletionPolicy: "DELETE" },
   firebaseReady,
 );
+
+/** The Flutter app, one registration per platform. */
+const iosApp = iosBundleId
+  ? new gcp.firebase.AppleApp(
+      "ios-app",
+      { project: project.projectId, displayName: "bikes.pizza (ios)", bundleId: iosBundleId, teamId: appleTeamId, deletionPolicy: "DELETE" },
+      firebaseReady,
+    )
+  : undefined;
+const androidApp = androidPackageName
+  ? new gcp.firebase.AndroidApp(
+      "android-app",
+      {
+        project: project.projectId,
+        displayName: "bikes.pizza (android)",
+        packageName: androidPackageName,
+        sha1Hashes: androidSha1Hashes,
+        sha256Hashes: androidSha256Hashes,
+        deletionPolicy: "DELETE",
+      },
+      firebaseReady,
+    )
+  : undefined;
 
 // ---------------------------------------------------------------------------
 // Data
@@ -361,6 +399,8 @@ for (const [variableName, value] of Object.entries(variables)) {
 
 export const projectNumber = project.number;
 export const webAppId = webApp.appId;
+export const iosAppId = iosApp?.appId;
+export const androidAppId = androidApp?.appId;
 export const deployServiceAccount = deployer.email;
 export const workloadIdentityProvider = providerResourceName;
 export const websiteUrl = `https://${domain}/`;

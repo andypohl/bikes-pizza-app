@@ -30,8 +30,9 @@ Open items are tracked in `TODO.md`, next to this file.
 - Secret values. The program creates the Secret Manager entries; the values
   are set with `firebase functions:secrets:set` and never pass through state.
 - Sanity (project, datasets, Studio) and Shopify; neither has a provider.
-- The Flutter app registrations (`flutterfire configure`), the Resize Images
-  extension, and the Artifact Registry cleanup policy the Firebase CLI sets.
+- The Resize Images extension, and the Artifact Registry cleanup policy the
+  Firebase CLI sets. (The Flutter app registrations are managed: see the
+  `iosBundleId`, `androidPackageName` and `androidSha*Hashes` config.)
 - Cloud Functions, Cloud Scheduler jobs and Cloud Run services: created by
   `firebase deploy`.
 

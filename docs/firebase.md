@@ -22,7 +22,15 @@ the intended shape and have not been created yet.
 
 ## Registered apps (current)
 
-Both projects register the same iOS bundle ID and Android package name.
+Both projects register the same iOS bundle ID, `com.pizzapredator.bikesPizza`,
+and Android package name, `com.pizzapredator.bikes_pizza` (the app was born
+as Pizza Predator and used `…pizzaPredator` / `…pizza_predator` until
+September 2026; those registrations, and the API keys Firebase created for
+them, are still in both projects and can be deleted once nothing else uses
+them). The development project's registrations are managed by Pulumi
+(`infra/index.ts`, config `iosBundleId`, `androidPackageName`,
+`androidSha1Hashes`, `androidSha256Hashes`); production's were made by hand
+with the same values.
 Production's config lives at `lib/firebase_options.dart`,
 `android/app/google-services.json` and `ios/Runner/GoogleService-Info.plist`;
 development's at `lib/firebase_options_dev.dart`,
@@ -37,11 +45,14 @@ the paths. The iOS Google Sign-In client ID comes from `GID_CLIENT_ID` in
 
 - One iOS app and one Android app, both under the `com.pizzapredator`
   reverse-domain prefix. The iOS bundle ID and Android package name differ
-  only in casing and separators; both are set in the native projects.
-- Registered with `flutterfire configure`, which wrote
-  `lib/firebase_options.dart`, `android/app/google-services.json`, and
-  `ios/Runner/GoogleService-Info.plist`, and added the Google Services
-  Gradle plugin to the Android build.
+  only in casing and separators (Android segments cannot contain hyphens);
+  both are set in the native projects (`PRODUCT_BUNDLE_IDENTIFIER` in
+  `ios/Runner.xcodeproj/project.pbxproj`, `applicationId` and `namespace`
+  in `android/app/build.gradle.kts`).
+- `flutterfire configure` wrote `lib/firebase_options.dart`,
+  `android/app/google-services.json`, and
+  `ios/Runner/GoogleService-Info.plist` from those registrations, and added
+  the Google Services Gradle plugin to the Android build.
 - These config files are committed. They identify the app to Firebase; they
   do not grant access. Access is governed by security rules.
 - The repository is public, so GitHub's secret scanning flags the Firebase
@@ -63,6 +74,13 @@ API:
   SHA-1 here too**, or Firebase calls from the store build will be rejected.
   This is the same fingerprint the Google sign-in provider needs.
 - Browser key: unused by the app; left as Firebase created it.
+
+Registering a new iOS or Android app makes Firebase create another key for
+that platform, unrestricted; apply the same restrictions to it (the API
+Keys API `keys.patch` with `updateMask=restrictions`, keeping the
+`apiTargets` Firebase set). The keys of the old `pizzaPredator` /
+`pizza_predator` registrations keep their old restrictions and stop
+mattering once those registrations are deleted.
 
 To review or change these, open Google Cloud console, APIs & Services,
 Credentials, for the Firebase project, or use the API Keys API with an
@@ -96,9 +114,12 @@ OAuth token that has the cloud-platform scope.
     clients in the underlying Google Cloud project; the app config files
     must be regenerated afterwards (see below) so they contain those
     client IDs.
-  - Apple was enabled through the Identity Toolkit API with the iOS bundle
-    ID as the client ID and no Services ID, which is enough for the native
-    iOS flow.
+  - Apple was enabled through the Identity Toolkit API. Its client ID is
+    the Services ID used by the website's sign-in; the native iOS flow
+    works because Firebase also accepts tokens issued to any iOS bundle ID
+    registered in the project, so registering a new bundle ID is all the
+    provider needs. The App ID in Apple Developer must carry the Sign in
+    with Apple capability (see below).
 - The app exposes email sign-in, account creation, password reset,
   Google sign-in, Apple sign-in (iOS only), and sign-out from Settings,
   through the `AuthService` facade in `lib/auth/`.
@@ -470,8 +491,41 @@ extension, and secret values.
 
 ```sh
 dart pub global activate flutterfire_cli
-flutterfire configure --platforms=ios,android
+# production: the default config files
+flutterfire configure --project=pizzapredator-a445e --platforms=ios,android \
+  --ios-bundle-id=com.pizzapredator.bikesPizza --android-package-name=com.pizzapredator.bikes_pizza \
+  --out=lib/firebase_options.dart --ios-out=ios/Runner/GoogleService-Info.plist --ios-target=Runner \
+  --android-out=android/app/google-services.json --yes
+# development: the Debug build configuration's files
+flutterfire configure --project=bikes-pizza-dev --platforms=ios,android \
+  --ios-bundle-id=com.pizzapredator.bikesPizza --android-package-name=com.pizzapredator.bikes_pizza \
+  --out=lib/firebase_options_dev.dart --ios-out=ios/dev/GoogleService-Info.plist --ios-build-config=Debug \
+  --android-out=android/app/src/debug/google-services.json --yes
 ```
 
-Pick the project when prompted. The CLI reuses existing app registrations
-that match the bundle ID and package name, so re-running is safe.
+The CLI reuses existing app registrations that match the bundle ID and
+package name (and creates them when missing, which for development should
+be left to Pulumi), so re-running is safe. It rewrites `firebase.json`
+minified and adds redundant `targets` / `"."` entries next to the
+`default` ones; restore the formatting and keep only the `default` and
+`buildConfigurations` entries. It also renames the ID of the
+"flutterfire bundle-service-file" build phase in `project.pbxproj`;
+discard that. If the iOS Google client changed, copy the plist's
+`CLIENT_ID` and `REVERSED_CLIENT_ID` into `ios/Flutter/{Debug,Release}.xcconfig`.
+
+### After changing the bundle ID or package name
+
+Done in September 2026 for the rename to `bikesPizza` / `bikes_pizza`; the
+steps that remain are in Apple Developer and Play Console:
+
+- Apple Developer: register the App ID `com.pizzapredator.bikesPizza` with
+  the Sign in with Apple capability (Xcode does this on the first archive
+  with automatic signing), and add it to the Services ID the Apple
+  provider uses so the web and native flows share one primary App ID.
+- Play Console: after the first upload, register the Play App Signing
+  key's SHA-1 and SHA-256 on the Android app in both Firebase projects
+  (development through the Pulumi config lists, production with
+  `firebase apps:android:sha:create`) and on the production Android API
+  key's restrictions.
+- When the new builds are proven, delete the old `pizzaPredator` and
+  `pizza_predator` registrations and their API keys in both projects.

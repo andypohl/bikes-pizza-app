@@ -3,9 +3,9 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:pizza_predator/store/cart.dart';
-import 'package:pizza_predator/store/product.dart';
-import 'package:pizza_predator/store/store_repository.dart';
+import 'package:bikes_pizza/store/cart.dart';
+import 'package:bikes_pizza/store/product.dart';
+import 'package:bikes_pizza/store/store_repository.dart';
 
 /// A product row as `SanityStoreRepository`'s projection returns it.
 Map<String, dynamic> _row(

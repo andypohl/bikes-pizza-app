@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.pizzapredator.pizzaPredator</string>
+	<string>com.pizzapredator.bikesPizza</string>
 	<key>PROJECT_ID</key>
 	<string>bikes-pizza-dev</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:35386977394:ios:19b4768d15faa3988326eb</string>
+	<string>1:35386977394:ios:d6295589f1bd84768326eb</string>
 </dict>
 </plist>

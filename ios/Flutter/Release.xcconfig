@@ -3,5 +3,5 @@
 // Google Sign-In iOS client of the Firebase project this configuration
 // talks to (Info.plist reads GIDClientID and the URL scheme from here).
 // Production, pizzapredator-a445e.
-GID_CLIENT_ID=79972934725-homgdv3a0uf97m156pkuq8ucqki8au7r.apps.googleusercontent.com
-GID_REVERSED_CLIENT_ID=com.googleusercontent.apps.79972934725-homgdv3a0uf97m156pkuq8ucqki8au7r
+GID_CLIENT_ID=79972934725-jc81fq6kgkgmphcb3end1q7ff017p3lb.apps.googleusercontent.com
+GID_REVERSED_CLIENT_ID=com.googleusercontent.apps.79972934725-jc81fq6kgkgmphcb3end1q7ff017p3lb

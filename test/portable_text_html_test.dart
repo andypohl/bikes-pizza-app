@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pizza_predator/data/portable_text_html.dart';
+import 'package:bikes_pizza/data/portable_text_html.dart';
 
 Map<String, dynamic> span(String text, [List<String> marks = const []]) => {
   '_type': 'span',

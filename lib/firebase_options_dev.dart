@@ -51,18 +51,17 @@ class DevFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyCJ2_2Llec7Wy7WtCpArfQeAN6SNdAbtIk',
-    appId: '1:35386977394:android:7121c44ba41d5e148326eb',
+    appId: '1:35386977394:android:23c4cdcd94e3067d8326eb',
     messagingSenderId: '35386977394',
     projectId: 'bikes-pizza-dev',
     storageBucket: 'bikes-pizza-dev.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyCwPFiY8DH6p07sITpWdPqXw6mM9NQiLzo',
-    appId: '1:35386977394:ios:19b4768d15faa3988326eb',
+    appId: '1:35386977394:ios:d6295589f1bd84768326eb',
     messagingSenderId: '35386977394',
     projectId: 'bikes-pizza-dev',
     storageBucket: 'bikes-pizza-dev.firebasestorage.app',
-    iosBundleId: 'com.pizzapredator.pizzaPredator',
+    iosBundleId: 'com.pizzapredator.bikesPizza',
   );
 }
