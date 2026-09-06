@@ -1,7 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import ProductGrid from '../../components/ProductGrid.astro';
-import { checkoutUrl, formatMoney, hasChoices, priceOf, responsiveShopify, shopifyImage, type Product } from '../../lib/shop';
+import { hasChoices, priceOf, responsiveShopify, shopifyImage, type Product } from '../../lib/shop';
 
 export async function getStaticPaths() {
   const RELATED_LIMIT = 8;
@@ -75,7 +75,13 @@ const plain = product.descriptionHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, '
 
         {
           first ? (
-            <form class="buy" data-store-url={checkoutUrl(first).replace(/\/cart\/.*$/, '')}>
+            <form
+              class="buy"
+              data-handle={product.handle}
+              data-title={product.title}
+              data-image={product.image ?? ''}
+              data-choices={String(choices)}
+            >
               {choices && (
                 <label class="block mb-4 text-sm">
                   <span class="font-medium text-stone-600 dark:text-slate-400">Choose</span>
@@ -84,7 +90,14 @@ const plain = product.descriptionHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, '
                     class="mt-1 block w-full rounded-lg border border-stone-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-stone-900 dark:text-stone-100 px-3 py-2"
                   >
                     {product.variants.map((variant) => (
-                      <option value={variant.id} data-price={formatMoney(variant.price)} disabled={!variant.available} selected={variant.id === first.id}>
+                      <option
+                        value={variant.id}
+                        data-price={variant.price}
+                        data-title={variant.title}
+                        data-image={variant.image ?? ''}
+                        disabled={!variant.available}
+                        selected={variant.id === first.id}
+                      >
                         {variant.title}
                         {variant.available ? '' : ' (sold out)'}
                       </option>
@@ -92,10 +105,13 @@ const plain = product.descriptionHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, '
                   </select>
                 </label>
               )}
-              <a
-                id="buy"
-                href={first.available ? checkoutUrl(first) : undefined}
-                aria-disabled={!first.available}
+              <button
+                type="submit"
+                id="add-to-cart"
+                data-variant={first.id}
+                data-price={first.price}
+                data-variant-title={choices ? first.title : ''}
+                disabled={!first.available}
                 class:list={[
                   'inline-flex items-center justify-center w-full px-5 py-3 rounded-full text-sm font-medium tracking-wide transition-colors duration-200',
                   first.available
@@ -103,8 +119,8 @@ const plain = product.descriptionHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, '
                     : 'bg-stone-200 text-stone-500 dark:bg-slate-700 dark:text-slate-400 cursor-not-allowed',
                 ]}
               >
-                {first.available ? 'Buy now' : 'Sold out'}
-              </a>
+                {first.available ? 'Add to cart' : 'Sold out'}
+              </button>
               <p class="mt-3 text-xs font-light text-stone-500 dark:text-slate-500">Checkout opens on our Shopify store.</p>
             </form>
           ) : (
@@ -126,20 +142,48 @@ const plain = product.descriptionHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, '
 </Layout>
 
 <script>
-  // With more than one variant, the buy link and price follow the choice.
+  import { addItem } from '../../scripts/cart';
+  import { formatMoney } from '../../scripts/cart';
+
+  // Adds the chosen variant to the cart and opens the drawer. With more
+  // than one variant, the price follows the choice.
   function wire() {
     const form = document.querySelector<HTMLFormElement>('form.buy');
-    const select = form?.querySelector<HTMLSelectElement>('select[name=variant]');
-    const buy = document.getElementById('buy') as HTMLAnchorElement | null;
+    const button = document.getElementById('add-to-cart') as HTMLButtonElement | null;
+    // `astro:page-load` also fires on the first load, so wire each form once.
+    if (!form || !button || form.dataset.wired) return;
+    form.dataset.wired = 'true';
+    const select = form.querySelector<HTMLSelectElement>('select[name=variant]');
     const price = document.getElementById('price');
-    if (!form || !select || !buy) return;
-    const base = form.dataset.storeUrl ?? '';
-    select.addEventListener('change', () => {
-      const option = select.selectedOptions[0];
-      buy.href = `${base}/cart/${option.value}:1`;
-      if (price && option.dataset.price) price.textContent = option.dataset.price;
+
+    const chosen = () => {
+      const option = select?.selectedOptions[0];
+      return {
+        variantId: Number(option?.value ?? button.dataset.variant),
+        variantTitle: option ? (option.dataset.title ?? '') : (button.dataset.variantTitle ?? ''),
+        price: Number(option?.dataset.price ?? button.dataset.price),
+        image: (option?.dataset.image || form.dataset.image) || null,
+      };
+    };
+
+    select?.addEventListener('change', () => {
+      if (price) price.textContent = formatMoney(chosen().price);
+    });
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const { variantId, variantTitle, price: unit, image } = chosen();
+      if (!variantId) return;
+      addItem({
+        variantId,
+        handle: form.dataset.handle ?? '',
+        title: form.dataset.title ?? '',
+        variantTitle,
+        price: unit,
+        image,
+      });
+      window.dispatchEvent(new CustomEvent('cart:open'));
     });
   }
-  wire();
   document.addEventListener('astro:page-load', wire);
 </script>

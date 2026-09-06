@@ -2,6 +2,7 @@
 import { ClientRouter } from 'astro:transitions';
 import AccountButton from '../components/AccountButton.astro';
 import StoreButton from '../components/StoreButton.astro';
+import CartButton from '../components/CartButton.astro';
 import HomeButton from '../components/HomeButton.astro';
 import SubmitButton from '../components/SubmitButton.astro';
 import ThemeToggle from '../components/ThemeToggle.astro';
@@ -65,6 +66,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
       <HomeButton />
       <SubmitButton />
       <StoreButton />
+      <CartButton />
       <AccountButton />
       <ThemeToggle />
     </div>
