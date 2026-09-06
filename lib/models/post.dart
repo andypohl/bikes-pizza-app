@@ -1,5 +1,6 @@
 import '../data/portable_text_html.dart';
 import 'bike_options.dart';
+import 'pizza_options.dart';
 
 /// The member who submitted a post: their Sanity `member` document id
 /// (stable, used to list their posts) and current username.
@@ -18,9 +19,39 @@ class BikeSpec {
   final String value;
 }
 
+/// Structured details of a post, ready to display: labelled rows for the
+/// post screen and a one-liner for lists.
+abstract class PostDetails {
+  List<BikeSpec> get specs;
+  String? get line;
+}
+
+/// The structured details of a pizza post: its style.
+class PizzaDetails implements PostDetails {
+  const PizzaDetails({this.style});
+
+  final String? style;
+
+  bool get isEmpty => style == null || style!.trim().isEmpty;
+
+  String? get styleTitle =>
+      isEmpty ? null : pizzaStyles[style] ?? style!.trim();
+
+  @override
+  List<BikeSpec> get specs => [
+    if (styleTitle != null) BikeSpec('Style', styleTitle!),
+  ];
+
+  @override
+  String? get line => styleTitle;
+
+  factory PizzaDetails.fromJson(Map<dynamic, dynamic> json) =>
+      PizzaDetails(style: json['style'] as String?);
+}
+
 /// The structured details of a bike post, as stored (option values), with
 /// the display forms the app shows.
-class BikeDetails {
+class BikeDetails implements PostDetails {
   const BikeDetails({this.brand, this.year, this.color, this.type});
 
   final String? brand;
@@ -36,6 +67,7 @@ class BikeDetails {
   String? get typeTitle => _title(bikeTypes, type);
 
   /// The filled-in details in display order.
+  @override
   List<BikeSpec> get specs => [
     if (!_blank(brand)) BikeSpec('Brand', brand!.trim()),
     if (yearTitle != null) BikeSpec('Year', yearTitle!),
@@ -44,6 +76,7 @@ class BikeDetails {
   ];
 
   /// One line for lists: brand, type and year, e.g. `GT · Mountain · 1990s`.
+  @override
   String? get line {
     final parts = [if (!_blank(brand)) brand!.trim(), ?typeTitle, ?yearTitle];
     return parts.isEmpty ? null : parts.join(' · ');
@@ -76,6 +109,7 @@ class Post {
     this.submittedBy,
     this.author,
     this.bike,
+    this.pizza,
   });
 
   final String id;
@@ -105,6 +139,12 @@ class Post {
 
   /// Structured details of a bike post, when some have been filled in.
   final BikeDetails? bike;
+
+  /// Structured details of a pizza post, when filled in.
+  final PizzaDetails? pizza;
+
+  /// Whichever structured details the post has, for display.
+  PostDetails? get details => bike ?? pizza;
 
   /// Who to credit: the member's current username when known, else the
   /// text typed at submission. Null for posts written in the Studio.
@@ -137,6 +177,10 @@ class Post {
     final bike = rawBike is Map && feed == 'bikes'
         ? BikeDetails.fromJson(rawBike)
         : null;
+    final rawPizza = json['pizza'];
+    final pizza = rawPizza is Map && feed == 'pizza'
+        ? PizzaDetails.fromJson(rawPizza)
+        : null;
 
     return Post(
       id: slug.isNotEmpty ? slug : json['_id'] as String? ?? '',
@@ -161,6 +205,7 @@ class Post {
               username: (rawAuthor as Map)['username'] as String? ?? '',
             ),
       bike: bike == null || bike.isEmpty ? null : bike,
+      pizza: pizza == null || pizza.isEmpty ? null : pizza,
     );
   }
 

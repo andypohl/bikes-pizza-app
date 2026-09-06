@@ -3,6 +3,7 @@ import {Box, Card, Flex, Grid, Heading, Stack, Text} from '@sanity/ui'
 import {Suspense} from 'react'
 import {dataset, datasets} from '../environment'
 import {BIKE_COLORS, BIKE_TYPES, BIKE_YEARS} from '../../../studio/schemaTypes/bikeOptions'
+import {PIZZA_STYLES} from '../../../studio/schemaTypes/pizzaOptions'
 import {MemberField} from './MemberField'
 import {PublishBar} from './PublishBar'
 import {SelectField, TextField} from './fields'
@@ -46,6 +47,19 @@ export function PostEditor({handle}: {handle: DocumentHandle}) {
               <SelectField handle={handle} path="bike.year" label="Year" options={BIKE_YEARS} />
               <SelectField handle={handle} path="bike.color" label="Color" options={BIKE_COLORS} />
               <SelectField handle={handle} path="bike.type" label="Type" options={BIKE_TYPES} />
+            </Grid>
+          </Stack>
+        </Card>
+      )}
+
+      {data.feed === 'pizza' && (
+        <Card border padding={4} radius={2}>
+          <Stack space={4}>
+            <Heading as="h3" size={1}>
+              Pizza details
+            </Heading>
+            <Grid columns={[1, 1, 2]} gap={4}>
+              <SelectField handle={handle} path="pizza.style" label="Style" options={PIZZA_STYLES} />
             </Grid>
           </Stack>
         </Card>

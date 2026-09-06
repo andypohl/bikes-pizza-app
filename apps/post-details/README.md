@@ -7,12 +7,14 @@ structured parts of a post that the Studio form makes slow:
 - **Bike details** on bike posts: brand, year (a decade), color and type.
   The choices live in `studio/schemaTypes/bikeOptions.ts`, shared with the
   Studio schema, so a new option is added there and nowhere else.
+- **Pizza details** on pizza posts: the style (Neapolitan, Detroit, New
+  York street slice…), from `studio/schemaTypes/pizzaOptions.ts`.
 - **Member**: which member is credited for a post, chosen by username. The
   post stores a reference to the `member` document, so a later username
   change follows automatically.
 
 Posts are listed newest first, filterable by feed, with a badge on any bike
-post missing details or any post with no member. Edits go straight to the
+or pizza post missing details or any post with no member. Edits go straight to the
 post's draft in Content Lake; **Publish** makes them live (and triggers the
 website rebuild through the Sanity webhook), **Discard changes** drops the
 draft.

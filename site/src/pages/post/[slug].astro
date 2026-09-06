@@ -4,7 +4,7 @@ import Layout from '../../layouts/Layout.astro';
 import PostGrid from '../../components/PostGrid.astro';
 import ImageBlock from '../../components/portable-text/ImageBlock.astro';
 import Link from '../../components/portable-text/Link.astro';
-import { bikeSpecs, categoryOf, creditOf, memberPath, responsive, summaryOf, urlFor, type Post } from '../../lib/sanity';
+import { detailSpecs, categoryOf, creditOf, memberPath, responsive, summaryOf, urlFor, type Post } from '../../lib/sanity';
 import { formatDate } from '../../utils/format';
 
 export async function getStaticPaths() {
@@ -33,7 +33,7 @@ const { src, srcset } = responsive(post.image, [800, 1200, 1600]);
 const largeSrc = urlFor(post.image).width(2400).quality(80).url();
 const ogImage = urlFor(post.image).width(1200).height(630).quality(80).url();
 const components = { type: { image: ImageBlock }, mark: { link: Link } };
-const specs = bikeSpecs(post);
+const specs = detailSpecs(post);
 ---
 
 <Layout title={`${post.title} | bikes.pizza`} description={summaryOf(post)} image={ogImage}>

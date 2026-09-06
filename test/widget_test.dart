@@ -390,6 +390,7 @@ Post _post(
   DateTime date, {
   PostAuthor? author,
   BikeDetails? bike,
+  PizzaDetails? pizza,
 }) => Post(
   id: title,
   title: title,
@@ -398,6 +399,7 @@ Post _post(
   html: '<p>$title body</p>',
   author: author,
   bike: bike,
+  pizza: pizza,
 );
 
 const _ada = PostAuthor(id: 'm1', username: 'ada_bikes');
@@ -444,7 +446,13 @@ void main() {
         _post('Older post', DateTime(2025, 3, 3)),
       ],
       PostFeed.blog: [_post('Older post', DateTime(2025, 3, 3))],
-      PostFeed.pizza: [_post('Detroit style', DateTime(2025, 2, 1))],
+      PostFeed.pizza: [
+        _post(
+          'Detroit style',
+          DateTime(2025, 2, 1),
+          pizza: const PizzaDetails(style: 'detroit'),
+        ),
+      ],
       PostFeed.bikes: [
         _post(
           '1992 GT Outpost',
@@ -560,7 +568,7 @@ void main() {
 
     await tester.tap(find.text('1992 GT Outpost'));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('bike-details')), findsOneWidget);
+    expect(find.byKey(const Key('post-details')), findsOneWidget);
     expect(find.text('Brand'), findsOneWidget);
     expect(find.text('GT'), findsOneWidget);
     expect(find.text('Color'), findsOneWidget);
@@ -569,12 +577,24 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
 
+    // A pizza shows its style the same way.
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    expect(find.text('Detroit'), findsOneWidget);
+    await tester.tap(find.text('Detroit style'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('post-details')), findsOneWidget);
+    expect(find.text('Style'), findsOneWidget);
+    expect(find.text('Detroit'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
     // Posts without details keep the plain layout.
     await tester.tap(find.text('All'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Older post'));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('bike-details')), findsNothing);
+    expect(find.byKey(const Key('post-details')), findsNothing);
   });
 
   testWidgets('Blog, Pizza and Bikes tabs request their own feeds', (

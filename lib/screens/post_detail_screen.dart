@@ -9,7 +9,7 @@ import '../models/post.dart';
 import '../models/post_feed.dart';
 import 'post_list_screen.dart';
 
-/// Full post: hero image, title, date, a bike's details when it has them,
+/// Full post: hero image, title, date, its structured details when it has any,
 /// the rendered HTML body and who submitted it. With a [repository], the submitter's username opens the
 /// list of everything they have posted.
 class PostDetailScreen extends StatelessWidget {
@@ -78,15 +78,16 @@ class PostDetailScreen extends StatelessWidget {
     );
   }
 
-  /// The bike details as label/value rows, for bike posts that have some.
-  Widget? _bikeDetails(ThemeData theme) {
-    final specs = post.bike?.specs ?? const [];
+  /// The structured details as label/value rows: a bike's brand, year,
+  /// color and type, or a pizza's style.
+  Widget? _details(ThemeData theme) {
+    final specs = post.details?.specs ?? const [];
     if (specs.isEmpty) return null;
     final labelStyle = theme.textTheme.bodyMedium?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
     return Padding(
-      key: const Key('bike-details'),
+      key: const Key('post-details'),
       padding: const EdgeInsets.only(top: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -117,7 +118,7 @@ class PostDetailScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final image = post.featureImage;
     final credit = _credit(context, theme);
-    final bikeDetails = _bikeDetails(theme);
+    final details = _details(theme);
 
     return Scaffold(
       appBar: AppBar(
@@ -156,7 +157,7 @@ class PostDetailScreen extends StatelessWidget {
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  ?bikeDetails,
+                  ?details,
                   const SizedBox(height: 20),
                   if (post.html.isNotEmpty)
                     HtmlWidget(

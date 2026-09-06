@@ -3,6 +3,7 @@ import { createImageUrlBuilder } from '@sanity/image-url';
 import type { SanityImageSource } from '@sanity/image-url/lib/types/types';
 import { defineQuery } from 'groq';
 import { BIKE_COLORS, BIKE_TYPES, BIKE_YEARS, type Option } from '../../../studio/schemaTypes/bikeOptions';
+import { PIZZA_STYLES } from '../../../studio/schemaTypes/pizzaOptions';
 
 /** Human labels for the `feed` field; these double as the gallery categories. */
 export const FEED_LABELS: Record<string, string> = {
@@ -35,6 +36,11 @@ export interface BikeDetails {
   type: string | null;
 }
 
+/** The structured details of a pizza post, as the stored option values. */
+export interface PizzaDetails {
+  style: string | null;
+}
+
 export interface Post {
   id: string;
   title: string;
@@ -49,6 +55,8 @@ export interface Post {
   author: Author | null;
   /** Filled in for bike posts through the Post details app; null otherwise. */
   bike: BikeDetails | null;
+  /** Filled in for pizza posts through the Post details app; null otherwise. */
+  pizza: PizzaDetails | null;
 }
 
 const POSTS_QUERY = defineQuery(`
@@ -64,6 +72,7 @@ const POSTS_QUERY = defineQuery(`
     submittedBy,
     "author": author->{ "id": _id, "username": coalesce(username, "") },
     "bike": bike { brand, year, color, type },
+    "pizza": pizza { style },
     "image": mainImage {
       asset,
       hotspot,
@@ -106,22 +115,30 @@ export interface Spec {
 const titleOf = (options: Option[], value: string) => options.find((option) => option.value === value)?.title ?? value;
 
 /**
- * The bike details of a post as labelled display values, in the order they
- * are shown. Empty for posts that are not bikes or have no details yet.
+ * The structured details of a post as labelled display values, in the
+ * order they are shown: brand, year, color and type for a bike, the style
+ * for a pizza. Empty when none are filled in.
  */
-export function bikeSpecs(post: Post): Spec[] {
-  const bike = post.feed === 'bikes' ? post.bike : null;
-  if (!bike) return [];
+export function detailSpecs(post: Post): Spec[] {
   const specs: Spec[] = [];
-  if (bike.brand) specs.push({ label: 'Brand', value: bike.brand });
-  if (bike.year) specs.push({ label: 'Year', value: titleOf(BIKE_YEARS, bike.year) });
-  if (bike.color) specs.push({ label: 'Color', value: titleOf(BIKE_COLORS, bike.color) });
-  if (bike.type) specs.push({ label: 'Type', value: titleOf(BIKE_TYPES, bike.type) });
+  if (post.feed === 'bikes' && post.bike) {
+    const bike = post.bike;
+    if (bike.brand) specs.push({ label: 'Brand', value: bike.brand });
+    if (bike.year) specs.push({ label: 'Year', value: titleOf(BIKE_YEARS, bike.year) });
+    if (bike.color) specs.push({ label: 'Color', value: titleOf(BIKE_COLORS, bike.color) });
+    if (bike.type) specs.push({ label: 'Type', value: titleOf(BIKE_TYPES, bike.type) });
+  } else if (post.feed === 'pizza' && post.pizza?.style) {
+    specs.push({ label: 'Style', value: titleOf(PIZZA_STYLES, post.pizza.style) });
+  }
   return specs;
 }
 
-/** One line of bike details for tiles: brand, type and year, e.g. "GT · Mountain · 1990s". */
-export function bikeLine(post: Post): string | null {
+/** One line of details for tiles: "GT · Mountain · 1990s" for a bike, the style for a pizza. */
+export function detailLine(post: Post): string | null {
+  if (post.feed === 'pizza') {
+    const style = post.pizza?.style;
+    return style ? titleOf(PIZZA_STYLES, style) : null;
+  }
   const bike = post.feed === 'bikes' ? post.bike : null;
   if (!bike) return null;
   const parts = [bike.brand, bike.type && titleOf(BIKE_TYPES, bike.type), bike.year && titleOf(BIKE_YEARS, bike.year)];

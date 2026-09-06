@@ -4,7 +4,7 @@
 // only the category and date appear on hover (the featured row). Shared by
 // the featured row and the grid; `widths` and `sizes` describe how wide
 // the tile can be so the browser picks a fitting image.
-import { bikeLine, categoryOf, responsive, TILE_RATIO, type Post } from '../lib/sanity';
+import { detailLine, categoryOf, responsive, TILE_RATIO, type Post } from '../lib/sanity';
 import { formatDate } from '../utils/format';
 
 interface Props {
@@ -25,7 +25,7 @@ const {
 const { src, srcset } = responsive(post.image, widths, 80, TILE_RATIO);
 const width = post.image.width;
 const height = Math.round(width / TILE_RATIO);
-const details = bikeLine(post);
+const details = detailLine(post);
 ---
 
 <a
