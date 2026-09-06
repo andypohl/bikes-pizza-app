@@ -12,13 +12,19 @@ import 'models/post_feed.dart';
 import 'screens/post_list_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/store_screen.dart';
+import 'splash_screen.dart';
 import 'store/cart.dart';
 import 'store/store_repository.dart';
 import 'submissions/photo_picker.dart';
 import 'submissions/submission_service.dart';
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // The splash screen shows while Firebase, the settings and the cart load.
+  runApp(AppBootstrap(load: _loadApp));
+}
+
+Future<Widget> _loadApp() async {
   // Release builds (the app stores) talk to the production Firebase project;
   // debug and profile builds (simulators, devices during development) to
   // the development one, bikes-pizza-dev. See docs/firebase.md.
@@ -29,17 +35,15 @@ Future<void> main() async {
   );
   final settings = await AppSettings.load();
   final cart = await Cart.load();
-  runApp(
-    BikesPizzaApp(
-      settings: settings,
-      repository: PostRepository.forConfig(),
-      store: StoreRepository.forConfig(),
-      cart: cart,
-      auth: FirebaseAuthService(),
-      members: CloudFunctionsMemberService(),
-      submissions: CloudFunctionsSubmissionService(),
-      photos: ImagePickerPhotoPicker(),
-    ),
+  return BikesPizzaApp(
+    settings: settings,
+    repository: PostRepository.forConfig(),
+    store: StoreRepository.forConfig(),
+    cart: cart,
+    auth: FirebaseAuthService(),
+    members: CloudFunctionsMemberService(),
+    submissions: CloudFunctionsSubmissionService(),
+    photos: ImagePickerPhotoPicker(),
   );
 }
 

@@ -390,3 +390,14 @@ its background color is set in `pubspec.yaml`). After replacing them run
 `dart run flutter_launcher_icons` to regenerate the platform icon sets, and
 discard the change the tool makes to `ios/Runner.xcodeproj/project.pbxproj`
 (it rewrites an unrelated build setting).
+
+Launch (splash) screen: the logo above the "bikes.pizza" wordmark (Inter
+Light, like the website's title) on the icon's teal, sized to 80% of the
+screen's shorter side so it is the same in portrait and landscape.
+`tool/splash/render_splash.py` renders it from `assets/icon/icon.png` and
+writes the iOS launch image set, the Android drawables (a window
+background for Android 11 and older, a logo-only icon for the Android 12+
+system splash, which cannot show text) and `assets/splash/splash.png`,
+which `lib/splash_screen.dart` draws while the app finishes starting up;
+the script's docstring has the commands. Simulators cache the iOS launch
+screen, so reinstall the app to see a changed one.

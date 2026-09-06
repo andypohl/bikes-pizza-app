@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ shows a system splash screen instead of the window
+         background: a solid color with the app icon in the middle. Use the
+         icon's teal and a logo-only icon so nothing icon-shaped appears
+         around the logo. The Flutter splash (lib/splash_screen.dart) then
+         adds the wordmark. -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
+    </style>
+</resources>

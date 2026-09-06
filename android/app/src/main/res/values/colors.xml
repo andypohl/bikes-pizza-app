@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#80c6c4</color>
+    <!-- The launch (splash) screen: the same teal as the icon background,
+         so the logo sits on it without an icon-shaped block around it. -->
+    <color name="splash_background">#80c6c4</color>
 </resources>
