@@ -153,6 +153,11 @@ domains only deliver to recipients authorized in Mailgun.
 
 ## Store (Shopify)
 
+The website has its own storefront at `/shop/` (see `site/README.md`),
+built from product documents that the Sanity Connect for Shopify app syncs
+into the dataset; checkout still happens on Shopify. The app's Store tab
+reads Shopify directly, as below.
+
 The Store tab reads the catalogue through Shopify's Storefront GraphQL API
 using a public access token, which Shopify designs to ship inside client
 apps (it can only read products and create carts). Tapping **Buy now**

@@ -1,6 +1,9 @@
 ---
-// Link to the Shopify store, which lives on its own host.
-const storeUrl = import.meta.env.PUBLIC_STORE_URL || 'https://shop.bikes.pizza/';
+// Link to the shop. When the build has products (synced from Shopify by
+// Sanity Connect) that is the site's own /shop/; until then, the Shopify
+// storefront on its own host.
+import { getProducts, STORE_URL } from '../lib/shop';
+const storeUrl = (await getProducts()).length > 0 ? '/shop/' : `${STORE_URL}/`;
 ---
 
 <a

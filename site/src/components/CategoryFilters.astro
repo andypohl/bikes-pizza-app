@@ -4,21 +4,26 @@ import { slugify } from '../utils/slug';
 interface Props {
   categories: string[];
   active: string | 'all';
+  /** Where "All" links to, and the label for it. */
+  allHref?: string;
+  allLabel?: string;
+  /** Prefix a category's slug is appended to, e.g. `/category/`. */
+  categoryBase?: string;
 }
 
-const { categories, active } = Astro.props;
+const { categories, active, allHref = '/', allLabel = 'All', categoryBase = '/category/' } = Astro.props;
 const chipClass =
   'category-chip px-3 py-1 text-sm font-light tracking-wide rounded-full border border-stone-300 dark:border-slate-600 text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-stone-200 transition-colors duration-300';
 ---
 
 <nav id="category-filters" class="flex flex-wrap gap-2 mb-12" aria-label="Filter by category">
-  <a href="/" class:list={[chipClass, { 'is-active': active === 'all' }]}>All</a>
+  <a href={allHref} class:list={[chipClass, { 'is-active': active === 'all' }]}>{allLabel}</a>
   {
     categories.map((category) => {
       const slug = slugify(category);
       return (
         <a
-          href={`/category/${slug}/`}
+          href={`${categoryBase}${slug}/`}
           class:list={[chipClass, { 'is-active': active === slug }]}
         >
           {category}
