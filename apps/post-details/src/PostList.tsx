@@ -102,6 +102,7 @@ type RowData = {
   username: string | null
   hasAuthor: boolean
   bikeComplete: boolean
+  pizzaComplete: boolean
 }
 
 function PostRow({
@@ -121,11 +122,13 @@ function PostRow({
       publishedAt,
       "username": author->username,
       "hasAuthor": defined(author),
-      "bikeComplete": defined(bike.brand) && defined(bike.year) && defined(bike.color) && defined(bike.type)
+      "bikeComplete": defined(bike.brand) && defined(bike.year) && defined(bike.color) && defined(bike.type),
+      "pizzaComplete": defined(pizza.style)
     }`,
   })
 
   const needsBike = data.feed === 'bikes' && !data.bikeComplete
+  const needsPizza = data.feed === 'pizza' && !data.pizzaComplete
 
   return (
     <Card
@@ -145,9 +148,10 @@ function PostRow({
           {data.feed ?? '—'} · {data.publishedAt ? data.publishedAt.slice(0, 10) : 'unscheduled'}
           {data.username ? ` · @${data.username}` : ''}
         </Text>
-        {(needsBike || !data.hasAuthor) && (
+        {(needsBike || needsPizza || !data.hasAuthor) && (
           <Inline space={1}>
             {needsBike && <Badge tone="caution">needs bike details</Badge>}
+            {needsPizza && <Badge tone="caution">needs pizza details</Badge>}
             {!data.hasAuthor && <Badge tone="caution">no member</Badge>}
           </Inline>
         )}
