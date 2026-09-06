@@ -518,10 +518,12 @@ discard that. If the iOS Google client changed, copy the plist's
 Done in September 2026 for the rename to `bikesPizza` / `bikes_pizza`; the
 steps that remain are in Apple Developer and Play Console:
 
-- Apple Developer: register the App ID `com.pizzapredator.bikesPizza` with
-  the Sign in with Apple capability (Xcode does this on the first archive
-  with automatic signing), and add it to the Services ID the Apple
-  provider uses so the web and native flows share one primary App ID.
+- Apple Developer: done. The App ID `com.pizzapredator.bikesPizza` is
+  registered with the Sign in with Apple capability, and it is the primary
+  App ID of both the Services ID (`com.pizzapredator.web`, whose website
+  URLs list both projects' `firebaseapp.com` domains and their
+  `/__/auth/handler` return URLs) and the Sign in with Apple key. The old
+  App ID stays until the cleanup below.
 - Play Console: after the first upload, register the Play App Signing
   key's SHA-1 and SHA-256 on the Android app in both Firebase projects
   (development through the Pulumi config lists, production with
