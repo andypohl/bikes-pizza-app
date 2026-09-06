@@ -23,10 +23,12 @@ export const datasets = {
 
 export type Dataset = keyof typeof datasets
 
-// An unattended deploy must say which dataset it means: a default would
+// An unattended deploy must say which dataset it means (builds, such as the
+// PR check, may use the default): a default would
 // quietly publish the wrong app (the release deploy once updated the
 // development app because the variable was missing).
-if (process.env.CI && !process.env.SANITY_APP_DATASET) {
+const deploying = process.argv.includes('deploy')
+if (process.env.CI && deploying && !process.env.SANITY_APP_DATASET) {
   throw new Error('SANITY_APP_DATASET must be set when deploying from CI.')
 }
 
