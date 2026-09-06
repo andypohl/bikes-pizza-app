@@ -38,11 +38,14 @@ documents that Sanity Connect for Shopify keeps in the dataset
 them). It uses the gallery's grid and theme, with the product name and
 price under each photo instead of a hover mask, and one filter chip per
 Shopify product type next to "All products". A product page shows the
-photo, price, description and a Buy button that opens Shopify's cart
-permalink for the chosen variant on the store's own domain
-(`PUBLIC_STORE_URL`, default `https://shop.bikes.pizza/`), so checkout stays
-with Shopify. The header's Store button goes to `/shop/` when the build has
-products and to that domain otherwise. Product changes in Shopify reach the
+photo, price, description and an Add to cart button (with a variant picker
+when there is a choice); checkout happens on the store's own domain
+(`PUBLIC_STORE_URL`, default `https://shop.bikes.pizza/`), so it stays with
+Shopify. Add to cart keeps a cart in the browser (`src/scripts/cart.ts`,
+localStorage); the header's Cart button shows a badge with the count and
+opens a drawer to change quantities, and its Checkout link hands the whole
+cart to Shopify as one cart permalink. The header's Store button goes to
+`/shop/` when the build has products and to that domain otherwise. Product changes in Shopify reach the
 site through the same rebuild webhook as posts.
 
 `/submit/` is the website's submission form ("Submit a bike or pizza" in the

@@ -1,0 +1,209 @@
+---
+// The cart: a header button with a badge for how many items are in it, and
+// a drawer to change quantities or check out. The cart itself lives in the
+// browser (scripts/cart.ts); checkout hands it to Shopify. On the shop the
+// button is always shown; elsewhere only while something is in the cart.
+import { STORE_URL } from '../lib/shop';
+---
+
+<button
+  id="cart-button"
+  type="button"
+  class="relative inline-flex items-center gap-2 px-4 py-3 rounded-full bg-stone-200 dark:bg-slate-700 hover:bg-stone-300 dark:hover:bg-slate-600 text-stone-800 dark:text-stone-100 text-sm font-medium tracking-wide transition-colors duration-200"
+  aria-label="Cart"
+  aria-haspopup="dialog"
+  aria-controls="cart-drawer"
+  hidden
+>
+  <!-- Material Symbols "shopping_cart" -->
+  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49A1.003 1.003 0 0020 4H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"></path>
+  </svg>
+  <span>Cart</span>
+  <span
+    id="cart-count"
+    class="absolute -top-1 -right-1 min-w-5 h-5 px-1.5 rounded-full bg-red-600 text-white text-xs font-semibold flex items-center justify-center"
+    hidden
+  ></span>
+</button>
+
+<div id="cart-drawer" class="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cart-title" hidden data-store-url={STORE_URL}>
+  <button type="button" class="cart-backdrop" aria-label="Close cart" data-cart-close></button>
+  <aside class="cart-panel bg-stone-50 dark:bg-slate-900 text-stone-900 dark:text-stone-100">
+    <header class="flex items-center justify-between px-6 py-5 border-b border-stone-200 dark:border-slate-700">
+      <h2 id="cart-title" class="text-xl font-light tracking-wide">Your cart</h2>
+      <button
+        type="button"
+        class="p-2 rounded-full hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors duration-200"
+        aria-label="Close cart"
+        data-cart-close
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path
+            fill-rule="evenodd"
+            d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+            clip-rule="evenodd"></path>
+        </svg>
+      </button>
+    </header>
+    <ul id="cart-items" class="flex-1 overflow-y-auto px-6 py-4 divide-y divide-stone-200 dark:divide-slate-700"></ul>
+    <p id="cart-empty" class="flex-1 px-6 py-8 text-stone-600 dark:text-slate-400 font-light" hidden>Your cart is empty.</p>
+    <footer class="px-6 py-5 border-t border-stone-200 dark:border-slate-700">
+      <div class="flex items-center justify-between mb-4 text-sm">
+        <span class="font-medium text-stone-600 dark:text-slate-400">Subtotal</span>
+        <span id="cart-subtotal" class="font-medium"></span>
+      </div>
+      <a
+        id="cart-checkout"
+        href="#"
+        class="inline-flex items-center justify-center w-full px-5 py-3 rounded-full text-sm font-medium tracking-wide transition-colors duration-200 bg-stone-900 text-stone-50 hover:bg-stone-700 dark:bg-stone-100 dark:text-slate-900 dark:hover:bg-stone-300"
+      >
+        Checkout
+      </a>
+      <p class="mt-3 text-xs font-light text-stone-500 dark:text-slate-500">Checkout opens on our Shopify store. Shipping and tax are added there.</p>
+    </footer>
+  </aside>
+</div>
+
+<style>
+  .cart-drawer {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+  }
+  .cart-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    padding: 0;
+    background: rgb(12 10 9 / 0.5);
+    cursor: default;
+  }
+  .cart-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(26rem, 100%);
+    display: flex;
+    flex-direction: column;
+    box-shadow: -8px 0 32px rgb(0 0 0 / 0.2);
+  }
+  .cart-qty {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+</style>
+
+<script>
+  import { checkoutUrlFor, countOf, formatMoney, onCart, readCart, removeItem, setQuantity, subtotalOf, type CartItem } from '../scripts/cart';
+
+  const $ = (id: string) => document.getElementById(id);
+
+  function isOpen() {
+    return !($('cart-drawer')?.hidden ?? true);
+  }
+
+  function setOpen(open: boolean) {
+    const drawer = $('cart-drawer');
+    if (!drawer) return;
+    drawer.hidden = !open;
+    document.body.style.overflow = open ? 'hidden' : '';
+    if (open) (drawer.querySelector('[data-cart-close]') as HTMLElement | null)?.focus();
+    else $('cart-button')?.focus();
+  }
+
+  function line(item: CartItem): HTMLElement {
+    const li = document.createElement('li');
+    li.className = 'flex gap-4 py-4';
+    li.innerHTML = `
+      <a class="block w-20 h-15 flex-none overflow-hidden rounded-lg bg-stone-200 dark:bg-slate-800" style="height:3.75rem">
+        ${item.image ? `<img class="w-full h-full object-cover" alt="">` : ''}
+      </a>
+      <div class="flex-1 min-w-0">
+        <a class="block font-medium truncate hover:text-stone-600 dark:hover:text-stone-300"></a>
+        <p class="text-sm font-light text-stone-600 dark:text-slate-400 cart-variant"></p>
+        <div class="mt-2 flex items-center gap-2 text-sm">
+          <button type="button" class="cart-qty bg-stone-200 dark:bg-slate-700 hover:bg-stone-300 dark:hover:bg-slate-600" data-dec aria-label="One fewer">−</button>
+          <span class="w-6 text-center" data-qty></span>
+          <button type="button" class="cart-qty bg-stone-200 dark:bg-slate-700 hover:bg-stone-300 dark:hover:bg-slate-600" data-inc aria-label="One more">+</button>
+          <button type="button" class="ml-auto text-stone-500 dark:text-slate-500 hover:text-red-600 font-light" data-remove>Remove</button>
+        </div>
+      </div>
+      <p class="text-sm font-medium whitespace-nowrap" data-price></p>`;
+    const href = `/shop/${item.handle}/`;
+    const links = li.querySelectorAll('a');
+    links.forEach((a) => (a.href = href));
+    const img = li.querySelector('img');
+    if (img && item.image) {
+      const u = new URL(item.image);
+      u.searchParams.set('width', '160');
+      u.searchParams.set('height', '120');
+      u.searchParams.set('crop', 'center');
+      img.src = u.toString();
+    }
+    links[1].textContent = item.title;
+    li.querySelector('.cart-variant')!.textContent = item.variantTitle;
+    li.querySelector('[data-qty]')!.textContent = String(item.quantity);
+    li.querySelector('[data-price]')!.textContent = formatMoney(item.price * item.quantity);
+    li.querySelector('[data-dec]')!.addEventListener('click', () => setQuantity(item.variantId, item.quantity - 1));
+    li.querySelector('[data-inc]')!.addEventListener('click', () => setQuantity(item.variantId, item.quantity + 1));
+    li.querySelector('[data-remove]')!.addEventListener('click', () => removeItem(item.variantId));
+    return li;
+  }
+
+  function render(items: CartItem[]) {
+    const button = $('cart-button');
+    const count = $('cart-count');
+    const list = $('cart-items');
+    const empty = $('cart-empty');
+    const checkout = $('cart-checkout') as HTMLAnchorElement | null;
+    const subtotal = $('cart-subtotal');
+    const drawer = $('cart-drawer');
+    if (!button || !count || !list || !empty || !checkout || !subtotal || !drawer) return;
+    const n = countOf(items);
+    const onShop = location.pathname.startsWith('/shop');
+    button.hidden = !(onShop || n > 0);
+    count.hidden = n === 0;
+    count.textContent = String(n);
+    list.replaceChildren(...items.map(line));
+    list.hidden = items.length === 0;
+    empty.hidden = items.length > 0;
+    subtotal.textContent = formatMoney(subtotalOf(items));
+    const storeUrl = drawer.dataset.storeUrl ?? '';
+    checkout.href = items.length ? checkoutUrlFor(storeUrl, items) : '#';
+    checkout.setAttribute('aria-disabled', String(items.length === 0));
+    checkout.classList.toggle('opacity-50', items.length === 0);
+    checkout.classList.toggle('pointer-events-none', items.length === 0);
+  }
+
+  // Subscribed once; the DOM it renders into is looked up each time, since
+  // view transitions swap the page (and this header) on navigation.
+  onCart(render);
+
+  function wire() {
+    const button = $('cart-button');
+    // `astro:page-load` also fires on the first load; wire each header once.
+    if (button && !button.dataset.wired) {
+      button.dataset.wired = 'true';
+      button.addEventListener('click', () => setOpen(!isOpen()));
+      document.querySelectorAll('[data-cart-close]').forEach((el) => el.addEventListener('click', () => setOpen(false)));
+    }
+    render(readCart());
+  }
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && isOpen()) setOpen(false);
+  });
+  // The product page asks for the drawer after adding something.
+  window.addEventListener('cart:open', () => setOpen(true));
+
+  document.addEventListener('astro:page-load', () => {
+    document.body.style.overflow = '';
+    wire();
+  });
+</script>
