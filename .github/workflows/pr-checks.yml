@@ -1,18 +1,81 @@
 # Runs the same checks used during local development on every pull request.
 # Release-oriented workflows (builds, store uploads) will live in separate files.
+#
+# Each check runs only when the files it covers changed (the `changes` job
+# works that out from the pull request's diff), so a docs-only PR finishes
+# in seconds while a change to shared code still runs everything that
+# depends on it. A skipped check counts as passing. Editing this workflow,
+# or running it by hand, runs every check.
 name: PR checks
 
 on:
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
-  group: pr-checks-${{ github.event.pull_request.number }}
+  group: pr-checks-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Find what changed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      app: ${{ steps.filter.outputs.app == 'true' || github.event_name == 'workflow_dispatch' }}
+      functions: ${{ steps.filter.outputs.functions == 'true' || github.event_name == 'workflow_dispatch' }}
+      infra: ${{ steps.filter.outputs.infra == 'true' || github.event_name == 'workflow_dispatch' }}
+      site: ${{ steps.filter.outputs.site == 'true' || github.event_name == 'workflow_dispatch' }}
+      studio: ${{ steps.filter.outputs.studio == 'true' || github.event_name == 'workflow_dispatch' }}
+      post-details: ${{ steps.filter.outputs.post-details == 'true' || github.event_name == 'workflow_dispatch' }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        # Compares the pull request against its base through the API (no
+        # checkout needed). A manual run has no diff and runs everything.
+        if: ${{ github.event_name == 'pull_request' }}
+        with:
+          # Files that feed more than one check are listed under each. The
+          # Studio's schema option lists are imported by the website and
+          # the Post details app; the account page is copied into the site.
+          filters: |
+            workflow: &workflow
+              - .github/workflows/pr-checks.yml
+            app:
+              - *workflow
+              - lib/**
+              - test/**
+              - assets/**
+              - pubspec.yaml
+              - pubspec.lock
+              - analysis_options.yaml
+            functions:
+              - *workflow
+              - functions/**
+            infra:
+              - *workflow
+              - infra/**
+            site:
+              - *workflow
+              - site/**
+              - web/public/**
+              - studio/schemaTypes/**
+            studio:
+              - *workflow
+              - studio/**
+            post-details:
+              - *workflow
+              - apps/post-details/**
+              - studio/schemaTypes/**
+
   test:
     name: Analyze and test
+    needs: changes
+    if: ${{ needs.changes.outputs.app == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -38,6 +101,8 @@ jobs:
 
   functions:
     name: Cloud Functions tests
+    needs: changes
+    if: ${{ needs.changes.outputs.functions == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -60,6 +125,8 @@ jobs:
 
   infra:
     name: Infrastructure typecheck
+    needs: changes
+    if: ${{ needs.changes.outputs.infra == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -82,6 +149,8 @@ jobs:
 
   site:
     name: Website build
+    needs: changes
+    if: ${{ needs.changes.outputs.site == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -104,6 +173,8 @@ jobs:
 
   studio:
     name: Studio build
+    needs: changes
+    if: ${{ needs.changes.outputs.studio == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -126,6 +197,8 @@ jobs:
 
   post-details:
     name: Post details app build
+    needs: changes
+    if: ${{ needs.changes.outputs.post-details == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
