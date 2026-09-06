@@ -12,7 +12,7 @@ Five bottom-bar tabs:
 | Blog     | Every post, newest first, with title and thumbnail             |
 | Pizza    | Posts tagged `pizza`                                           |
 | Bikes    | Posts tagged `biking` or `off-road-biking`                     |
-| Store    | Shopify product grid and checkout (placeholder if unconfigured) |
+| Store    | Product grid from Sanity, a cart, and Shopify checkout       |
 | Settings | Account (sign-in, username, newsletters, password), theme      |
 
 Tapping a post opens it in-app with the hero image and full HTML body. A
@@ -37,8 +37,9 @@ flutter run --dart-define-from-file=config/local.json
 | `SHOPIFY_STORE_DOMAIN`     | Store host for the Storefront API (see below)      |
 | `SHOPIFY_STOREFRONT_TOKEN` | Public Storefront API access token                 |
 
-Leave the Shopify values empty to disable the store (the Store tab then
-shows a placeholder).
+Leave the Shopify values empty and checkout uses the store's cart
+permalink instead of the Storefront API (the Store tab works either way;
+see Store below).
 
 ## Data sources
 
@@ -153,17 +154,31 @@ domains only deliver to recipients authorized in Mailgun.
 
 ## Store (Shopify)
 
-The website has its own storefront at `/shop/` (see `site/README.md`),
-built from product documents that the Sanity Connect for Shopify app syncs
-into the dataset; checkout still happens on Shopify. The app's Store tab
-reads Shopify directly, as below.
+Both the website (`/shop/`, see `site/README.md`) and the app's Store tab
+are built from the product documents that the Sanity Connect for Shopify
+app syncs into the dataset, so they show the same catalogue; checkout
+happens on Shopify.
 
-The Store tab reads the catalogue through Shopify's Storefront GraphQL API
-using a public access token, which Shopify designs to ship inside client
-apps (it can only read products and create carts). Tapping **Buy now**
-creates a cart with the chosen variant and opens Shopify's hosted checkout
-in an in-app browser. If the user is signed in, their email pre-fills the
-checkout so the order lands on the matching Shopify customer.
+The Store tab (`lib/screens/store_screen.dart`, `lib/store/`) reads the
+products from Sanity the way posts are read, and lays them out like the
+website's shop: a chip per Shopify product type with "All products" first,
+and a grid with the name and price under each photo. A product page has a
+quantity and two buttons: **Add to cart** puts that many in the cart (the
+Store tab's badge goes up by that many; the cart does not open) and **Buy
+it now** goes straight to Shopify's checkout with that many of this item,
+first asking whether to bring the cart along when it is not empty. The
+cart lives on the device (`lib/store/cart.dart`, shared preferences) and
+has its own screen, whose quantity controls reflect what is in it, with a
+Checkout for everything.
+
+Checkout goes through Shopify's Storefront GraphQL API when the build
+carries the store domain and a public access token (which Shopify designs
+to ship inside client apps: it can only read products and create carts).
+That lets the signed-in member's email pre-fill the checkout so the order
+lands on the matching Shopify customer. Without those values, checkout
+uses the store's cart permalink instead (`SHOPIFY_STORE_URL`, default
+`https://shop.bikes.pizza`), which needs no token; the Store tab works
+either way.
 
 To get the two values: in Shopify admin go to **Settings → Apps and sales
 channels → Develop apps**, create an app, grant it the

@@ -3,19 +3,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../config.dart';
+import 'cart.dart';
 import 'product.dart';
-
-class ProductPage {
-  const ProductPage({
-    required this.products,
-    this.endCursor,
-    this.hasMore = false,
-  });
-
-  final List<Product> products;
-  final String? endCursor;
-  final bool hasMore;
-}
 
 class StoreException implements Exception {
   StoreException(this.message);
@@ -28,30 +17,121 @@ class StoreException implements Exception {
 
 /// Catalogue + checkout for the Store tab.
 abstract class StoreRepository {
-  Future<ProductPage> fetchProducts({String? after});
+  /// Every product for sale, newest first.
+  Future<List<Product>> fetchProducts();
 
-  /// Creates a cart with one line and returns Shopify's hosted checkout URL.
-  /// [email] pre-fills the checkout when the shopper is signed in.
-  Future<Uri> createCheckout({
-    required String variantId,
-    int quantity = 1,
-    String? email,
-  });
+  /// Where to send the shopper to pay for [items]: Shopify's hosted
+  /// checkout. [email] pre-fills it when the shopper is signed in (only
+  /// possible through the Storefront API; the cart permalink cannot).
+  Future<Uri> checkout(List<CartItem> items, {String? email});
 
-  /// Returns a Shopify-backed repository when the build carries store
-  /// settings, otherwise null (the Store tab shows a placeholder).
-  static StoreRepository? forConfig() => ShopifyConfig.isConfigured
-      ? ShopifyStorefrontRepository(
-          storeDomain: ShopifyConfig.storeDomain,
-          accessToken: ShopifyConfig.storefrontToken,
-        )
-      : null;
+  /// The catalogue comes from Sanity, like posts; checkout goes through the
+  /// Storefront API when the build carries its settings, else through the
+  /// store's cart permalink.
+  static StoreRepository forConfig() => SanityStoreRepository(
+    projectId: SanityConfig.projectId,
+    dataset: SanityConfig.dataset,
+    apiVersion: SanityConfig.apiVersion,
+    storeUrl: ShopifyConfig.storeUrl,
+    storefront: ShopifyConfig.isConfigured
+        ? ShopifyStorefront(
+            storeDomain: ShopifyConfig.storeDomain,
+            accessToken: ShopifyConfig.storefrontToken,
+          )
+        : null,
+  );
 }
 
-/// Talks to Shopify's Storefront GraphQL API with a public access token.
-/// Docs: https://shopify.dev/docs/api/storefront
-class ShopifyStorefrontRepository implements StoreRepository {
-  ShopifyStorefrontRepository({
+/// Reads the products that Sanity Connect for Shopify keeps in the dataset
+/// (`product` and `productVariant` documents), the same ones the website's
+/// shop is built from, through the API CDN.
+class SanityStoreRepository implements StoreRepository {
+  SanityStoreRepository({
+    required this.projectId,
+    required this.dataset,
+    required this.apiVersion,
+    required this.storeUrl,
+    this.storefront,
+    http.Client? client,
+  }) : _client = client ?? http.Client();
+
+  final String projectId;
+  final String dataset;
+  final String apiVersion;
+
+  /// The store's own domain, where the cart permalink checks out.
+  final String storeUrl;
+  final ShopifyStorefront? storefront;
+  final http.Client _client;
+
+  /// The same shape the website's `site/src/lib/shop.ts` reads.
+  static const query = '''
+*[_type == "product" && store.status == "active" && store.isDeleted != true && defined(store.slug.current)]
+  | order(store.createdAt desc) {
+  "id": _id,
+  "title": store.title,
+  "handle": store.slug.current,
+  "category": coalesce(store.productType, ""),
+  "descriptionHtml": coalesce(store.descriptionHtml, ""),
+  "image": store.previewImageUrl,
+  "price": coalesce(store.priceRange.minVariantPrice, 0),
+  "variants": store.variants[]->{
+    "id": store.id,
+    "gid": store.gid,
+    "title": store.title,
+    "price": coalesce(store.price, 0),
+    "available": coalesce(store.inventory.isAvailable, false),
+    "image": store.previewImageUrl,
+    "deleted": store.isDeleted == true
+  }
+}''';
+
+  Uri get uri => Uri.https(
+    '$projectId.apicdn.sanity.io',
+    '/v$apiVersion/data/query/$dataset',
+    {'query': query},
+  );
+
+  @override
+  Future<List<Product>> fetchProducts() async {
+    final response = await _client.get(
+      uri,
+      headers: const {'Accept': 'application/json'},
+    );
+    if (response.statusCode != 200) {
+      throw StoreException('Sanity API returned HTTP ${response.statusCode}');
+    }
+    final body = jsonDecode(response.body);
+    final result = body is Map<String, dynamic> ? body['result'] : null;
+    if (result is! List) {
+      throw StoreException('Unexpected response from Sanity API');
+    }
+    return result
+        .whereType<Map<String, dynamic>>()
+        .map(Product.fromSanityJson)
+        .toList(growable: false);
+  }
+
+  @override
+  Future<Uri> checkout(List<CartItem> items, {String? email}) async {
+    if (items.isEmpty) throw StoreException('Nothing to check out.');
+    final storefront = this.storefront;
+    if (storefront != null) return storefront.createCheckout(items, email);
+    return permalink(items);
+  }
+
+  /// Shopify's cart permalink: `/cart/<variant>:<qty>,<variant>:<qty>`.
+  Uri permalink(List<CartItem> items) {
+    final lines = items.map((i) => '${i.numericId}:${i.quantity}').join(',');
+    return Uri.parse('${storeUrl.replaceAll(RegExp(r'/+$'), '')}/cart/$lines');
+  }
+}
+
+/// Creates carts through Shopify's Storefront GraphQL API with a public
+/// access token, which lets the checkout be pre-filled with the shopper's
+/// email. Docs: https://shopify.dev/docs/api/storefront
+class ShopifyStorefront {
+  ShopifyStorefront({
     required this.storeDomain,
     required this.accessToken,
     this.apiVersion = ShopifyConfig.apiVersion,
@@ -65,29 +145,6 @@ class ShopifyStorefrontRepository implements StoreRepository {
 
   Uri get endpoint => Uri.https(storeDomain, '/api/$apiVersion/graphql.json');
 
-  static const _productsQuery = r'''
-query Products($first: Int!, $after: String) {
-  products(first: $first, after: $after, sortKey: CREATED_AT, reverse: true) {
-    pageInfo { hasNextPage endCursor }
-    edges {
-      node {
-        id
-        title
-        handle
-        description
-        availableForSale
-        featuredImage { url(transform: {maxWidth: 800, maxHeight: 800}) altText }
-        priceRange { minVariantPrice { amount currencyCode } }
-        variants(first: 20) {
-          edges {
-            node { id title availableForSale price { amount currencyCode } }
-          }
-        }
-      }
-    }
-  }
-}''';
-
   static const _cartCreateMutation = r'''
 mutation CartCreate($input: CartInput!) {
   cartCreate(input: $input) {
@@ -96,40 +153,12 @@ mutation CartCreate($input: CartInput!) {
   }
 }''';
 
-  @override
-  Future<ProductPage> fetchProducts({String? after}) async {
-    final data = await _query(_productsQuery, {
-      'first': ShopifyConfig.pageSize,
-      'after': after,
-    });
-    final products = (data['products'] as Map?)?.cast<String, dynamic>();
-    if (products == null) throw StoreException('Shopify returned no products.');
-
-    final edges = (products['edges'] as List?) ?? const [];
-    final pageInfo =
-        (products['pageInfo'] as Map?)?.cast<String, dynamic>() ?? const {};
-
-    return ProductPage(
-      products: edges
-          .map((e) => (e as Map)['node'])
-          .whereType<Map>()
-          .map((n) => Product.fromJson(n.cast<String, dynamic>()))
-          .toList(growable: false),
-      endCursor: pageInfo['endCursor'] as String?,
-      hasMore: pageInfo['hasNextPage'] as bool? ?? false,
-    );
-  }
-
-  @override
-  Future<Uri> createCheckout({
-    required String variantId,
-    int quantity = 1,
-    String? email,
-  }) async {
+  Future<Uri> createCheckout(List<CartItem> items, String? email) async {
     final data = await _query(_cartCreateMutation, {
       'input': {
         'lines': [
-          {'merchandiseId': variantId, 'quantity': quantity},
+          for (final item in items)
+            {'merchandiseId': item.variantId, 'quantity': item.quantity},
         ],
         if (email != null && email.isNotEmpty)
           'buyerIdentity': {'email': email},

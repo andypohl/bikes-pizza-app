@@ -3,63 +3,61 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../auth/auth_service.dart';
+import '../store/cart.dart';
 import '../store/product.dart';
 import '../store/store_repository.dart';
+import 'cart_screen.dart';
 import 'product_detail_screen.dart';
 
 String formatMoney(Money money) =>
     NumberFormat.simpleCurrency(name: money.currencyCode).format(money.amount);
 
-/// Product grid backed by Shopify, or a placeholder when the build has no
-/// store configured.
-class StoreScreen extends StatefulWidget {
-  const StoreScreen({super.key, required this.repository, required this.auth});
+/// Label of the chip that shows everything.
+const allProducts = 'All products';
 
-  final StoreRepository? repository;
+/// The store, laid out like the website's shop: a chip per category with
+/// "All products" first, then a grid of photos with the name and price
+/// under each. The app bar's cart badge counts what is in the cart.
+class StoreScreen extends StatefulWidget {
+  const StoreScreen({
+    super.key,
+    required this.repository,
+    required this.auth,
+    required this.cart,
+  });
+
+  final StoreRepository repository;
   final AuthService auth;
+  final Cart cart;
 
   @override
   State<StoreScreen> createState() => _StoreScreenState();
 }
 
 class _StoreScreenState extends State<StoreScreen> {
-  final _products = <Product>[];
-  final _scrollController = ScrollController();
+  List<Product> _products = const [];
+  String _category = allProducts;
   bool _loading = true;
-  bool _loadingMore = false;
-  bool _hasMore = false;
-  String? _cursor;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_maybeLoadMore);
-    if (widget.repository != null) _refresh();
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
+    _refresh();
   }
 
   Future<void> _refresh() async {
-    final repo = widget.repository!;
     setState(() {
       _loading = _products.isEmpty;
       _error = null;
     });
     try {
-      final page = await repo.fetchProducts();
+      final products = await widget.repository.fetchProducts();
       if (!mounted) return;
       setState(() {
-        _products
-          ..clear()
-          ..addAll(page.products);
-        _cursor = page.endCursor;
-        _hasMore = page.hasMore;
+        _products = products;
         _loading = false;
+        if (!_categories.contains(_category)) _category = allProducts;
       });
     } on Object catch (e) {
       if (!mounted) return;
@@ -70,35 +68,38 @@ class _StoreScreenState extends State<StoreScreen> {
     }
   }
 
-  void _maybeLoadMore() {
-    if (!_hasMore || _loadingMore || _loading) return;
-    final pos = _scrollController.position;
-    if (pos.pixels >= pos.maxScrollExtent - 400) _loadMore();
-  }
+  /// The categories with a product, in first-seen order.
+  List<String> get _categories => [
+    allProducts,
+    ...{
+      for (final product in _products)
+        if (product.category.isNotEmpty) product.category,
+    },
+  ];
 
-  Future<void> _loadMore() async {
-    setState(() => _loadingMore = true);
-    try {
-      final page = await widget.repository!.fetchProducts(after: _cursor);
-      if (!mounted) return;
-      setState(() {
-        _products.addAll(page.products);
-        _cursor = page.endCursor;
-        _hasMore = page.hasMore;
-      });
-    } on Object {
-      // Leave what we have; the user can pull to refresh.
-    } finally {
-      if (mounted) setState(() => _loadingMore = false);
-    }
-  }
+  List<Product> get _shown => _category == allProducts
+      ? _products
+      : _products.where((p) => p.category == _category).toList();
 
   void _open(Product product) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ProductDetailScreen(
           product: product,
-          repository: widget.repository!,
+          repository: widget.repository,
+          auth: widget.auth,
+          cart: widget.cart,
+        ),
+      ),
+    );
+  }
+
+  void _openCart() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CartScreen(
+          cart: widget.cart,
+          repository: widget.repository,
           auth: widget.auth,
         ),
       ),
@@ -108,14 +109,30 @@ class _StoreScreenState extends State<StoreScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Store')),
-      body: widget.repository == null
-          ? const _ComingSoon()
-          : _buildCatalogue(context),
+      appBar: AppBar(
+        title: const Text('Store'),
+        actions: [
+          ListenableBuilder(
+            listenable: widget.cart,
+            builder: (context, _) => IconButton(
+              key: const Key('cart-button'),
+              tooltip: 'Cart',
+              onPressed: _openCart,
+              icon: Badge.count(
+                key: const Key('cart-badge'),
+                count: widget.cart.count,
+                isLabelVisible: widget.cart.count > 0,
+                child: const Icon(Icons.shopping_cart_outlined),
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: _buildBody(context),
     );
   }
 
-  Widget _buildCatalogue(BuildContext context) {
+  Widget _buildBody(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
 
     if (_error != null && _products.isEmpty) {
@@ -129,39 +146,66 @@ class _StoreScreenState extends State<StoreScreen> {
     if (_products.isEmpty) {
       return _Message(
         icon: Icons.storefront_outlined,
-        title: 'Nothing for sale yet',
+        title: 'Nothing in the shop yet',
         detail: 'Check back soon.',
         onRetry: _refresh,
       );
     }
 
+    final categories = _categories;
+    final shown = _shown;
     return RefreshIndicator(
       onRefresh: _refresh,
-      child: GridView.builder(
-        controller: _scrollController,
+      child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(12),
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 220,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          childAspectRatio: 0.72,
-        ),
-        itemCount: _products.length + (_loadingMore ? 1 : 0),
-        itemBuilder: (context, index) {
-          if (index >= _products.length) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final product = _products[index];
-          return ProductCard(product: product, onTap: () => _open(product));
-        },
+        slivers: [
+          if (categories.length > 1)
+            SliverToBoxAdapter(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Row(
+                  children: [
+                    for (final category in categories) ...[
+                      ChoiceChip(
+                        label: Text(category),
+                        selected: category == _category,
+                        onSelected: (_) => setState(() => _category = category),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          SliverPadding(
+            padding: const EdgeInsets.all(16),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 240,
+                mainAxisSpacing: 20,
+                crossAxisSpacing: 16,
+                childAspectRatio: 0.82,
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (context, index) => ProductTile(
+                  product: shown[index],
+                  onTap: () => _open(shown[index]),
+                ),
+                childCount: shown.length,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class ProductCard extends StatelessWidget {
-  const ProductCard({super.key, required this.product, this.onTap});
+/// A product in the grid: the photo cropped to the gallery's ratio, with
+/// the name and price below it.
+class ProductTile extends StatelessWidget {
+  const ProductTile({super.key, required this.product, this.onTap});
 
   final Product product;
   final VoidCallback? onTap;
@@ -169,53 +213,82 @@ class ProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Image takes whatever height the grid cell leaves over, so the
-            // text block never overflows on narrow or tall cells.
-            Expanded(child: ProductImage(url: product.imageUrl)),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: AspectRatio(
+              aspectRatio: 4 / 3,
+              child: Stack(
+                fit: StackFit.expand,
                 children: [
-                  Text(
-                    product.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    product.availableForSale
-                        ? formatMoney(product.price)
-                        : 'Sold out',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: product.availableForSale
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
+                  ProductImage(url: product.imageUrl, width: 800, height: 600),
+                  if (!product.availableForSale)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.7),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Text(
+                          'Sold out',
+                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  product.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                formatMoney(product.price),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
+/// A Shopify product image, resized on their CDN, with a placeholder.
 class ProductImage extends StatelessWidget {
-  const ProductImage({super.key, required this.url});
+  const ProductImage({
+    super.key,
+    required this.url,
+    required this.width,
+    this.height,
+  });
 
   final String? url;
+  final int width;
+  final int? height;
 
   @override
   Widget build(BuildContext context) {
@@ -228,36 +301,10 @@ class ProductImage extends StatelessWidget {
     final u = url;
     if (u == null || u.isEmpty) return placeholder;
     return CachedNetworkImage(
-      imageUrl: u,
+      imageUrl: shopifyImage(u, width, height: height),
       fit: BoxFit.cover,
       placeholder: (_, _) => placeholder,
       errorWidget: (_, _, _) => placeholder,
-    );
-  }
-}
-
-class _ComingSoon extends StatelessWidget {
-  const _ComingSoon();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.storefront_outlined,
-              size: 64,
-              color: theme.colorScheme.primary,
-            ),
-            const SizedBox(height: 16),
-            Text('Coming Soon!', style: theme.textTheme.headlineSmall),
-          ],
-        ),
-      ),
     );
   }
 }
