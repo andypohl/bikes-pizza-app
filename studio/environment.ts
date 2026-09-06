@@ -16,6 +16,13 @@ export const datasets = {
 
 export type Dataset = keyof typeof datasets
 
+// An unattended deploy must say which dataset it means, rather than fall
+// back to .env.production and publish the production Studio by default.
+const deploying = process.argv.includes('deploy')
+if (process.env.CI && deploying && !process.env.SANITY_STUDIO_DATASET) {
+  throw new Error('SANITY_STUDIO_DATASET must be set when deploying from CI.')
+}
+
 const requested = process.env.SANITY_STUDIO_DATASET || undefined
 
 if (requested !== undefined && !(requested in datasets)) {
