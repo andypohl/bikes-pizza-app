@@ -35,7 +35,7 @@ const details = detailLine(post);
 >
   {
     titleAbove && (
-      <h3 class="text-2xl font-light tracking-wide text-center mb-3 text-stone-900 dark:text-stone-100 group-hover:text-stone-600 dark:group-hover:text-stone-300 transition-colors duration-300">
+      <h3 class="text-2xl font-light tracking-wide text-center mb-3 text-ink group-hover:text-spice transition-colors duration-300">
         {post.title}
       </h3>
     )
@@ -53,8 +53,8 @@ const details = detailLine(post);
       style={post.image.lqip ? `background: url(${post.image.lqip}) center / cover` : undefined}
       class="w-full h-auto aspect-[4/3] object-cover transition-transform duration-500 group-hover:scale-102"
     />
-    <div class="absolute inset-0 bg-slate-900 opacity-0 group-hover:opacity-50 transition-opacity duration-300 flex items-center justify-center pointer-events-none">
-      <div class="text-stone-100 text-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 p-4">
+    <div class="absolute inset-0 bg-ink opacity-0 group-hover:opacity-60 transition-opacity duration-300 flex items-center justify-center pointer-events-none">
+      <div class="text-cream text-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 p-4">
         {!titleAbove && <h3 class="text-lg font-medium mb-1">{post.title}</h3>}
         <p class="text-sm font-light tracking-wide opacity-90">
           {categoryOf(post)} · {formatDate(post.publishedAt)}

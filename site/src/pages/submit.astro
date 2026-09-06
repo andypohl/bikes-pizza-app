@@ -4,32 +4,32 @@ import { API_URL as apiUrl } from '../lib/api';
 ---
 
 <Layout title="Submit a bike or pizza | bikes.pizza" description="Send in a bike or a pizza for bikes.pizza.">
-  <main class="container mx-auto px-6 py-16 max-w-2xl">
-    <a href="/" class="inline-flex items-center mb-12 text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-stone-200 transition-colors duration-300 font-light">
+  <main class="container mx-auto px-6 pt-10 pb-16 max-w-2xl">
+    <a href="/" class="inline-flex items-center mb-12 text-muted hover:text-spice transition-colors duration-300 font-light">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
         <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"></path>
       </svg>
       Back to bikes.pizza
     </a>
 
-    <h1 class="text-4xl font-light tracking-wide mb-3 text-stone-900 dark:text-stone-100">Submit a bike or pizza</h1>
-    <p class="mb-10 text-stone-600 dark:text-slate-400 font-light">
+    <h1 class="text-4xl font-light tracking-wide mb-3 text-ink">Submit a bike or pizza</h1>
+    <p class="mb-10 text-muted font-light">
       Submissions go to bikes.pizza for review before anything is published.
     </p>
 
     <div id="submit-state" data-state="checking" data-api={apiUrl}>
-      <p data-view="checking" class="text-stone-600 dark:text-slate-400 font-light">Checking your sign-in…</p>
+      <p data-view="checking" class="text-muted font-light">Checking your sign-in…</p>
 
       <div data-view="closed" hidden>
-        <p class="text-stone-700 dark:text-gray-200 font-light mb-6">
+        <p class="text-ink font-light mb-6">
           Submissions on the website are closed right now. You can still send in a bike or a pizza from the bikes.pizza app.
         </p>
-        <a href="/" class="px-5 py-3 rounded-full bg-stone-200 dark:bg-slate-700 hover:bg-stone-300 dark:hover:bg-slate-600 text-stone-800 dark:text-stone-100 text-sm font-medium">Back to bikes.pizza</a>
+        <a href="/" class="px-5 py-3 rounded-full bg-pill hover:bg-pill-hover text-ink text-sm font-medium">Back to bikes.pizza</a>
       </div>
 
       <form id="submit-form" data-view="form" hidden class="space-y-8" novalidate>
         <fieldset>
-          <legend class="text-sm font-medium mb-3 text-stone-700 dark:text-slate-300">What is it?</legend>
+          <legend class="text-sm font-medium mb-3 text-ink">What is it?</legend>
           <div class="flex gap-3">
             <label class="feed-chip">
               <input type="radio" name="feed" value="bikes" checked class="sr-only" />
@@ -53,29 +53,29 @@ import { API_URL as apiUrl } from '../lib/api';
         </label>
 
         <label class="field">
-          <span>Description <span class="font-light text-stone-500 dark:text-slate-400">(optional)</span></span>
+          <span>Description <span class="font-light text-muted">(optional)</span></span>
           <textarea name="description" rows="5" maxlength="10000" placeholder="Anything you want to say about it"></textarea>
         </label>
 
         <div class="field">
           <span>Photo</span>
-          <input id="photo" name="photo" type="file" accept="image/*" required class="block w-full text-sm text-stone-600 dark:text-slate-300 file:mr-4 file:rounded-full file:border-0 file:bg-stone-200 dark:file:bg-slate-700 file:px-4 file:py-2 file:text-sm file:font-medium file:text-stone-800 dark:file:text-stone-100" />
+          <input id="photo" name="photo" type="file" accept="image/*" required class="block w-full text-sm text-muted file:mr-4 file:rounded-full file:border-0 file:bg-pill file:px-4 file:py-2 file:text-sm file:font-medium file:text-ink" />
           <img id="photo-preview" alt="" hidden class="mt-4 max-h-80 rounded-lg" />
         </div>
 
-        <p id="submit-error" role="alert" hidden class="text-red-700 dark:text-red-300"></p>
+        <p id="submit-error" role="alert" hidden class="text-error"></p>
 
-        <button id="submit-send" type="submit" class="inline-flex items-center justify-center px-6 py-3 rounded-full bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-400 text-white dark:text-slate-900 font-medium tracking-wide transition-colors duration-200 disabled:opacity-50">
+        <button id="submit-send" type="submit" class="inline-flex items-center justify-center px-6 py-3 rounded-full bg-accent hover:bg-accent-hover text-on-accent font-medium tracking-wide transition-colors duration-200 disabled:opacity-50">
           Send it in
         </button>
       </form>
 
       <div data-view="done" hidden>
-        <h2 class="text-2xl font-light tracking-wide mb-3 text-stone-900 dark:text-stone-100">Thanks!</h2>
-        <p id="done-text" class="text-stone-700 dark:text-gray-200 font-light mb-8"></p>
+        <h2 class="text-2xl font-light tracking-wide mb-3 text-ink">Thanks!</h2>
+        <p id="done-text" class="text-ink font-light mb-8"></p>
         <div class="flex gap-3">
-          <button id="submit-another" type="button" class="px-5 py-3 rounded-full bg-stone-200 dark:bg-slate-700 hover:bg-stone-300 dark:hover:bg-slate-600 text-stone-800 dark:text-stone-100 text-sm font-medium">Submit another</button>
-          <a href="/" class="px-5 py-3 rounded-full text-sm font-medium text-stone-700 dark:text-slate-300 hover:text-stone-900 dark:hover:text-stone-100">Back to bikes.pizza</a>
+          <button id="submit-another" type="button" class="px-5 py-3 rounded-full bg-pill hover:bg-pill-hover text-ink text-sm font-medium">Submit another</button>
+          <a href="/" class="px-5 py-3 rounded-full text-sm font-medium text-ink hover:text-spice">Back to bikes.pizza</a>
         </div>
       </div>
     </div>
@@ -91,52 +91,34 @@ import { API_URL as apiUrl } from '../lib/api';
     margin-bottom: 0.5rem;
     font-size: 0.875rem;
     font-weight: 500;
-    color: var(--color-stone-700);
-  }
-  :global(.dark) .field > span:first-child {
-    color: var(--color-slate-300);
+    color: var(--color-ink);
   }
   .field input[type='text'],
   .field textarea {
     width: 100%;
     padding: 0.75rem 1rem;
     border-radius: 0.75rem;
-    border: 1px solid var(--color-stone-300);
-    background: white;
-    color: var(--color-stone-900);
-  }
-  :global(.dark) .field input[type='text'],
-  :global(.dark) .field textarea {
-    border-color: var(--color-slate-600);
-    background: var(--color-slate-800);
-    color: var(--color-stone-100);
+    border: 1px solid var(--color-line);
+    background: var(--color-field);
+    color: var(--color-ink);
   }
   .feed-chip span {
     display: inline-block;
     padding: 0.5rem 1.25rem;
     border-radius: 9999px;
-    border: 1px solid var(--color-stone-300);
-    color: var(--color-stone-600);
+    border: 1px solid var(--color-line);
+    color: var(--color-muted);
     cursor: pointer;
     font-weight: 300;
     letter-spacing: 0.025em;
   }
-  :global(.dark) .feed-chip span {
-    border-color: var(--color-slate-600);
-    color: var(--color-slate-400);
-  }
   .feed-chip input:checked + span {
-    background: #e7e5e4;
-    color: #1c1917;
-    border-color: #a8a29e;
-  }
-  :global(.dark) .feed-chip input:checked + span {
-    background: #334155;
-    color: #f5f5f4;
-    border-color: #64748b;
+    background: var(--color-pill);
+    color: var(--color-ink);
+    border-color: transparent;
   }
   .feed-chip input:focus-visible + span {
-    outline: 2px solid var(--color-teal-600);
+    outline: 2px solid var(--color-accent);
     outline-offset: 2px;
   }
 </style>

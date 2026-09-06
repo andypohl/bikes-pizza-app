@@ -1,26 +1,28 @@
+/* The same palette as the website: the app icon's teal, tire black for
+   ink, pizza colors for cards and buttons (see site/src/styles/global.css). */
 :root {
-  --red: #d62828; /* the brand, and destructive actions only */
-  --red-dark: #a81d1d;
-  --accent: #2456b8; /* ordinary buttons, links and tabs */
-  --accent-dark: #1b4390;
-  --ink: #1f1a1a;
-  --muted: #6b6060;
-  --line: #e6dcdc;
-  --bg: #fbf5f3;
-  --card: #ffffff;
-  --error: #b3261e;
+  --red: #bf4d32; /* pepperoni: the brand, and destructive actions only */
+  --red-dark: #91331c;
+  --accent: #2f6f6c; /* deep teal: ordinary buttons, links and tabs */
+  --accent-dark: #245957;
+  --ink: #1c1917;
+  --muted: #4a5e5c;
+  --line: #d9c7a4;
+  --bg: #80c6c4;
+  --card: #fff7e6;
+  --error: #91331c;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --accent: #7aa6ff;
-    --accent-dark: #5d8ff0;
-    --ink: #f3ecec;
-    --muted: #b5a6a6;
-    --line: #3d3232;
-    --bg: #1c1515;
-    --card: #271e1e;
-    --error: #ff8a80;
+    --accent: #8ed0cc;
+    --accent-dark: #6fb6b3;
+    --ink: #eedbb5;
+    --muted: #9fc9c6;
+    --line: #2f5f5c;
+    --bg: #143634;
+    --card: #1e4b48;
+    --error: #f2a58e;
   }
 }
 

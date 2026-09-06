@@ -8,6 +8,7 @@ renders the wordmark, stacks the two into one composite image and writes
 every size the platforms need:
 
   assets/splash/splash.png                   Flutter's splash widget
+  site/public/logo.png                       the website header's logo
   ios/Runner/Assets.xcassets/LaunchImage.imageset/LaunchImage[@2x|@3x].png
   android/.../res/drawable-*/splash.png      pre-Android 12 window background
   android/.../res/drawable-*/splash_logo.png Android 12+ splash icon
@@ -112,6 +113,7 @@ def main(font_path):
     master = composite(logo, mark, 2400)
 
     save(fit_width(master, 1600), ROOT / "assets/splash/splash.png")
+    save(fit_width(logo, 512), ROOT / "site/public/logo.png")
 
     ios = ROOT / "ios/Runner/Assets.xcassets/LaunchImage.imageset"
     save(fit_width(master, 560), ios / "LaunchImage.png")

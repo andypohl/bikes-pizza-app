@@ -19,12 +19,13 @@ const { category, categories, products } = Astro.props;
 ---
 
 <Layout title={`${category} | Shop | bikes.pizza`}>
-  <main class="container mx-auto px-6 py-16">
-    <h1 class="text-5xl font-light tracking-wide mb-8 text-stone-900 dark:text-stone-100">
-      <a href="/">bikes.pizza</a> <a href="/shop/" class="text-stone-400 dark:text-slate-500">shop</a>
+  <main class="container mx-auto px-6 pt-10 pb-16">
+    <h1 class="text-3xl font-light tracking-wide mb-6 text-ink">
+      <a href="/shop/" class="hover:text-spice transition-colors duration-300">Shop</a>
+      <span class="text-muted"> · {category}</span>
     </h1>
 
-    <CategoryFilters categories={categories} active={slugify(category)} allHref="/shop/" allLabel={ALL_PRODUCTS} categoryBase="/shop/category/" />
+        <CategoryFilters categories={categories} active={slugify(category)} allHref="/shop/" allLabel={ALL_PRODUCTS} categoryBase="/shop/category/" />
     <ProductGrid products={products} />
   </main>
 </Layout>

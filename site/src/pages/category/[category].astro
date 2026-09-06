@@ -26,15 +26,12 @@ const { featured, rest } = splitFeatured(posts, posts.length ? [posts[0].feed] :
 ---
 
 <Layout title={`${category} | bikes.pizza`}>
-  <main class="container mx-auto px-6 py-16">
-    <h1 class="text-5xl font-light tracking-wide mb-8 text-stone-900 dark:text-stone-100">
-      <a href="/">bikes.pizza</a>
-    </h1>
-
-    <CategoryFilters categories={categories} active={slugify(category)} />
+  <main class="container mx-auto px-6 pt-10 pb-16">
+    <h1 class="text-3xl font-light tracking-wide mb-6 text-ink">{category}</h1>
+        <CategoryFilters categories={categories} active={slugify(category)} />
     {
       posts.length === 0 && (
-        <p class="text-lg font-light text-stone-600 dark:text-slate-400">Nothing in {category} yet. Check back soon.</p>
+        <p class="text-lg font-light text-muted">Nothing in {category} yet. Check back soon.</p>
       )
     }
     <FeaturedRow posts={featured} />

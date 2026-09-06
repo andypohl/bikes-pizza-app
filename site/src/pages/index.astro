@@ -12,11 +12,7 @@ const { featured, rest } = splitFeatured(posts);
 ---
 
 <Layout title="bikes.pizza">
-  <main class="container mx-auto px-6 py-16">
-    <h1 class="text-5xl font-light tracking-wide mb-8 text-stone-900 dark:text-stone-100">
-      bikes.pizza
-    </h1>
-
+  <main class="container mx-auto px-6 pt-10 pb-16">
     <CategoryFilters categories={categories} active="all" />
     <FeaturedRow posts={featured} />
     {featured.length > 0 && rest.length > 0 && <WavyDivider />}
