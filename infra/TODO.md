@@ -27,12 +27,12 @@ are done; keep the "left out on purpose" list current.
    through Workload Identity like the deploy workflows. Depends on 2, and
    on a service account with enough rights to manage the projects (the
    deploy accounts only have deploy roles).
-5. **Dev sign-in providers** (console steps, not Pulumi): enable Google in
+5. **Dev Google sign-in** (console step, not Pulumi): enable Google in
    the `bikes-pizza-dev` Firebase console (Authentication → Sign-in method),
-   which creates its OAuth client; and add `bikes-pizza-dev.firebaseapp.com`
-   with the return URL `https://bikes-pizza-dev.firebaseapp.com/__/auth/handler`
-   to the Apple Services ID in Apple Developer. The Apple provider config is
-   already copied to the dev project.
+   which creates its OAuth client, then re-run `flutterfire configure` for
+   development so the config files pick it up. (Apple is done: the dev
+   domain and return URL are on the Services ID, and the provider config
+   is copied to the dev project.)
 6. **Debug grant to remove.** `andypizzapredator@gmail.com` was given
    Service Account Token Creator on `github-deploy@bikes-pizza-dev` while
    diagnosing the Storage deploy failure. It is not in the program; revoke
