@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import '../models/post.dart';
 
 /// One row in a post list: thumbnail on the left, title and date on the
-/// right, plus a bike's brand, type and year when known.
+/// right, plus a bike's brand, type and year or a pizza's style when known.
 class PostTile extends StatelessWidget {
   const PostTile({super.key, required this.post, this.onTap});
 
@@ -20,7 +20,7 @@ class PostTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final details = post.bike?.line;
+    final details = post.details?.line;
     return InkWell(
       onTap: onTap,
       child: Padding(

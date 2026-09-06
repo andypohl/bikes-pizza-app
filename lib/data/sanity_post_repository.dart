@@ -34,6 +34,7 @@ class SanityPostRepository implements PostRepository {
     submittedBy,
     "author": author->{ "id": _id, "username": coalesce(username, "") },
     "bike": bike { brand, year, color, type },
+    "pizza": pizza { style },
     body[]{ ..., _type == "image" => { "url": asset->url } }
   }''';
 
