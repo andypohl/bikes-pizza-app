@@ -32,8 +32,18 @@ becomes session-aware when served by Firebase Hosting (locally:
 `firebase emulators:start --only hosting` from the repo root, home site on
 port 5055); under `astro preview` it stays on its neutral label.
 
-The header also links to the store (`PUBLIC_STORE_URL`, default
-`https://shop.bikes.pizza/`).
+`/shop/` is the store, built from the `product` and `productVariant`
+documents that Sanity Connect for Shopify keeps in the dataset
+(`src/lib/shop.ts`; the Studio's read-only `shopify.ts` types describe
+them). It uses the gallery's grid and theme, with the product name and
+price under each photo instead of a hover mask, and one filter chip per
+Shopify product type next to "All products". A product page shows the
+photo, price, description and a Buy button that opens Shopify's cart
+permalink for the chosen variant on the store's own domain
+(`PUBLIC_STORE_URL`, default `https://shop.bikes.pizza/`), so checkout stays
+with Shopify. The header's Store button goes to `/shop/` when the build has
+products and to that domain otherwise. Product changes in Shopify reach the
+site through the same rebuild webhook as posts.
 
 `/submit/` is the website's submission form ("Submit a bike or pizza" in the
 header). It needs a signed-in member: signed-out visitors are sent to the

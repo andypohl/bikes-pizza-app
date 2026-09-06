@@ -1,0 +1,21 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CategoryFilters from '../../components/CategoryFilters.astro';
+import ProductGrid from '../../components/ProductGrid.astro';
+import { ALL_PRODUCTS, categoriesOf, getProducts } from '../../lib/shop';
+
+const products = await getProducts();
+const categories = categoriesOf(products);
+---
+
+<Layout title="Shop | bikes.pizza" description="Stickers and other bikes.pizza things.">
+  <main class="container mx-auto px-6 py-16">
+    <h1 class="text-5xl font-light tracking-wide mb-8 text-stone-900 dark:text-stone-100">
+      <a href="/">bikes.pizza</a> <span class="text-stone-400 dark:text-slate-500">shop</span>
+    </h1>
+
+    <CategoryFilters categories={categories} active="all" allHref="/shop/" allLabel={ALL_PRODUCTS} categoryBase="/shop/category/" />
+    {products.length === 0 && <p class="text-lg font-light text-stone-600 dark:text-slate-400">Nothing in the shop yet. Check back soon.</p>}
+    <ProductGrid products={products} />
+  </main>
+</Layout>

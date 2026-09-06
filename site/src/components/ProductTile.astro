@@ -1,0 +1,53 @@
+---
+// One product in the shop grid: the photo cropped like a post tile, with
+// the name and price below it rather than in a hover mask.
+import { priceOf, productPath, responsiveShopify, type Product } from '../lib/shop';
+import { TILE_RATIO } from '../lib/sanity';
+
+interface Props {
+  product: Product;
+  eager?: boolean;
+}
+
+const { product, eager = false } = Astro.props;
+const image = product.image ? responsiveShopify(product.image, [400, 800, 1200], TILE_RATIO) : null;
+---
+
+<a
+  href={productPath(product)}
+  class="group block overflow-hidden rounded-lg transition-all duration-300"
+  transition:name={`product-${product.id}`}
+>
+  <div class="overflow-hidden relative rounded-lg bg-stone-200 dark:bg-slate-800 aspect-[4/3]">
+    {
+      image ? (
+        <img
+          src={image.src}
+          srcset={image.srcset}
+          sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw"
+          alt={product.title}
+          width={800}
+          height={600}
+          loading={eager ? 'eager' : 'lazy'}
+          decoding="async"
+          class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-102"
+        />
+      ) : (
+        <div class="w-full h-full flex items-center justify-center text-stone-400 dark:text-slate-500 font-light">No photo yet</div>
+      )
+    }
+    {
+      !product.available && (
+        <span class="absolute top-3 left-3 px-2 py-0.5 rounded-full text-xs font-medium tracking-wide bg-stone-900/70 text-stone-100">
+          Sold out
+        </span>
+      )
+    }
+  </div>
+  <div class="pt-3 flex items-baseline justify-between gap-3">
+    <h3 class="text-base font-medium text-stone-900 dark:text-stone-100 group-hover:text-stone-600 dark:group-hover:text-stone-300 transition-colors duration-300">
+      {product.title}
+    </h3>
+    <p class="text-sm font-light tracking-wide text-stone-600 dark:text-slate-400 whitespace-nowrap">{priceOf(product)}</p>
+  </div>
+</a>

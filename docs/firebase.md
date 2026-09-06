@@ -355,7 +355,9 @@ targets in `firebase.json` by `.firebaserc` (create the extra sites with
   "Rebuild website (development)" on `development`. Each has URL
   `https://api.github.com/repos/<owner>/<repo>/dispatches`, method POST,
   triggers on create, update and delete, filter
-  `_type in ["post", "member"]` (a username change must rebuild too), the
+  `_type in ["post", "member", "product", "productVariant"]` (a username
+  change must rebuild too, and so must a product change synced from
+  Shopify), the
   projection
   `{"event_type": "sanity-content-changed", "client_payload": {"environment": "<production|development>", "reason": "sanity " + sanity::dataset() + " " + _id}}`,
   and the headers `Accept: application/vnd.github+json`,

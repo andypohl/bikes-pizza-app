@@ -2,10 +2,13 @@
 
 Sanity Studio for the bikes.pizza content model, kept alongside the app so the
 schema and the app's readers evolve together. The project is set in
-`sanity.cli.ts` and `sanity.config.ts`. Two document types: `post`, and
-`member`, which mirrors an app account (account id and username) and is
-written by the app's functions rather than edited here; posts reference it
-so the site shows the member's current username.
+`sanity.cli.ts` and `sanity.config.ts`. Document types: `post`; `member`,
+which mirrors an app account (account id and username) and is written by
+the app's functions rather than edited here (posts reference it so the site
+shows the member's current username); and `product`, `productVariant` and
+`collection`, which the Sanity Connect for Shopify app writes from the
+store (everything under `store`, read-only here; the website's shop is
+built from them).
 
 There is one dataset, and one hosted Studio, per environment. `production`
 is what bikes.pizza is built from, edited at https://bikes-pizza.sanity.studio/.

@@ -1,0 +1,49 @@
+---
+// The shop's grid: the same columns and gaps as the post gallery
+// (PostGrid), with product tiles.
+import ProductTile from './ProductTile.astro';
+import type { Product } from '../lib/shop';
+
+interface Props {
+  products: Product[];
+  eager?: number;
+}
+
+const { products, eager = 4 } = Astro.props;
+---
+
+<div class="product-grid">
+  {
+    products.map((product, i) => (
+      <div class="product-grid-item">
+        <ProductTile product={product} eager={i < eager} />
+      </div>
+    ))
+  }
+</div>
+
+<style>
+  .product-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--post-columns, 1), minmax(0, 1fr));
+    gap: 1.5rem;
+  }
+  .product-grid-item {
+    min-width: 0;
+  }
+  @media (min-width: 640px) {
+    .product-grid {
+      --post-columns: 2;
+    }
+  }
+  @media (min-width: 768px) {
+    .product-grid {
+      --post-columns: 3;
+    }
+  }
+  @media (min-width: 1024px) {
+    .product-grid {
+      --post-columns: 4;
+    }
+  }
+</style>

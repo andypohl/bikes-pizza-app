@@ -1,0 +1,145 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import ProductGrid from '../../components/ProductGrid.astro';
+import { checkoutUrl, formatMoney, hasChoices, priceOf, responsiveShopify, shopifyImage, type Product } from '../../lib/shop';
+
+export async function getStaticPaths() {
+  const RELATED_LIMIT = 8;
+  const { getProducts } = await import('../../lib/shop');
+  const products = await getProducts();
+  return products.map((product) => ({
+    params: { handle: product.handle },
+    props: { product, related: products.filter((other) => other.id !== product.id).slice(0, RELATED_LIMIT) },
+  }));
+}
+
+interface Props {
+  product: Product;
+  related: Product[];
+}
+
+const { product, related } = Astro.props;
+const image = product.image ? responsiveShopify(product.image, [800, 1200, 1600]) : null;
+const ogImage = product.image ? shopifyImage(product.image, 1200, 630) : undefined;
+const choices = hasChoices(product);
+const first = product.variants.find((variant) => variant.available) ?? product.variants[0];
+const plain = product.descriptionHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+---
+
+<Layout title={`${product.title} | Shop | bikes.pizza`} description={plain || product.title} image={ogImage}>
+  <main class="container mx-auto px-6 py-16">
+    <a
+      href="/shop/"
+      class="inline-flex items-center mb-12 text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-stone-200 transition-colors duration-300 font-light"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+        <path
+          fill-rule="evenodd"
+          d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
+          clip-rule="evenodd"></path>
+      </svg>
+      Back to the shop
+    </a>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-12 items-start">
+      <div
+        class="lg:col-span-2 overflow-hidden rounded-lg max-h-[85vh] flex items-center justify-center bg-transparent"
+        transition:name={`product-${product.id}`}
+      >
+        {
+          image ? (
+            <img
+              src={image.src}
+              srcset={image.srcset}
+              sizes="(min-width: 1024px) 66vw, 100vw"
+              alt={product.title}
+              loading="eager"
+              decoding="async"
+              class="w-auto h-auto object-contain max-h-[85vh] max-w-full rounded-lg"
+            />
+          ) : (
+            <div class="w-full aspect-[4/3] rounded-lg bg-stone-200 dark:bg-slate-800" />
+          )
+        }
+      </div>
+
+      <div class="lg:col-span-1 py-4 lg:sticky lg:top-8">
+        <h1 class="text-3xl font-light tracking-wide mb-2 text-stone-900 dark:text-stone-100">{product.title}</h1>
+        <p class="text-lg font-light mb-8 text-stone-600 dark:text-slate-300 tracking-wide" id="price">{priceOf(product)}</p>
+
+        {
+          product.descriptionHtml && (
+            <div class="post-body mb-8 text-stone-700 dark:text-gray-200 leading-relaxed font-light" set:html={product.descriptionHtml} />
+          )
+        }
+
+        {
+          first ? (
+            <form class="buy" data-store-url={checkoutUrl(first).replace(/\/cart\/.*$/, '')}>
+              {choices && (
+                <label class="block mb-4 text-sm">
+                  <span class="font-medium text-stone-600 dark:text-slate-400">Choose</span>
+                  <select
+                    name="variant"
+                    class="mt-1 block w-full rounded-lg border border-stone-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-stone-900 dark:text-stone-100 px-3 py-2"
+                  >
+                    {product.variants.map((variant) => (
+                      <option value={variant.id} data-price={formatMoney(variant.price)} disabled={!variant.available} selected={variant.id === first.id}>
+                        {variant.title}
+                        {variant.available ? '' : ' (sold out)'}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <a
+                id="buy"
+                href={first.available ? checkoutUrl(first) : undefined}
+                aria-disabled={!first.available}
+                class:list={[
+                  'inline-flex items-center justify-center w-full px-5 py-3 rounded-full text-sm font-medium tracking-wide transition-colors duration-200',
+                  first.available
+                    ? 'bg-stone-900 text-stone-50 hover:bg-stone-700 dark:bg-stone-100 dark:text-slate-900 dark:hover:bg-stone-300'
+                    : 'bg-stone-200 text-stone-500 dark:bg-slate-700 dark:text-slate-400 cursor-not-allowed',
+                ]}
+              >
+                {first.available ? 'Buy now' : 'Sold out'}
+              </a>
+              <p class="mt-3 text-xs font-light text-stone-500 dark:text-slate-500">Checkout opens on our Shopify store.</p>
+            </form>
+          ) : (
+            <p class="text-stone-600 dark:text-slate-400 font-light">Not available right now.</p>
+          )
+        }
+      </div>
+    </div>
+
+    {
+      related.length > 0 && (
+        <div class="mt-16">
+          <h2 class="text-2xl font-light tracking-wide mb-8 text-stone-900 dark:text-stone-100">More from the shop</h2>
+          <ProductGrid products={related} eager={0} />
+        </div>
+      )
+    }
+  </main>
+</Layout>
+
+<script>
+  // With more than one variant, the buy link and price follow the choice.
+  function wire() {
+    const form = document.querySelector<HTMLFormElement>('form.buy');
+    const select = form?.querySelector<HTMLSelectElement>('select[name=variant]');
+    const buy = document.getElementById('buy') as HTMLAnchorElement | null;
+    const price = document.getElementById('price');
+    if (!form || !select || !buy) return;
+    const base = form.dataset.storeUrl ?? '';
+    select.addEventListener('change', () => {
+      const option = select.selectedOptions[0];
+      buy.href = `${base}/cart/${option.value}:1`;
+      if (price && option.dataset.price) price.textContent = option.dataset.price;
+    });
+  }
+  wire();
+  document.addEventListener('astro:page-load', wire);
+</script>
