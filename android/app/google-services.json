@@ -7,6 +7,53 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:79972934725:android:7eb820dbbe1e1280122f2c",
+        "android_client_info": {
+          "package_name": "com.pizzapredator.bikes_pizza"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "79972934725-truktsepvjda5f97j0oq86v3tcf8iud9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.pizzapredator.bikes_pizza",
+            "certificate_hash": "ef0cadbffbd43c2b15430c039558c018c393c0b7"
+          }
+        },
+        {
+          "client_id": "79972934725-4rqlalg00eelo1kgr9125ie3i14m8v88.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBp18UBbtPrP8o76Pd9O_LOXDti8pAGXK4"
+        },
+        {
+          "current_key": "AIzaSyAIDshZ59UkhtRbHY8G3WCIVhSzttWIvAo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "79972934725-4rqlalg00eelo1kgr9125ie3i14m8v88.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "79972934725-homgdv3a0uf97m156pkuq8ucqki8au7r.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.pizzapredator.pizzaPredator"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:79972934725:android:18841b553a427c4a122f2c",
         "android_client_info": {
           "package_name": "com.pizzapredator.pizza_predator"
@@ -27,6 +74,9 @@
         }
       ],
       "api_key": [
+        {
+          "current_key": "AIzaSyBp18UBbtPrP8o76Pd9O_LOXDti8pAGXK4"
+        },
         {
           "current_key": "AIzaSyAIDshZ59UkhtRbHY8G3WCIVhSzttWIvAo"
         }

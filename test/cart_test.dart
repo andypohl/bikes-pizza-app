@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pizza_predator/store/cart.dart';
-import 'package:pizza_predator/store/product.dart';
+import 'package:bikes_pizza/store/cart.dart';
+import 'package:bikes_pizza/store/product.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 CartItem _item(int id, {int quantity = 1, double price = 10}) => CartItem(

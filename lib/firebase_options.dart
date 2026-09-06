@@ -50,20 +50,20 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAIDshZ59UkhtRbHY8G3WCIVhSzttWIvAo',
-    appId: '1:79972934725:android:18841b553a427c4a122f2c',
+    apiKey: 'AIzaSyBp18UBbtPrP8o76Pd9O_LOXDti8pAGXK4',
+    appId: '1:79972934725:android:7eb820dbbe1e1280122f2c',
     messagingSenderId: '79972934725',
     projectId: 'pizzapredator-a445e',
     storageBucket: 'pizzapredator-a445e.firebasestorage.app',
   );
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyABByxTqUZOzw5AaBXgxn0LHust24F2gBg',
-    appId: '1:79972934725:ios:aee806e199b03345122f2c',
+    apiKey: 'AIzaSyB0UHJ0K6iZ_8KFcuc4qbOqRePRAZMOrmo',
+    appId: '1:79972934725:ios:f89acd9c23fc7757122f2c',
     messagingSenderId: '79972934725',
     projectId: 'pizzapredator-a445e',
     storageBucket: 'pizzapredator-a445e.firebasestorage.app',
     androidClientId: '79972934725-imtfd259pkft9n1ro6b2063qkjo8ttjf.apps.googleusercontent.com',
-    iosClientId: '79972934725-homgdv3a0uf97m156pkuq8ucqki8au7r.apps.googleusercontent.com',
-    iosBundleId: 'com.pizzapredator.pizzaPredator',
+    iosClientId: '79972934725-jc81fq6kgkgmphcb3end1q7ff017p3lb.apps.googleusercontent.com',
+    iosBundleId: 'com.pizzapredator.bikesPizza',
   );
 }

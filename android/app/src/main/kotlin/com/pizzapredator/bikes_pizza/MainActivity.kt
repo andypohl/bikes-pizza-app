@@ -1,4 +1,4 @@
-package com.pizzapredator.pizza_predator
+package com.pizzapredator.bikes_pizza
 
 import io.flutter.embedding.android.FlutterActivity
 

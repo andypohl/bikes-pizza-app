@@ -5,19 +5,19 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:pizza_predator/account/member_service.dart';
-import 'package:pizza_predator/app_settings.dart';
-import 'package:pizza_predator/auth/auth_service.dart';
-import 'package:pizza_predator/data/post_repository.dart';
-import 'package:pizza_predator/main.dart';
-import 'package:pizza_predator/models/post.dart';
-import 'package:pizza_predator/models/post_feed.dart';
-import 'package:pizza_predator/store/cart.dart';
-import 'package:pizza_predator/store/product.dart';
-import 'package:pizza_predator/store/store_repository.dart';
-import 'package:pizza_predator/submissions/photo_picker.dart';
-import 'package:pizza_predator/submissions/submission_service.dart';
-import 'package:pizza_predator/widgets/post_tile.dart';
+import 'package:bikes_pizza/account/member_service.dart';
+import 'package:bikes_pizza/app_settings.dart';
+import 'package:bikes_pizza/auth/auth_service.dart';
+import 'package:bikes_pizza/data/post_repository.dart';
+import 'package:bikes_pizza/main.dart';
+import 'package:bikes_pizza/models/post.dart';
+import 'package:bikes_pizza/models/post_feed.dart';
+import 'package:bikes_pizza/store/cart.dart';
+import 'package:bikes_pizza/store/product.dart';
+import 'package:bikes_pizza/store/store_repository.dart';
+import 'package:bikes_pizza/submissions/photo_picker.dart';
+import 'package:bikes_pizza/submissions/submission_service.dart';
+import 'package:bikes_pizza/widgets/post_tile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// In-memory repository so widget tests never touch the network.
@@ -421,7 +421,7 @@ void main() {
   setUp(() {
     PackageInfo.setMockInitialValues(
       appName: 'bikes.pizza',
-      packageName: 'com.pizzapredator.pizza_predator',
+      packageName: 'com.pizzapredator.bikes_pizza',
       version: '1.0.0',
       buildNumber: '1',
       buildSignature: '',

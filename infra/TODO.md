@@ -18,7 +18,8 @@ are done; keep the "left out on purpose" list current.
 3. **Import prod.** `Pulumi.prod.yaml` has the values, but the stack is not
    imported. Production has things `dev` does not: the `www.bikes.pizza`
    redirect domain and the old `submissions.pizzapredator.com` redirect on
-   Hosting, the iOS and Android app registrations, and repository-level
+   Hosting, the iOS and Android app registrations (now in the program;
+   import them), and repository-level
    (not environment-level) GitHub variables. Add them to the program or
    decide to leave them unmanaged, then import (README, "Importing prod").
 4. **CI for infrastructure.** A workflow that runs `pulumi preview` on pull

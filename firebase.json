@@ -4,13 +4,13 @@
       "android": {
         "default": {
           "projectId": "pizzapredator-a445e",
-          "appId": "1:79972934725:android:18841b553a427c4a122f2c",
+          "appId": "1:79972934725:android:7eb820dbbe1e1280122f2c",
           "fileOutput": "android/app/google-services.json"
         },
         "buildConfigurations": {
           "src/debug": {
             "projectId": "bikes-pizza-dev",
-            "appId": "1:35386977394:android:7121c44ba41d5e148326eb",
+            "appId": "1:35386977394:android:23c4cdcd94e3067d8326eb",
             "fileOutput": "android/app/src/debug/google-services.json"
           }
         }
@@ -18,14 +18,14 @@
       "ios": {
         "default": {
           "projectId": "pizzapredator-a445e",
-          "appId": "1:79972934725:ios:aee806e199b03345122f2c",
+          "appId": "1:79972934725:ios:f89acd9c23fc7757122f2c",
           "uploadDebugSymbols": false,
           "fileOutput": "ios/Runner/GoogleService-Info.plist"
         },
         "buildConfigurations": {
           "Debug": {
             "projectId": "bikes-pizza-dev",
-            "appId": "1:35386977394:ios:19b4768d15faa3988326eb",
+            "appId": "1:35386977394:ios:d6295589f1bd84768326eb",
             "uploadDebugSymbols": false,
             "fileOutput": "ios/dev/GoogleService-Info.plist"
           }
@@ -35,15 +35,15 @@
         "lib/firebase_options.dart": {
           "projectId": "pizzapredator-a445e",
           "configurations": {
-            "android": "1:79972934725:android:18841b553a427c4a122f2c",
-            "ios": "1:79972934725:ios:aee806e199b03345122f2c"
+            "android": "1:79972934725:android:7eb820dbbe1e1280122f2c",
+            "ios": "1:79972934725:ios:f89acd9c23fc7757122f2c"
           }
         },
         "lib/firebase_options_dev.dart": {
           "projectId": "bikes-pizza-dev",
           "configurations": {
-            "android": "1:35386977394:android:7121c44ba41d5e148326eb",
-            "ios": "1:35386977394:ios:19b4768d15faa3988326eb"
+            "android": "1:35386977394:android:23c4cdcd94e3067d8326eb",
+            "ios": "1:35386977394:ios:d6295589f1bd84768326eb"
           }
         }
       }

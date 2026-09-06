@@ -3,9 +3,9 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:pizza_predator/data/post_repository.dart';
-import 'package:pizza_predator/data/sanity_post_repository.dart';
-import 'package:pizza_predator/models/post_feed.dart';
+import 'package:bikes_pizza/data/post_repository.dart';
+import 'package:bikes_pizza/data/sanity_post_repository.dart';
+import 'package:bikes_pizza/models/post_feed.dart';
 
 Map<String, dynamic> _row(String slug, {String feed = 'pizza'}) => {
   'slug': slug,

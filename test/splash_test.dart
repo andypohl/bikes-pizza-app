@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pizza_predator/splash_screen.dart';
+import 'package:bikes_pizza/splash_screen.dart';
 
 void main() {
   Future<void> pumpSplash(WidgetTester tester, Size size) async {

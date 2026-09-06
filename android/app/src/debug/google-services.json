@@ -7,6 +7,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:35386977394:android:23c4cdcd94e3067d8326eb",
+        "android_client_info": {
+          "package_name": "com.pizzapredator.bikes_pizza"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCJ2_2Llec7Wy7WtCpArfQeAN6SNdAbtIk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:35386977394:android:7121c44ba41d5e148326eb",
         "android_client_info": {
           "package_name": "com.pizzapredator.pizza_predator"

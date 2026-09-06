@@ -16,3 +16,9 @@ config:
   gcp:userProjectOverride: "true"
   github:owner: andypohl
   bikes-pizza:repository: andypohl/bikes-pizza-app
+  bikes-pizza:iosBundleId: com.pizzapredator.bikesPizza
+  bikes-pizza:androidPackageName: com.pizzapredator.bikes_pizza
+  bikes-pizza:androidSha1Hashes:
+    - ef0cadbffbd43c2b15430c039558c018c393c0b7
+  bikes-pizza:androidSha256Hashes:
+    - 559fe57203508dcf04519ae7e57e47289d7e0c0e404520ab9354e18aafae172f
