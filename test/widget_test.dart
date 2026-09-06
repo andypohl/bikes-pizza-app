@@ -685,12 +685,26 @@ void main() {
     expect(find.byKey(const Key('buy-now')), findsOneWidget);
     expect(find.text('Your cart'), findsNothing);
 
-    await tester.pageBack();
-    await tester.pumpAndSettle();
+    // The product page's own cart button shows the count and opens the cart.
     final badge = find.byKey(const Key('cart-badge'));
     expect(tester.widget<Badge>(badge).isLabelVisible, isTrue);
     expect(
       find.descendant(of: badge, matching: find.text('2')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('cart-button')));
+    await tester.pumpAndSettle();
+    expect(find.text('Your cart'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('cart-badge')),
+        matching: find.text('2'),
+      ),
       findsOneWidget,
     );
   });

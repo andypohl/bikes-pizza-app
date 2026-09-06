@@ -5,7 +5,7 @@ import '../store/cart.dart';
 import '../store/product.dart';
 import '../store/store_repository.dart';
 import 'checkout.dart';
-import 'store_screen.dart' show ProductImage, formatMoney;
+import 'store_screen.dart' show CartAction, ProductImage, formatMoney;
 
 /// Product page: photo, price, description, a variant picker when there is
 /// a choice, a quantity, and two buttons. Add to cart puts that many in
@@ -135,7 +135,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final canAct = !_busy && available;
 
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(
+        actions: [
+          CartAction(
+            cart: widget.cart,
+            repository: widget.repository,
+            auth: widget.auth,
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
