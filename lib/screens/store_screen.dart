@@ -94,37 +94,16 @@ class _StoreScreenState extends State<StoreScreen> {
     );
   }
 
-  void _openCart() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => CartScreen(
-          cart: widget.cart,
-          repository: widget.repository,
-          auth: widget.auth,
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Store'),
         actions: [
-          ListenableBuilder(
-            listenable: widget.cart,
-            builder: (context, _) => IconButton(
-              key: const Key('cart-button'),
-              tooltip: 'Cart',
-              onPressed: _openCart,
-              icon: Badge.count(
-                key: const Key('cart-badge'),
-                count: widget.cart.count,
-                isLabelVisible: widget.cart.count > 0,
-                child: const Icon(Icons.shopping_cart_outlined),
-              ),
-            ),
+          CartAction(
+            cart: widget.cart,
+            repository: widget.repository,
+            auth: widget.auth,
           ),
         ],
       ),
@@ -197,6 +176,45 @@ class _StoreScreenState extends State<StoreScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The app bar's cart button: a badge with how many items are in the cart,
+/// opening the cart screen. Shown wherever you can shop, so the cart is
+/// one tap away from the store and from any product.
+class CartAction extends StatelessWidget {
+  const CartAction({
+    super.key,
+    required this.cart,
+    required this.repository,
+    required this.auth,
+  });
+
+  final Cart cart;
+  final StoreRepository repository;
+  final AuthService auth;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: cart,
+      builder: (context, _) => IconButton(
+        key: const Key('cart-button'),
+        tooltip: 'Cart',
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) =>
+                CartScreen(cart: cart, repository: repository, auth: auth),
+          ),
+        ),
+        icon: Badge.count(
+          key: const Key('cart-badge'),
+          count: cart.count,
+          isLabelVisible: cart.count > 0,
+          child: const Icon(Icons.shopping_cart_outlined),
+        ),
       ),
     );
   }
