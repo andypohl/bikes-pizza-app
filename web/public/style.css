@@ -10,6 +10,7 @@
   --line: #d9c7a4;
   --bg: #80c6c4;
   --card: #fff7e6;
+  --pill: #eedbb5;
   --error: #91331c;
 }
 
@@ -22,6 +23,7 @@
     --line: #2f5f5c;
     --bg: #143634;
     --card: #1e4b48;
+    --pill: #2a5d5a;
     --error: #f2a58e;
   }
 }
@@ -52,14 +54,26 @@ body {
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
 }
 
+/* The logo beside the wordmark, as in the website's header. */
 .brand {
-  display: block;
-  text-align: center;
-  font-weight: 700;
-  font-size: 1.35rem;
-  color: var(--red);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  font-family: "Inter", system-ui, sans-serif;
+  font-weight: 300;
+  font-size: 1.75rem;
+  letter-spacing: 0.025em;
+  color: var(--ink);
   text-decoration: none;
   margin-bottom: 1.25rem;
+}
+.brand:hover {
+  color: var(--red);
+}
+.brand img {
+  width: 2.5rem;
+  height: 2.5rem;
 }
 
 /* Back arrow in the card's top-left corner, leading to the website. */
@@ -112,7 +126,7 @@ body {
   gap: 0.5rem;
   padding: 0.75rem 1rem;
   border-radius: 999px;
-  background: var(--card);
+  background: var(--pill);
   border: 1px solid var(--line);
   color: var(--ink);
   font-size: 0.9rem;
