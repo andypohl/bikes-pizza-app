@@ -345,9 +345,13 @@ configuration. Sign in on a debug build with an account created on
 bikes-pizza.dev; Google sign-in there waits on the Google provider being
 enabled on the dev project.
 
-Formatting, `flutter analyze`, `flutter test`, and the Cloud Functions unit
-tests run on GitHub Actions for every pull request targeting `main`
-(`.github/workflows/pr-checks.yml`). Merging to `main` deploys the Cloud
+Formatting, `flutter analyze`, `flutter test`, the Cloud Functions unit
+tests, the infrastructure typecheck, and builds of the website, the Studio
+and the Post details app run on GitHub Actions for pull requests targeting
+`main` (`.github/workflows/pr-checks.yml`). Each check runs only when the
+files it covers changed, so a docs-only pull request finishes in seconds;
+shared inputs such as the Studio's option lists trigger every check that
+imports them, and a change to the workflow itself runs all of them. Merging to `main` deploys the Cloud
 Functions, the website and the account page to the development project
 (`.github/workflows/deploy-dev.yml`); publishing a GitHub release deploys
 them to production (`.github/workflows/deploy-firebase.yml`). Both call
