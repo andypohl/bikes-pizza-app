@@ -20,13 +20,10 @@ const noun = posts.length === 1 ? 'post' : 'posts';
 ---
 
 <Layout title={`Posts by ${username} | bikes.pizza`} description={`Bikes and pizzas submitted by ${username}.`}>
-  <main class="container mx-auto px-6 py-16">
-    <h1 class="text-5xl font-light tracking-wide mb-2 text-stone-900 dark:text-stone-100">
-      <a href="/">bikes.pizza</a>
+  <main class="container mx-auto px-6 pt-10 pb-16">
+    <h1 class="text-3xl font-light tracking-wide mb-10 text-ink">
+      {posts.length} {noun} by <span class="font-medium">{username}</span>
     </h1>
-    <p class="text-2xl font-light tracking-wide mb-10 text-stone-700 dark:text-slate-300">
-      {posts.length} {noun} by <span class="font-medium text-stone-900 dark:text-stone-100">{username}</span>
-    </p>
     <PostGrid posts={posts} />
   </main>
 </Layout>

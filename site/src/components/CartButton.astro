@@ -9,7 +9,7 @@ import { STORE_URL } from '../lib/shop';
 <button
   id="cart-button"
   type="button"
-  class="relative inline-flex items-center gap-2 px-4 py-3 rounded-full bg-stone-200 dark:bg-slate-700 hover:bg-stone-300 dark:hover:bg-slate-600 text-stone-800 dark:text-stone-100 text-sm font-medium tracking-wide transition-colors duration-200"
+  class="relative inline-flex items-center gap-2 px-4 py-3 rounded-full bg-pill hover:bg-pill-hover text-ink text-sm font-medium tracking-wide transition-colors duration-200"
   aria-label="Cart"
   aria-haspopup="dialog"
   aria-controls="cart-drawer"
@@ -22,19 +22,19 @@ import { STORE_URL } from '../lib/shop';
   <span>Cart</span>
   <span
     id="cart-count"
-    class="absolute -top-1 -right-1 min-w-5 h-5 px-1.5 rounded-full bg-red-600 text-white text-xs font-semibold flex items-center justify-center"
+    class="absolute -top-1 -right-1 min-w-5 h-5 px-1.5 rounded-full bg-accent text-on-accent text-xs font-semibold flex items-center justify-center"
     hidden
   ></span>
 </button>
 
 <div id="cart-drawer" class="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cart-title" hidden data-store-url={STORE_URL}>
   <button type="button" class="cart-backdrop" aria-label="Close cart" data-cart-close></button>
-  <aside class="cart-panel bg-stone-50 dark:bg-slate-900 text-stone-900 dark:text-stone-100">
-    <header class="flex items-center justify-between px-6 py-5 border-b border-stone-200 dark:border-slate-700">
+  <aside class="cart-panel bg-surface text-ink">
+    <header class="flex items-center justify-between px-6 py-5 border-b border-line">
       <h2 id="cart-title" class="text-xl font-light tracking-wide">Your cart</h2>
       <button
         type="button"
-        class="p-2 rounded-full hover:bg-stone-200 dark:hover:bg-slate-700 transition-colors duration-200"
+        class="p-2 rounded-full hover:bg-pill transition-colors duration-200"
         aria-label="Close cart"
         data-cart-close
       >
@@ -46,21 +46,21 @@ import { STORE_URL } from '../lib/shop';
         </svg>
       </button>
     </header>
-    <ul id="cart-items" class="flex-1 overflow-y-auto px-6 py-4 divide-y divide-stone-200 dark:divide-slate-700"></ul>
-    <p id="cart-empty" class="flex-1 px-6 py-8 text-stone-600 dark:text-slate-400 font-light" hidden>Your cart is empty.</p>
-    <footer class="px-6 py-5 border-t border-stone-200 dark:border-slate-700">
+    <ul id="cart-items" class="flex-1 overflow-y-auto px-6 py-4 divide-y divide-line"></ul>
+    <p id="cart-empty" class="flex-1 px-6 py-8 text-muted font-light" hidden>Your cart is empty.</p>
+    <footer class="px-6 py-5 border-t border-line">
       <div class="flex items-center justify-between mb-4 text-sm">
-        <span class="font-medium text-stone-600 dark:text-slate-400">Subtotal</span>
+        <span class="font-medium text-muted">Subtotal</span>
         <span id="cart-subtotal" class="font-medium"></span>
       </div>
       <a
         id="cart-checkout"
         href="#"
-        class="inline-flex items-center justify-center w-full px-5 py-3 rounded-full text-sm font-medium tracking-wide transition-colors duration-200 bg-stone-900 text-stone-50 hover:bg-stone-700 dark:bg-stone-100 dark:text-slate-900 dark:hover:bg-stone-300"
+        class="inline-flex items-center justify-center w-full px-5 py-3 rounded-full text-sm font-medium tracking-wide transition-colors duration-200 bg-accent text-on-accent hover:bg-accent-hover"
       >
         Checkout
       </a>
-      <p class="mt-3 text-xs font-light text-stone-500 dark:text-slate-500">Checkout opens on our Shopify store. Shipping and tax are added there.</p>
+      <p class="mt-3 text-xs font-light text-muted">Checkout opens on our Shopify store. Shipping and tax are added there.</p>
     </footer>
   </aside>
 </div>
@@ -121,17 +121,17 @@ import { STORE_URL } from '../lib/shop';
     const li = document.createElement('li');
     li.className = 'flex gap-4 py-4';
     li.innerHTML = `
-      <a class="block w-20 h-15 flex-none overflow-hidden rounded-lg bg-stone-200 dark:bg-slate-800" style="height:3.75rem">
+      <a class="block w-20 h-15 flex-none overflow-hidden rounded-lg bg-surface-2" style="height:3.75rem">
         ${item.image ? `<img class="w-full h-full object-cover" alt="">` : ''}
       </a>
       <div class="flex-1 min-w-0">
-        <a class="block font-medium truncate hover:text-stone-600 dark:hover:text-stone-300"></a>
-        <p class="text-sm font-light text-stone-600 dark:text-slate-400 cart-variant"></p>
+        <a class="block font-medium truncate hover:text-spice"></a>
+        <p class="text-sm font-light text-muted cart-variant"></p>
         <div class="mt-2 flex items-center gap-2 text-sm">
-          <button type="button" class="cart-qty bg-stone-200 dark:bg-slate-700 hover:bg-stone-300 dark:hover:bg-slate-600" data-dec aria-label="One fewer">−</button>
+          <button type="button" class="cart-qty bg-pill hover:bg-pill-hover" data-dec aria-label="One fewer">−</button>
           <span class="w-6 text-center" data-qty></span>
-          <button type="button" class="cart-qty bg-stone-200 dark:bg-slate-700 hover:bg-stone-300 dark:hover:bg-slate-600" data-inc aria-label="One more">+</button>
-          <button type="button" class="ml-auto text-stone-500 dark:text-slate-500 hover:text-red-600 font-light" data-remove>Remove</button>
+          <button type="button" class="cart-qty bg-pill hover:bg-pill-hover" data-inc aria-label="One more">+</button>
+          <button type="button" class="ml-auto text-muted hover:text-spice font-light" data-remove>Remove</button>
         </div>
       </div>
       <p class="text-sm font-medium whitespace-nowrap" data-price></p>`;

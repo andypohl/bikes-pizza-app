@@ -16,6 +16,8 @@ interface Props {
 
 const { title, description = 'Pizza and bikes, one photo at a time.', image } = Astro.props;
 const canonical = new URL(Astro.url.pathname, Astro.site);
+// The brand in the header is the front page's heading; elsewhere it is a link.
+const Brand = Astro.url.pathname === '/' ? 'h1' : 'p';
 ---
 
 <!doctype html>
@@ -26,6 +28,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
+    <meta name="theme-color" content="#80c6c4" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta property="og:type" content="website" />
@@ -59,10 +62,10 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     <ClientRouter />
   </head>
   <body
-    class="min-h-screen flex flex-col bg-stone-50 dark:bg-slate-900 font-inter transition-colors duration-300"
+    class="min-h-screen flex flex-col bg-surface text-ink font-inter transition-colors duration-300"
     transition:animate="initial"
   >
-    <div class="fixed top-6 right-6 z-50 flex items-center gap-3">
+    <div class="fixed top-6 left-6 right-6 z-50 flex flex-wrap items-center justify-end gap-3 pointer-events-none [&>*]:pointer-events-auto">
       <HomeButton />
       <SubmitButton />
       <StoreButton />
@@ -71,30 +74,43 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
       <ThemeToggle />
     </div>
 
+    <!-- The fixed buttons above sit to the right of the brand on wide
+         screens and above it (wrapping to a second row) on narrow ones. -->
+    <header class="container mx-auto px-6 pt-32 xl:pt-10">
+      <Brand class="m-0">
+        <a href="/" class="group inline-flex items-center gap-4 sm:gap-5">
+          <img src="/logo.png" alt="" width="512" height="512" class="h-14 w-14 sm:h-20 sm:w-20 transition-transform duration-500 group-hover:rotate-12" />
+          <span class="text-4xl sm:text-5xl font-light tracking-wide text-ink group-hover:text-spice transition-colors duration-300">
+            bikes.pizza
+          </span>
+        </a>
+      </Brand>
+    </header>
+
     <main class="flex-1">
       <slot />
     </main>
 
-    <footer class="bg-stone-100 dark:bg-slate-800 mt-16 py-8" transition:name="footer">
-      <div class="container mx-auto px-6 text-center text-stone-600 dark:text-gray-400 text-sm font-light">
+    <footer class="bg-surface-2 mt-16 py-8" transition:name="footer">
+      <div class="container mx-auto px-6 text-center text-muted text-sm font-light">
         <p>&copy; {new Date().getFullYear()} bikes.pizza</p>
         <p class="mt-2">
           Theme:{' '}
           <a
             href="https://github.com/EmaSuriano/astro-frame-shift"
-            class="hover:text-stone-800 dark:hover:text-gray-200 transition-colors"
+            class="hover:text-spice transition-colors"
           >
             Astro Frame Shift
           </a>
           {' by '}
           <a
             href="https://github.com/EmaSuriano"
-            class="hover:text-stone-800 dark:hover:text-gray-200 transition-colors"
+            class="hover:text-spice transition-colors"
           >
             Ema Suriano
           </a>
           {' · Built with '}
-          <a href="https://astro.build" class="hover:text-stone-800 dark:hover:text-gray-200 transition-colors">
+          <a href="https://astro.build" class="hover:text-spice transition-colors">
             Astro
           </a>
         </p>

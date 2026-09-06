@@ -2,9 +2,79 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-@theme {
+/*
+ * The theme is the app icon: its teal is the page, the tire is the ink,
+ * and the pizza supplies the rest (cheese and mushroom for pills and
+ * panels, pepperoni and sauce for the accent, crust for flourishes).
+ * Light and dark mode swap the roles below; the components only use the
+ * semantic names, through the Tailwind colors declared in @theme.
+ */
+:root {
+  --bp-teal: #80c6c4;
+  --bp-teal-deep: #67aeab;
+  --bp-teal-night: #143634;
+  --bp-teal-dusk: #1e4b48;
+  --bp-tire: #1c1917;
+  --bp-cheese: #ffdc99;
+  --bp-mushroom: #eedbb5;
+  --bp-crust: #db8b41;
+  --bp-pepperoni: #bf4d32;
+  --bp-sauce: #91331c;
+  --bp-paper: #fff7e6;
+
+  --surface: var(--bp-teal);
+  --surface-2: var(--bp-teal-deep);
+  --field: var(--bp-paper);
+  --ink: var(--bp-tire);
+  --muted: #2f4f4d;
+  --line: rgb(28 25 23 / 0.35);
+  --pill: var(--bp-mushroom);
+  --pill-hover: var(--bp-cheese);
+  --accent: var(--bp-pepperoni);
+  --accent-hover: var(--bp-sauce);
+  --on-accent: var(--bp-paper);
+  --spice: var(--bp-sauce);
+  --cream: var(--bp-mushroom);
+  --crust: var(--bp-crust);
+  --error: var(--bp-sauce);
+}
+html.dark {
+  --surface: var(--bp-teal-night);
+  --surface-2: var(--bp-teal-dusk);
+  --field: #10302e;
+  --ink: var(--bp-mushroom);
+  --muted: #9fc9c6;
+  --line: rgb(238 219 181 / 0.3);
+  --pill: #2a5d5a;
+  --pill-hover: #367572;
+  --accent: var(--bp-pepperoni);
+  --accent-hover: #d9603f;
+  --on-accent: var(--bp-paper);
+  --spice: var(--bp-crust);
+  --cream: var(--bp-mushroom);
+  --crust: var(--bp-crust);
+  --error: #f2a58e;
+}
+
+@theme inline {
   --font-inter: "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", monospace;
+
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-field: var(--field);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-pill: var(--pill);
+  --color-pill-hover: var(--pill-hover);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-on-accent: var(--on-accent);
+  --color-spice: var(--spice);
+  --color-cream: var(--cream);
+  --color-crust: var(--crust);
+  --color-error: var(--error);
 }
 
 html:has(#image-zoom:popover-open),

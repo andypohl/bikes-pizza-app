@@ -37,10 +37,10 @@ const specs = detailSpecs(post);
 ---
 
 <Layout title={`${post.title} | bikes.pizza`} description={summaryOf(post)} image={ogImage}>
-  <main class="container mx-auto px-6 py-16">
+  <main class="container mx-auto px-6 pt-10 pb-16">
     <a
       href={`/category/${category.toLowerCase()}/`}
-      class="inline-flex items-center mb-12 text-stone-600 dark:text-slate-400 hover:text-stone-900 dark:hover:text-stone-200 transition-colors duration-300 font-light"
+      class="inline-flex items-center mb-12 text-muted hover:text-spice transition-colors duration-300 font-light"
     >
       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
         <path
@@ -72,11 +72,11 @@ const specs = detailSpecs(post);
       </div>
 
       <div class="lg:col-span-1 py-4 lg:sticky lg:top-8">
-        <h1 class="text-3xl font-light tracking-wide mb-2 text-stone-900 dark:text-stone-100">
+        <h1 class="text-3xl font-light tracking-wide mb-2 text-ink">
           {post.title}
         </h1>
 
-        <h2 class="text-lg font-light mb-8 text-stone-600 dark:text-slate-300 tracking-wide">
+        <h2 class="text-lg font-light mb-8 text-muted tracking-wide">
           {category} · {formatDate(post.publishedAt)}
         </h2>
 
@@ -85,32 +85,32 @@ const specs = detailSpecs(post);
             <dl class="mb-8 text-sm">
               {specs.map((spec) => (
                 <div class="flex py-1">
-                  <dt class="font-medium w-28 text-stone-600 dark:text-slate-400">{spec.label}:</dt>
-                  <dd class="text-stone-700 dark:text-slate-300 font-light">{spec.value}</dd>
+                  <dt class="font-medium w-28 text-muted">{spec.label}:</dt>
+                  <dd class="text-ink font-light">{spec.value}</dd>
                 </div>
               ))}
             </dl>
           )
         }
 
-        <div class="post-body mb-8 text-stone-700 dark:text-gray-200 leading-relaxed font-light">
+        <div class="post-body mb-8 text-ink leading-relaxed font-light">
           <PortableText value={post.body} components={components} />
         </div>
 
         {
           creditOf(post) && (
             <div class="flex text-sm">
-              <span class="font-medium w-28 text-stone-600 dark:text-slate-400">Submitted by:</span>
+              <span class="font-medium w-28 text-muted">Submitted by:</span>
               {post.author?.username ? (
                 <a
                   href={memberPath(post.author)}
-                  class="text-stone-700 dark:text-slate-300 font-light underline decoration-stone-400 underline-offset-4 hover:text-stone-900 dark:hover:text-stone-100"
+                  class="text-ink font-light underline decoration-line underline-offset-4 hover:text-spice"
                   title={`All posts by ${post.author.username}`}
                 >
                   {post.author.username}
                 </a>
               ) : (
-                <span class="text-stone-700 dark:text-slate-300 font-light">{post.submittedBy}</span>
+                <span class="text-ink font-light">{post.submittedBy}</span>
               )}
             </div>
           )
@@ -121,7 +121,7 @@ const specs = detailSpecs(post);
     {
       related.length > 0 && (
         <div class="mt-16">
-          <h2 class="text-2xl font-light tracking-wide mb-8 text-stone-900 dark:text-stone-100">
+          <h2 class="text-2xl font-light tracking-wide mb-8 text-ink">
             More {category}
           </h2>
           <PostGrid posts={related} eager={0} />
