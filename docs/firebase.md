@@ -93,6 +93,14 @@ OAuth token that has the cloud-platform scope.
   resource, production through the Identity Toolkit
   `identityPlatform:initializeAuth` call). The upgrade is one-way; it is
   what allows a second factor.
+- Passkeys are a second way in (see the `passkey*` functions above). A
+  custom-token sign-in is not subject to Firebase's multi-factor step, so a
+  passkey stands in for the authenticator code on accounts with two-factor
+  authentication on: the device already verified the person. Signing in
+  any other way still asks for the code. Minting the custom token needs the
+  functions' runtime service account (the project's default compute
+  account) to hold Service Account Token Creator on itself; the Pulumi
+  program grants it (`functions-token-creator` in `infra/index.ts`).
 - Multi-factor authentication is `ENABLED` (not `MANDATORY`) with the TOTP
   provider (authenticator apps), so any account may enroll and none is
   forced to. Members choose it on the website's account page or the app's
@@ -102,8 +110,9 @@ OAuth token that has the cloud-platform scope.
   the exception: the review and admin pages
   walk an admin without a second factor through enrolling before showing
   anything, and every admin route of the REST API only accepts ID tokens
-  carrying `firebase.sign_in_second_factor` (`secondFactorAdminFromClaims`
-  in `functions/errors.js`). The setting lives in `infra/index.ts` (`mfa`);
+  carrying `firebase.sign_in_second_factor` or the `passkey` claim of a
+  passkey sign-in (`secondFactorAdminFromClaims` in `functions/errors.js`;
+  the pages apply the same rule). The setting lives in `infra/index.ts` (`mfa`);
   production was set by hand to match.
 - Enabled providers: Email/Password, Google, and Apple.
   - Email/Password was turned on by hand in the console under
@@ -235,10 +244,28 @@ creating it with defaults on first use.
   the member's `member` document in Sanity (if they have published) and
   requests a website rebuild; both are best effort and logged on failure.
 - `deleteAccount`: deletes the caller's own Firebase Auth user and member
-  record (freeing the username), as the admin page's delete does; their
-  posts stay. Needs only a signed-in user, not a verified email. The app's
-  Settings screen and the website's account page call it, after a
-  confirmation, and then sign the member out.
+  record (freeing the username), as the admin page's delete does, and
+  their passkeys; their posts stay. Needs only a signed-in user, not a
+  verified email. The app's Settings screen and the website's account page
+  call it, after a confirmation, and then sign the member out.
+- Passkeys (`functions/passkeys.js`, WebAuthn through
+  `@simplewebauthn/server`): `passkeyRegisterOptions` and `passkeyRegister`
+  add one for the signed-in member (two steps: options with a challenge,
+  then the authenticator's response; the credential is kept at
+  `passkeys/{credentialId}` with the owner's uid, its public key, signature
+  counter, a name such as "Safari on Mac" and dates; challenges wait five
+  minutes at `passkeyChallenges/{id}` and are single-use). `passkeyList`
+  and `passkeyRemove` manage them; up to 10 per account.
+  `passkeySignInOptions` and `passkeySignIn` need no user: the assertion is
+  checked against the stored credential and the result is a Firebase
+  custom token for its owner carrying `passkey: true`, which the client
+  passes to `signInWithCustomToken`. The relying party ID is the host of
+  `SITE_URL` (`bikes.pizza`, `bikes-pizza.dev`), so the same passkey works
+  on the website, the account page and, once they are wired up, the apps;
+  responses are accepted from https origins on that host or a subdomain
+  and from the origins in `PASSKEY_ORIGINS`. Registration asks for a
+  platform authenticator with user verification, so the device's Face ID,
+  Touch ID or screen lock is what confirms the person.
 - The REST API's `/api/admin/users` endpoints (`functions/admin_users.js`,
   admin claim required) list users ordered by most recent post (Firebase
   Auth users joined with `members/{uid}` and the published posts' `author`

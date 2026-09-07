@@ -263,6 +263,17 @@ by default: turning it on walks through adding bikes.pizza to an
 authenticator app (QR code, or on the phone a button that opens the app)
 and every sign-in afterwards, on the website and in the app, asks for the
 app's code. Turning it off removes the factor after an "Are you sure?".
+
+**Passkeys.** The account page also lets a member add a passkey on the
+device they are using (Face ID, Touch ID or the screen lock; up to ten per
+account, each named after the browser and device, removable from the
+list) and offers "Sign in with a passkey" on its sign-in screen. A passkey
+sign-in is verified by the `passkey*` Cloud Functions
+(`functions/passkeys.js`, WebAuthn) and ends in a Firebase custom token;
+that path is not subject to Firebase's multi-factor step, so on an account
+with two-factor authentication on the passkey takes the place of the
+authenticator code, while every other way of signing in still asks for
+it. The apps do not offer passkeys yet (see `docs/firebase.md`).
 Both also offer "Delete account", at the very bottom (in the app, at the
 end of the Settings screen): after a confirmation it calls
 `deleteAccount` and signs the member out.
