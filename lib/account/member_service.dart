@@ -90,6 +90,10 @@ abstract class MemberService {
   /// Changes the username and/or the full set of newsletter IDs the member
   /// receives. Returns the updated profile.
   Future<MemberProfile> update({String? username, List<String>? newsletters});
+
+  /// Deletes the member's account for good: the sign-in and the profile.
+  /// Posts they published stay. The caller signs out afterwards.
+  Future<void> deleteAccount();
 }
 
 /// Finishes a new member's profile from the choices saved at sign-up.
@@ -134,12 +138,21 @@ class CloudFunctionsMemberService implements MemberService {
         'newsletters': ?newsletters,
       });
 
-  Future<MemberProfile> _call(String name, Map<String, Object?> data) async {
+  @override
+  Future<void> deleteAccount() => _invoke('deleteAccount', const {});
+
+  Future<MemberProfile> _call(String name, Map<String, Object?> data) async =>
+      MemberProfile.fromJson(await _invoke(name, data));
+
+  Future<Map<String, dynamic>> _invoke(
+    String name,
+    Map<String, Object?> data,
+  ) async {
     try {
       final result = await _functions
           .httpsCallable(name)
           .call<Map<String, dynamic>>(data);
-      return MemberProfile.fromJson(result.data);
+      return result.data;
     } on FirebaseFunctionsException catch (e) {
       if (e.code == 'unauthenticated') {
         throw MemberException(sessionExpiredMessage, sessionExpired: true);

@@ -222,9 +222,9 @@ region us-central1). Deploy with `firebase deploy --only functions`.
 
 Current:
 
-All callables require a signed-in user with a verified email. The member
-callables load the caller's profile from `members/{uid}`, creating it with
-defaults on first use.
+All callables but `deleteAccount` require a signed-in user with a verified
+email. The member callables load the caller's profile from `members/{uid}`,
+creating it with defaults on first use.
 
 - `member`: the member's profile for the account page and the app (email,
   username, and the available newsletters with the member's subscription
@@ -234,6 +234,11 @@ defaults on first use.
   someone else holds fails with `already-exists`. After a rename it patches
   the member's `member` document in Sanity (if they have published) and
   requests a website rebuild; both are best effort and logged on failure.
+- `deleteAccount`: deletes the caller's own Firebase Auth user and member
+  record (freeing the username), as the admin page's delete does; their
+  posts stay. Needs only a signed-in user, not a verified email. The app's
+  Settings screen and the website's account page call it, after a
+  confirmation, and then sign the member out.
 - The REST API's `/api/admin/users` endpoints (`functions/admin_users.js`,
   admin claim required) list users ordered by most recent post (Firebase
   Auth users joined with `members/{uid}` and the published posts' `author`

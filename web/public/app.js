@@ -2,8 +2,9 @@
 //
 // Signs people in with Firebase Auth (the same user base as the app), then
 // either sends them on to the website (the Firebase session covers it) or
-// (mode=account) shows their account: username, newsletters, password and
-// optional two-factor authentication (an authenticator app).
+// (mode=account) shows their account: username, newsletters, password,
+// optional two-factor authentication (an authenticator app) and deleting
+// the account.
 // Members without a username (new sign-ups, Google and Apple accounts,
 // accounts from before usernames) are asked to choose one first.
 //
@@ -56,6 +57,7 @@ const auth = getAuth(firebase);
 const functions = getFunctions(firebase, "us-central1");
 const loadMember = httpsCallable(functions, "member");
 const updateMember = httpsCallable(functions, "updateMember");
+const deleteAccount = httpsCallable(functions, "deleteAccount");
 
 // What to do once someone is signed in: hand them to the site, or show the
 // account screen.
@@ -331,6 +333,7 @@ function renderProfile(user, profile) {
   renderNewsletters($("#newsletters"), profile.newsletters);
   renderPassword(user);
   void renderMfa(user);
+  $("#delete-confirm").hidden = true;
 }
 
 /**
@@ -608,6 +611,35 @@ $("#reset-password").addEventListener("click", async () => {
   }
 });
 
+// ---- deleting the account -------------------------------------------------
+//
+// The function removes the Firebase user and the member record; posts stay.
+// Set once that has happened, so the sign-in screen can say so.
+let deleted = false;
+
+$("#delete-account").addEventListener("click", () => {
+  $("#delete-confirm").hidden = false;
+  $("#delete-yes").focus();
+});
+
+$("#delete-keep").addEventListener("click", () => {
+  $("#delete-confirm").hidden = true;
+});
+
+$("#delete-yes").addEventListener("click", async () => {
+  busy(true);
+  try {
+    await deleteAccount();
+    deleted = true;
+    handled = false;
+    // The user no longer exists server-side; this clears the session here.
+    await signOut(auth);
+  } catch (error) {
+    say(describe(error) ?? "Could not delete your account.");
+    busy(false);
+  }
+});
+
 $("#go-site").addEventListener("click", () => connectToSite());
 
 $("#signout-account").addEventListener("click", async () => {
@@ -732,6 +764,11 @@ onAuthStateChanged(auth, (user) => {
   if (!user) {
     handled = false;
     show("auth");
+    if (deleted) {
+      deleted = false;
+      busy(false);
+      say("Your account has been deleted.", true);
+    }
     return;
   }
   if (handled) return;
