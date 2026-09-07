@@ -12,9 +12,10 @@ enum _Mode { signIn, createAccount }
 /// password-reset link. Pops itself on success. Accounts with two-factor
 /// authentication on get a second step asking for the authenticator code.
 ///
-/// Creating an account also asks for a username and whether to get the
-/// newsletter; those wait on the device (see [PendingProfile]) until the
-/// email is verified, since the member functions need a verified email.
+/// Creating an account asks for the password twice, plus a username and
+/// whether to get the newsletter; those last two wait on the device (see
+/// [PendingProfile]) until the email is verified, since the member
+/// functions need a verified email.
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key, required this.auth});
 
@@ -28,6 +29,7 @@ class _SignInScreenState extends State<SignInScreen> {
   final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
+  final _confirm = TextEditingController();
   final _username = TextEditingController();
 
   final _code = TextEditingController();
@@ -45,6 +47,7 @@ class _SignInScreenState extends State<SignInScreen> {
   void dispose() {
     _email.dispose();
     _password.dispose();
+    _confirm.dispose();
     _username.dispose();
     _code.dispose();
     super.dispose();
@@ -55,8 +58,9 @@ class _SignInScreenState extends State<SignInScreen> {
   void _switchMode(_Mode mode) => setState(() {
     _mode = mode;
     _error = null;
-    // Keep the email across modes; only the password is cleared.
+    // Keep the email across modes; only the passwords are cleared.
     _password.clear();
+    _confirm.clear();
   });
 
   Future<void> _submit() async {
@@ -279,8 +283,10 @@ class _SignInScreenState extends State<SignInScreen> {
                   controller: _password,
                   enabled: !_busy,
                   obscureText: _obscure,
-                  textInputAction: TextInputAction.done,
-                  onFieldSubmitted: (_) => _submit(),
+                  textInputAction: _isSignIn
+                      ? TextInputAction.done
+                      : TextInputAction.next,
+                  onFieldSubmitted: _isSignIn ? (_) => _submit() : null,
                   autofillHints: [
                     if (_isSignIn)
                       AutofillHints.password
@@ -306,6 +312,21 @@ class _SignInScreenState extends State<SignInScreen> {
                   },
                 ),
                 if (!_isSignIn) ...[
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    key: const Key('confirm-password'),
+                    controller: _confirm,
+                    enabled: !_busy,
+                    obscureText: _obscure,
+                    textInputAction: TextInputAction.next,
+                    autofillHints: const [AutofillHints.newPassword],
+                    decoration: const InputDecoration(
+                      labelText: 'Confirm password',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (v) =>
+                        v == _password.text ? null : 'Passwords do not match',
+                  ),
                   const SizedBox(height: 16),
                   TextFormField(
                     key: const Key('username'),
