@@ -460,6 +460,35 @@ Apple key ID and its private key, for the OAuth code flow) goes into the Apple
 provider's settings under Authentication → Sign-in method. The app's native
 Apple sign-in does not need any of this.
 
+### Passkeys in the apps (platform trust)
+
+Before the apps can use passkeys, each platform has to be told that the
+app and the website belong together; both use files the website serves
+from `site/public/.well-known/` (Astro copies the folder into `dist/`, and
+the `home` Hosting target no longer ignores dot-files so it deploys; the
+Apple file is served as `application/json` by a Hosting header rule). The
+files are the same for both environments because they name the app, not
+the site.
+
+- iOS: `apple-app-site-association` lists
+  `<Team ID>.<bundle ID>` under `webcredentials`, and
+  `ios/Runner/Runner.entitlements` carries the Associated Domains
+  entitlement with `webcredentials:bikes.pizza` and
+  `webcredentials:bikes-pizza.dev`. The App ID in Apple Developer must
+  have the Associated Domains capability enabled (Xcode adds it to the App
+  ID when it signs with the team; otherwise enable it under Certificates,
+  Identifiers & Profiles). Apple fetches the file through its CDN, so a
+  change can take up to a day to reach devices.
+- Android: `assetlinks.json` grants `common.get_login_creds` to the
+  package for each SHA-256 signing certificate, the same fingerprints the
+  Pulumi config registers with Firebase (`androidSha256Hashes`). The
+  functions must also accept the app's WebAuthn origin,
+  `android:apk-key-hash:<base64url of that SHA-256>`; the Pulumi program
+  derives `PASSKEY_ORIGINS` from the same list and sets it as a GitHub
+  environment variable the deploy writes into `functions/.env`. Adding a
+  signing key (the Play app-signing key, a release upload key) means
+  adding its fingerprint to the Pulumi config and to `assetlinks.json`.
+
 ## Extensions (planned)
 
 - Resize Images, configured for the Storage layout above.
