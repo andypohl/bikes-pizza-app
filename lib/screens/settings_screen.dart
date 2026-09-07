@@ -51,6 +51,7 @@ class SettingsScreen extends StatelessWidget {
           const Divider(),
           const _SectionHeader('About'),
           const _AboutTile(),
+          _DeleteAccountSection(auth: auth, members: members),
         ],
       ),
     );
@@ -110,8 +111,6 @@ class _AccountSection extends StatelessWidget {
               )
             else if (members != null)
               _VerifyEmailTile(auth: auth, members: members),
-            if (members != null)
-              _DeleteAccountTile(auth: auth, members: members),
           ],
         );
       },
@@ -172,6 +171,35 @@ class _VerifyEmailTileState extends State<_VerifyEmailTile> {
         child: Text(_sent ? 'Resend' : 'Send email'),
       ),
       onTap: _check,
+    );
+  }
+}
+
+/// The last thing on the screen: "Delete account" for a signed-in member,
+/// kept well away from the everyday account actions. Nothing when signed
+/// out or when account management is unavailable.
+class _DeleteAccountSection extends StatelessWidget {
+  const _DeleteAccountSection({required this.auth, required this.members});
+
+  final AuthService auth;
+  final MemberService? members;
+
+  @override
+  Widget build(BuildContext context) {
+    final members = this.members;
+    if (members == null) return const SizedBox.shrink();
+    return StreamBuilder<AppUser?>(
+      stream: auth.userChanges,
+      initialData: auth.currentUser,
+      builder: (context, snapshot) {
+        if (snapshot.data == null) return const SizedBox.shrink();
+        return Column(
+          children: [
+            const Divider(),
+            _DeleteAccountTile(auth: auth, members: members),
+          ],
+        );
+      },
     );
   }
 }
