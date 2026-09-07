@@ -263,8 +263,9 @@ by default: turning it on walks through adding bikes.pizza to an
 authenticator app (QR code, or on the phone a button that opens the app)
 and every sign-in afterwards, on the website and in the app, asks for the
 app's code. Turning it off removes the factor after an "Are you sure?".
-Both also offer "Delete account" (in the app, on the Settings screen):
-after a confirmation it calls `deleteAccount` and signs the member out.
+Both also offer "Delete account", at the very bottom (in the app, at the
+end of the Settings screen): after a confirmation it calls
+`deleteAccount` and signs the member out.
 
 Run the functions' unit tests with `npm test` inside `functions/`.
 

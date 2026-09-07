@@ -1338,6 +1338,9 @@ void main() {
     await pumpApp(tester);
     await signInWithGoogle(tester);
 
+    // The tile is the last thing on the screen.
+    await scrollTo(tester, find.byKey(const Key('delete-account')));
+
     // Backing out of the confirmation changes nothing.
     await tester.tap(find.byKey(const Key('delete-account')));
     await tester.pumpAndSettle();
@@ -1365,6 +1368,7 @@ void main() {
     await pumpApp(tester);
     await signInWithGoogle(tester);
 
+    await scrollTo(tester, find.byKey(const Key('delete-account')));
     await tester.tap(find.byKey(const Key('delete-account')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('confirm-delete-account')));
