@@ -928,6 +928,40 @@ void main() {
     expect(find.text('Password must be at least 6 characters'), findsOneWidget);
   });
 
+  testWidgets('creating an account asks for the password twice', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign in'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('New here? Create an account'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextFormField).at(0), 'new@example.com');
+    await tester.enterText(find.byType(TextFormField).at(1), 'secret-one');
+    await tester.enterText(
+      find.byKey(const Key('confirm-password')),
+      'secret-two',
+    );
+    await tester.enterText(find.byKey(const Key('username')), 'newbie');
+    await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
+    await tester.pumpAndSettle();
+    expect(find.text('Passwords do not match'), findsOneWidget);
+    expect(auth.currentUser, isNull);
+
+    await tester.enterText(
+      find.byKey(const Key('confirm-password')),
+      'secret-one',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
+    await tester.pumpAndSettle();
+    expect(auth.currentUser?.email, 'new@example.com');
+    // Back on Settings, signed in.
+    expect(find.text('new@example.com'), findsOneWidget);
+  });
+
   Future<void> openSignIn(WidgetTester tester) async {
     await pumpApp(tester);
     await tester.tap(find.text('Settings'));
@@ -1187,6 +1221,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).at(0), 'new@example.com');
     await tester.enterText(find.byType(TextField).at(1), 'correct-horse');
+    await tester.enterText(
+      find.byKey(const Key('confirm-password')),
+      'correct-horse',
+    );
     // Sign-up needs a username; an unticked newsletter box is respected.
     await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
     await tester.pumpAndSettle();

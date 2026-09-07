@@ -145,6 +145,7 @@ function setMode(next) {
   // The email is kept across modes so a member who subscribed before
   // passwords existed can go straight to creating one for that address.
   $("input[name=password]").value = "";
+  $("input[name=confirm]").value = "";
   hideMessage();
 }
 
@@ -661,6 +662,10 @@ $("#auth-form").addEventListener("submit", async (event) => {
   const password = form.password.value;
   if (!email || !password) {
     say("Enter your email and password.");
+    return;
+  }
+  if (mode === "signup" && form.confirm.value !== password) {
+    say("Passwords do not match.");
     return;
   }
   const username = form.username.value.trim();
