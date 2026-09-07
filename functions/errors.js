@@ -38,12 +38,15 @@ export function adminFromClaims(claims) {
 
 /**
  * An admin whose ID token was minted after a second factor (Firebase sets
- * `firebase.sign_in_second_factor` on such tokens). The admin page requires
- * it; this keeps the API from being a way around that.
+ * `firebase.sign_in_second_factor` on such tokens) or by a passkey sign-in
+ * (a custom token carrying `passkey: true`, see passkeys.js; the device's
+ * screen lock or biometrics stand in for the authenticator code). The
+ * admin page requires one or the other; this keeps the API from being a
+ * way around that.
  */
 export function secondFactorAdminFromClaims(claims) {
   const user = adminFromClaims(claims);
-  if (!claims.firebase?.sign_in_second_factor) {
+  if (!claims.firebase?.sign_in_second_factor && claims.passkey !== true) {
     throw new AppError("permission-denied", "Two-factor authentication is required for this.");
   }
   return user;

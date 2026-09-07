@@ -208,6 +208,21 @@ const auth = new gcp.identityplatform.Config(
   firebaseReady,
 );
 
+// Cloud Functions run as the project's default compute service account.
+// Signing in with a passkey (functions/passkeys.js) ends in a Firebase
+// custom token, which the Admin SDK signs through the IAM Credentials API
+// as that account; that needs the Token Creator role on itself.
+const functionsRuntime = pulumi.interpolate`${project.number}-compute@developer.gserviceaccount.com`;
+new gcp.serviceaccount.IAMMember(
+  "functions-token-creator",
+  {
+    serviceAccountId: pulumi.interpolate`projects/${project.projectId}/serviceAccounts/${functionsRuntime}`,
+    role: "roles/iam.serviceAccountTokenCreator",
+    member: pulumi.interpolate`serviceAccount:${functionsRuntime}`,
+  },
+  apisReady,
+);
+
 // ---------------------------------------------------------------------------
 // Hosting
 

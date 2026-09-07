@@ -23,6 +23,7 @@
 #   SUBMISSION_FROM_EMAIL           (optional) sender address for the email
 #   REVIEW_PAGE_URL                 (optional) link in the notification email
 #   GITHUB_REPOSITORY               (optional) repository the functions ask to rebuild the site
+#   PASSKEY_ORIGINS                 (optional) app origins allowed to use passkeys (functions/.env.example)
 #
 # Secrets (set by hand on the environment; see infra/README.md):
 #   SANITY_STUDIO_DEPLOY_TOKEN      Sanity project token with the Deploy Studio role
@@ -99,6 +100,7 @@ jobs:
           echo "SUBMISSION_FROM_EMAIL=${{ vars.SUBMISSION_FROM_EMAIL }}" >> .env
           echo "REVIEW_PAGE_URL=${{ vars.REVIEW_PAGE_URL }}" >> .env
           echo "GITHUB_REPOSITORY=${{ vars.GITHUB_REPOSITORY }}" >> .env
+          echo "PASSKEY_ORIGINS=${{ vars.PASSKEY_ORIGINS }}" >> .env
 
       - name: Build the website
         working-directory: site

@@ -3,8 +3,9 @@
 // Signs people in with Firebase Auth (the same user base as the app), then
 // either sends them on to the website (the Firebase session covers it) or
 // (mode=account) shows their account: username, newsletters, password,
-// optional two-factor authentication (an authenticator app) and deleting
-// the account.
+// optional two-factor authentication (an authenticator app), passkeys
+// (Face ID, Touch ID or the device's screen lock, which also stand in for
+// the authenticator code) and deleting the account.
 // Members without a username (new sign-ups, Google and Apple accounts,
 // accounts from before usernames) are asked to choose one first.
 //
@@ -27,6 +28,7 @@ import {
   reauthenticateWithCredential,
   sendEmailVerification,
   sendPasswordResetEmail,
+  signInWithCustomToken,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
@@ -58,6 +60,12 @@ const functions = getFunctions(firebase, "us-central1");
 const loadMember = httpsCallable(functions, "member");
 const updateMember = httpsCallable(functions, "updateMember");
 const deleteAccount = httpsCallable(functions, "deleteAccount");
+const passkeyRegisterOptions = httpsCallable(functions, "passkeyRegisterOptions");
+const passkeyRegister = httpsCallable(functions, "passkeyRegister");
+const passkeyList = httpsCallable(functions, "passkeyList");
+const passkeyRemove = httpsCallable(functions, "passkeyRemove");
+const passkeySignInOptions = httpsCallable(functions, "passkeySignInOptions");
+const passkeySignIn = httpsCallable(functions, "passkeySignIn");
 
 // What to do once someone is signed in: hand them to the site, or show the
 // account screen.
@@ -205,6 +213,8 @@ function describe(error) {
     case "functions/failed-precondition":
     case "functions/invalid-argument":
     case "functions/already-exists":
+    case "functions/not-found":
+    case "functions/permission-denied":
       return error.message;
     default:
       return "Something went wrong. Please try again.";
@@ -334,6 +344,7 @@ function renderProfile(user, profile) {
   renderNewsletters($("#newsletters"), profile.newsletters);
   renderPassword(user);
   void renderMfa(user);
+  void renderPasskeys();
   $("#delete-confirm").hidden = true;
 }
 
@@ -612,6 +623,157 @@ $("#reset-password").addEventListener("click", async () => {
   }
 });
 
+// ---- passkeys ---------------------------------------------------------------
+//
+// WebAuthn through the browser's own passkey support: the device's Face ID,
+// Touch ID or screen lock. The functions keep the credentials and, at
+// sign-in, hand back a custom token; that path skips the authenticator
+// code, since the device has already verified the person.
+
+const PASSKEYS_SUPPORTED =
+  typeof PublicKeyCredential !== "undefined" &&
+  typeof PublicKeyCredential.parseCreationOptionsFromJSON === "function" &&
+  typeof PublicKeyCredential.parseRequestOptionsFromJSON === "function";
+
+/** A name for the passkey being added: the browser and device, roughly. */
+function deviceName() {
+  const ua = navigator.userAgent;
+  const device = /iPhone/.test(ua)
+    ? "iPhone"
+    : /iPad|Macintosh.*Mobile/.test(ua)
+      ? "iPad"
+      : /Android/.test(ua)
+        ? "Android phone"
+        : /Macintosh/.test(ua)
+          ? "Mac"
+          : /Windows/.test(ua)
+            ? "Windows PC"
+            : /CrOS/.test(ua)
+              ? "Chromebook"
+              : /Linux/.test(ua)
+                ? "Linux PC"
+                : "device";
+  const browser = /Edg\//.test(ua)
+    ? "Edge"
+    : /OPR\//.test(ua)
+      ? "Opera"
+      : /Firefox\//.test(ua)
+        ? "Firefox"
+        : /Chrome\//.test(ua)
+          ? "Chrome"
+          : /Safari\//.test(ua)
+            ? "Safari"
+            : "Browser";
+  return `${browser} on ${device}`;
+}
+
+function describePasskeyError(error, fallback) {
+  switch (error?.name) {
+    case "NotAllowedError":
+    case "AbortError":
+      return null; // the person backed out of the prompt
+    case "InvalidStateError":
+      return "This device already has a passkey for your account.";
+    case "NotSupportedError":
+    case "SecurityError":
+      return "Passkeys are not available here.";
+    default:
+      return describe(error) ?? fallback;
+  }
+}
+
+const dateText = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : null);
+
+function renderPasskeyList(passkeys) {
+  const list = $("#passkey-list");
+  list.replaceChildren();
+  for (const p of passkeys) {
+    const item = document.createElement("li");
+    const name = document.createElement("span");
+    name.className = "name";
+    name.append(p.name);
+    const detail = document.createElement("span");
+    detail.className = "muted small";
+    const parts = [`Added ${dateText(p.createdAt)}`];
+    if (p.lastUsedAt) parts.push(`last used ${dateText(p.lastUsedAt)}`);
+    if (p.backedUp) parts.push("synced by your device");
+    detail.textContent = parts.join(" · ");
+    name.append(detail);
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "link";
+    remove.textContent = "Remove";
+    remove.setAttribute("aria-label", `Remove the passkey ${p.name}`);
+    remove.addEventListener("click", () => removePasskey(p));
+    item.append(name, remove);
+    list.append(item);
+  }
+  list.hidden = passkeys.length === 0;
+  $("#add-passkey").hidden = !PASSKEYS_SUPPORTED;
+  $("#passkeys-intro").textContent = PASSKEYS_SUPPORTED
+    ? "Sign in with Face ID, Touch ID or your device's screen lock instead of a password and authenticator code. Add a passkey on each device you use."
+    : "Sign in with Face ID, Touch ID or your device's screen lock. This browser cannot add passkeys; use a current browser or the app.";
+  $("#passkeys-section").hidden = false;
+}
+
+async function renderPasskeys() {
+  try {
+    const { data } = await passkeyList();
+    renderPasskeyList(data);
+  } catch (error) {
+    // The rest of the account screen still works without the list.
+    $("#passkeys-section").hidden = true;
+    console.warn("passkeys not loaded", error);
+  }
+}
+
+$("#add-passkey").addEventListener("click", async () => {
+  busy(true);
+  try {
+    const { data: start } = await passkeyRegisterOptions();
+    const credential = await navigator.credentials.create({
+      publicKey: PublicKeyCredential.parseCreationOptionsFromJSON(start.options),
+    });
+    const { data } = await passkeyRegister({ challengeId: start.challengeId, response: credential.toJSON(), name: deviceName() });
+    renderPasskeyList(data);
+    say("Passkey added. This device can now sign you in.", true);
+  } catch (error) {
+    const text = describePasskeyError(error, "Could not add a passkey.");
+    if (text) say(text);
+  } finally {
+    busy(false);
+  }
+});
+
+async function removePasskey(passkey) {
+  busy(true);
+  try {
+    const { data } = await passkeyRemove({ id: passkey.id });
+    renderPasskeyList(data);
+    say(`Removed the passkey ${passkey.name}.`, true);
+  } catch (error) {
+    say(describe(error) ?? "Could not remove the passkey.");
+  } finally {
+    busy(false);
+  }
+}
+
+$("#passkey-signin").addEventListener("click", () =>
+  attemptSignIn(async () => {
+    try {
+      const { data: start } = await passkeySignInOptions();
+      const credential = await navigator.credentials.get({
+        publicKey: PublicKeyCredential.parseRequestOptionsFromJSON(start.options),
+      });
+      const { data } = await passkeySignIn({ challengeId: start.challengeId, response: credential.toJSON() });
+      await signInWithCustomToken(auth, data.token);
+    } catch (error) {
+      const text = describePasskeyError(error, "Could not sign in with the passkey.");
+      if (text) say(text);
+    }
+  }),
+);
+
 // ---- deleting the account -------------------------------------------------
 //
 // The function removes the Firebase user and the member record; posts stay.
@@ -763,6 +925,7 @@ for (const id of ["#signout-verify", "#signout-setup", "#signout-error"]) {
 $("#site-link").href = ON_SITE ? redirectTo : `${SITE}/`;
 $("#back-link").href = ON_SITE ? redirectTo : `${SITE}/`;
 $("#home-link").href = ON_SITE ? "/" : `${SITE}/`;
+$("#passkey-signin").hidden = !PASSKEYS_SUPPORTED;
 setMode(mode);
 
 onAuthStateChanged(auth, (user) => {

@@ -9,7 +9,13 @@
 // member:            the member's profile (email, username, newsletters)
 //                    for the account page and the app.
 // updateMember:      changes the member's username and/or newsletters.
-// deleteAccount:     deletes the caller's Firebase user and member record.
+// deleteAccount:     deletes the caller's Firebase user, member record and
+//                    passkeys.
+// passkeyRegisterOptions, passkeyRegister, passkeys, passkeyRemove:
+//                    a member's passkeys (passkeys.js).
+// passkeySignInOptions, passkeySignIn:
+//                    signing in with a passkey; no user yet. The result is
+//                    a custom token with `passkey: true`.
 // submitPost:        checks a bike/pizza submission's photo with Google
 //                    Vision (SafeSearch, and no people or faces), stores it
 //                    (photo + text) in Firestore and Storage and emails the
@@ -35,12 +41,14 @@ import { defineSecret, defineString } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import { profile, validateUpdate } from "./account.js";
 import * as adminUsers from "./admin_users.js";
+import * as webauthn from "@simplewebauthn/server";
 import { createApi } from "./api.js";
 import { syncMemberUsername } from "./authors.js";
 import { AppError, ValidationError, adminFromClaims, userFromClaims } from "./errors.js";
 import { processImage } from "./images.js";
 import { NEWSLETTERS, firestoreMemberStore, loadMember, updateMember as applyMemberUpdate } from "./members.js";
 import { isMailConfigured, sendMail } from "./mail.js";
+import * as passkeys from "./passkeys.js";
 import { inspectImage } from "./vision.js";
 import { requestRebuild } from "./rebuild.js";
 import { TIME_ZONE, cronFor } from "./schedule.js";
@@ -94,6 +102,12 @@ const rebuildWebsite = (reason) =>
   );
 
 const heavy = { memory: "512MiB", timeoutSeconds: 120 };
+
+// Passkeys are bound to the website's domain (the relying party ID), so
+// one made on bikes.pizza also works at account.bikes.pizza and in the
+// apps. The native apps present their own origins (Android: the signing
+// key's hash); list them here, comma-separated, or they are refused.
+const passkeyOrigins = defineString("PASSKEY_ORIGINS", { default: "" });
 
 /** The signed-in, verified user behind a callable request, or throws. */
 const verifiedUser = (request) => userFromClaims(request.auth && { uid: request.auth.uid, ...request.auth.token });
@@ -160,10 +174,10 @@ export const updateMember = onCall(memberOptions, (request) =>
 
 /**
  * Deletes the caller's own account: the Firebase user and the member record
- * (which frees the username), the same as an admin deleting them. Posts
- * they published stay, credited as they were. Unlike the other callables
- * this does not insist on a verified email: an account that never
- * verified must still be able to remove itself.
+ * (which frees the username), the same as an admin deleting them, plus
+ * their passkeys. Posts they published stay, credited as they were. Unlike
+ * the other callables this does not insist on a verified email: an account
+ * that never verified must still be able to remove itself.
  */
 export const deleteAccount = onCall({ region: "us-central1" }, (request) =>
   guarded(request.auth?.uid, "delete your account", async () => {
@@ -173,9 +187,65 @@ export const deleteAccount = onCall({ region: "us-central1" }, (request) =>
       auth: getAuth(),
       members: firestoreMemberStore(getFirestore()),
     });
-    logger.info("account deleted by member", { uid });
+    const removed = await passkeys.removeAllPasskeys(uid, passkeyDeps());
+    logger.info("account deleted by member", { uid, passkeys: removed });
     return result;
   }),
+);
+
+// ---- passkeys ---------------------------------------------------------------
+
+/** What passkeys.js needs: the store, the relying party, the library, token minting. */
+const passkeyDeps = () => ({
+  store: passkeys.firestorePasskeyStore(getFirestore()),
+  rp: passkeys.rpFromSiteUrl(siteUrl()),
+  webauthn,
+  extraOrigins: passkeyOrigins
+    .value()
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean),
+  createToken: (uid, claims) => getAuth().createCustomToken(uid, claims),
+  log: logger.info,
+});
+
+const passkeyOptions = { region: "us-central1" };
+
+export const passkeyRegisterOptions = onCall(passkeyOptions, (request) =>
+  withMember(request, "start adding a passkey", ({ user, member }) =>
+    passkeys.registrationOptions(user, member, passkeyDeps()),
+  ),
+);
+
+export const passkeyRegister = onCall(passkeyOptions, (request) =>
+  guarded(request.auth?.uid, "add the passkey", async () => {
+    const user = verifiedUser(request);
+    const list = await passkeys.register(user, request.data, passkeyDeps());
+    logger.info("passkey added", { uid: user.uid, count: list.length });
+    return list;
+  }),
+);
+
+export const passkeyList = onCall(passkeyOptions, (request) =>
+  guarded(request.auth?.uid, "load your passkeys", () => passkeys.listPasskeys(verifiedUser(request).uid, passkeyDeps())),
+);
+
+export const passkeyRemove = onCall(passkeyOptions, (request) =>
+  guarded(request.auth?.uid, "remove the passkey", async () => {
+    const user = verifiedUser(request);
+    const list = await passkeys.removePasskey(user.uid, request.data, passkeyDeps());
+    logger.info("passkey removed", { uid: user.uid, count: list.length });
+    return list;
+  }),
+);
+
+// Signing in: nobody is signed in yet, so these take no user.
+export const passkeySignInOptions = onCall(passkeyOptions, () =>
+  guarded(null, "start the passkey sign-in", () => passkeys.signInOptions(passkeyDeps())),
+);
+
+export const passkeySignIn = onCall(passkeyOptions, (request) =>
+  guarded(null, "sign in with the passkey", () => passkeys.signIn(request.data, passkeyDeps())),
 );
 
 // ---- submissions -----------------------------------------------------------

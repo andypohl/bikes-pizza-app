@@ -516,7 +516,9 @@ onAuthStateChanged(auth, async (user) => {
     await startEnrollment(user);
     return;
   }
-  if (!token.claims.firebase?.sign_in_second_factor) {
+  // A passkey sign-in (a custom token with `passkey: true`) counts as the
+  // second factor: the device verified the person.
+  if (!token.claims.firebase?.sign_in_second_factor && token.claims.passkey !== true) {
     // A session from before the second factor was enrolled.
     await signOut(auth);
     say("Sign in again, with the code from your authenticator app.");
