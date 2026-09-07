@@ -6,6 +6,11 @@
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<!-- The app only uses standard encryption (HTTPS), which is exempt from
+	     export compliance; saying so here spares the question on every
+	     App Store Connect upload. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>CFBundleDisplayName</key>
 	<string>bikes.pizza</string>
 	<key>CFBundleExecutable</key>

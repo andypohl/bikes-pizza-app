@@ -1,0 +1,7 @@
+# Copy to android/key.properties (git-ignored) and fill in. It describes the
+# upload key for Google Play; see APP_STORES.md for how to make it. Paths are
+# relative to the android/ folder or absolute.
+storeFile=/Users/you/keys/bikes-pizza-upload.jks
+storePassword=
+keyAlias=upload
+keyPassword=
