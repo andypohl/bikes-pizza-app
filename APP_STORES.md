@@ -75,9 +75,7 @@ Notes:
 One-time setup: an upload key. Play's app signing re-signs what you
 upload with a key Google holds, and the first upload's key becomes the
 app's upload key from then on, so it must be a key kept for that purpose,
-not the debug keystore. Until this is done `android/app/build.gradle.kts`
-signs release builds with the debug key (the `TODO` there) and must not
-be uploaded.
+not the debug keystore.
 
 1. Make the keystore, outside the repository, and keep it and its
    password somewhere safe (losing it means asking Google to reset the
@@ -88,18 +86,12 @@ be uploaded.
      -keyalg RSA -keysize 2048 -validity 10000 -alias upload
    ```
 
-2. Tell Gradle about it in `android/key.properties` (git-ignored):
-
-   ```properties
-   storeFile=/Users/<you>/keys/bikes-pizza-upload.jks
-   storePassword=...
-   keyAlias=upload
-   keyPassword=...
-   ```
-
-   and change the `release` block in `android/app/build.gradle.kts` to
-   read that file and sign with it (the Flutter docs, "Build and release
-   an Android app", show the exact Kotlin snippet).
+2. Copy `android/key.properties.example` to `android/key.properties`
+   (git-ignored) and fill in the path, the passwords and the alias.
+   `android/app/build.gradle.kts` reads that file and signs release
+   builds with the key; when the file is missing it falls back to the
+   debug key and prints a warning, so a bundle built without it must not
+   be uploaded.
 
 Each release:
 
