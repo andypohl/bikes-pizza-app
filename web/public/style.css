@@ -467,7 +467,7 @@ button.secondary + button.secondary {
   margin: 0 0 0.5rem;
 }
 
-/* The one red button: confirming two-factor authentication off. */
+/* The red buttons: confirming two-factor authentication off, or deleting the account. */
 button.secondary.delete {
   background: var(--error);
   border-color: var(--error);

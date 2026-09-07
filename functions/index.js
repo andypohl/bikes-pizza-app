@@ -1,14 +1,15 @@
 // Cloud Functions for the bikes.pizza app.
 //
-// All entry points require a Firebase user with a verified email. Member
-// profiles live in Firestore (members/{uid}; see members.js). Submissions
-// are stored for review and, on approval, published to Sanity as posts
-// (submissions.js, post.js); they are reachable both as callables and
-// through the REST API in api.js.
+// All entry points but deleteAccount require a Firebase user with a verified
+// email. Member profiles live in Firestore (members/{uid}; see members.js).
+// Submissions are stored for review and, on approval, published to Sanity
+// as posts (submissions.js, post.js); they are reachable both as callables
+// and through the REST API in api.js.
 //
 // member:            the member's profile (email, username, newsletters)
 //                    for the account page and the app.
 // updateMember:      changes the member's username and/or newsletters.
+// deleteAccount:     deletes the caller's Firebase user and member record.
 // submitPost:        checks a bike/pizza submission's photo with Google
 //                    Vision (SafeSearch, and no people or faces), stores it
 //                    (photo + text) in Firestore and Storage and emails the
@@ -154,6 +155,26 @@ export const updateMember = onCall(memberOptions, (request) =>
       }
     }
     return profile(updated, NEWSLETTERS);
+  }),
+);
+
+/**
+ * Deletes the caller's own account: the Firebase user and the member record
+ * (which frees the username), the same as an admin deleting them. Posts
+ * they published stay, credited as they were. Unlike the other callables
+ * this does not insist on a verified email: an account that never
+ * verified must still be able to remove itself.
+ */
+export const deleteAccount = onCall({ region: "us-central1" }, (request) =>
+  guarded(request.auth?.uid, "delete your account", async () => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new AppError("unauthenticated", "Sign in first.");
+    const result = await adminUsers.deleteUser(uid, {
+      auth: getAuth(),
+      members: firestoreMemberStore(getFirestore()),
+    });
+    logger.info("account deleted by member", { uid });
+    return result;
   }),
 );
 

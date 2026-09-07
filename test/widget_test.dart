@@ -231,11 +231,13 @@ class FakeAuthService implements AuthService {
   Future<void> signOut() async => _set(null);
 }
 
-/// In-memory member profile; records updates.
+/// In-memory member profile; records updates and deletions.
 class FakeMemberService implements MemberService {
   bool fail = false;
+  bool failDelete = false;
   bool expireSession = false;
   int loads = 0;
+  int deletions = 0;
   final updates = <({String? username, List<String>? newsletters})>[];
   MemberProfile profile = const MemberProfile(
     email: 'member@example.com',
@@ -281,6 +283,14 @@ class FakeMemberService implements MemberService {
       ],
     );
     return profile;
+  }
+
+  @override
+  Future<void> deleteAccount() async {
+    if (failDelete) {
+      throw MemberException('Could not delete your account right now.');
+    }
+    deletions++;
   }
 }
 
@@ -1309,6 +1319,7 @@ void main() {
 
     expect(find.byKey(const Key('manage-account')), findsNothing);
     expect(find.byKey(const Key('verify-email')), findsNothing);
+    expect(find.byKey(const Key('delete-account')), findsNothing);
   });
 
   /// From any tab of a pumped app: Settings > Sign in > Google.
@@ -1321,6 +1332,51 @@ void main() {
     await tester.tap(find.byKey(const Key('google-sign-in')));
     await tester.pumpAndSettle();
   }
+
+  testWidgets('members can delete their account from Settings', (tester) async {
+    members = FakeMemberService();
+    await pumpApp(tester);
+    await signInWithGoogle(tester);
+
+    // Backing out of the confirmation changes nothing.
+    await tester.tap(find.byKey(const Key('delete-account')));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete your account?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(members!.deletions, 0);
+    expect(auth.currentUser, isNotNull);
+
+    await tester.tap(find.byKey(const Key('delete-account')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm-delete-account')));
+    await tester.pumpAndSettle();
+
+    expect(members!.deletions, 1);
+    expect(auth.currentUser, isNull);
+    expect(find.text('Your account has been deleted.'), findsOneWidget);
+    expect(find.text('Sign in'), findsOneWidget);
+  });
+
+  testWidgets('a failed deletion keeps the account and says so', (
+    tester,
+  ) async {
+    members = FakeMemberService()..failDelete = true;
+    await pumpApp(tester);
+    await signInWithGoogle(tester);
+
+    await tester.tap(find.byKey(const Key('delete-account')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm-delete-account')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Could not delete your account right now.'),
+      findsOneWidget,
+    );
+    expect(auth.currentUser, isNotNull);
+    expect(find.byKey(const Key('delete-account')), findsOneWidget);
+  });
 
   testWidgets('submit buttons appear on Pizza and Bikes for members only', (
     tester,

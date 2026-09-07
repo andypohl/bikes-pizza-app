@@ -13,7 +13,7 @@ Five bottom-bar tabs:
 | Pizza    | Posts tagged `pizza`                                           |
 | Bikes    | Posts tagged `biking` or `off-road-biking`                     |
 | Store    | Product grid from Sanity, a cart, and Shopify checkout       |
-| Settings | Account (sign-in, username, newsletters, password), theme      |
+| Settings | Account (sign-in, username, newsletters, password, deletion), theme |
 
 Tapping a post opens it in-app with the hero image and full HTML body. A
 toolbar button opens the post in the browser.
@@ -218,13 +218,18 @@ structured and the console steps needed to rebuild it.
 
 Every Firebase user has a member profile in Firestore (`members/{uid}`,
 server-only): email, username and newsletter choices. Names are not kept.
-Two Cloud Functions, both requiring a signed-in user with a verified email,
-are the only way in:
+Three Cloud Functions are the only way in; the first two require a
+signed-in user with a verified email:
 
 - `member` returns the profile (email, username, and every newsletter with
   a subscribed flag), creating it with defaults on first use. New members
   start subscribed to the one newsletter (`functions/members.js`).
 - `updateMember` changes the username and/or the set of newsletters.
+- `deleteAccount` deletes the caller's Firebase user and member record
+  (freeing the username), the same as an admin deleting them. Posts they
+  published stay, credited as they were. Any signed-in user may call it,
+  verified or not, so an account that never verified can still remove
+  itself.
 
 Usernames are 3 to 24 letters, digits or underscores and unique regardless
 of case; each is reserved at `usernames/{lowercased}` in the same
@@ -258,6 +263,8 @@ by default: turning it on walks through adding bikes.pizza to an
 authenticator app (QR code, or on the phone a button that opens the app)
 and every sign-in afterwards, on the website and in the app, asks for the
 app's code. Turning it off removes the factor after an "Are you sure?".
+Both also offer "Delete account" (in the app, on the Settings screen):
+after a confirmation it calls `deleteAccount` and signs the member out.
 
 Run the functions' unit tests with `npm test` inside `functions/`.
 

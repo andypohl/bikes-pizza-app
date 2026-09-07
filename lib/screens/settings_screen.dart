@@ -5,6 +5,7 @@ import '../account/account_screen.dart';
 import '../account/member_service.dart';
 import '../app_settings.dart';
 import '../auth/auth_service.dart';
+import '../auth/session_expiry.dart';
 import '../auth/sign_in_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -109,6 +110,8 @@ class _AccountSection extends StatelessWidget {
               )
             else if (members != null)
               _VerifyEmailTile(auth: auth, members: members),
+            if (members != null)
+              _DeleteAccountTile(auth: auth, members: members),
           ],
         );
       },
@@ -169,6 +172,82 @@ class _VerifyEmailTileState extends State<_VerifyEmailTile> {
         child: Text(_sent ? 'Resend' : 'Send email'),
       ),
       onTap: _check,
+    );
+  }
+}
+
+/// Deletes the account after an "Are you sure?". Offered to every signed-in
+/// member, verified or not: an account that never verified its email must
+/// still be able to remove itself.
+class _DeleteAccountTile extends StatefulWidget {
+  const _DeleteAccountTile({required this.auth, required this.members});
+
+  final AuthService auth;
+  final MemberService members;
+
+  @override
+  State<_DeleteAccountTile> createState() => _DeleteAccountTileState();
+}
+
+class _DeleteAccountTileState extends State<_DeleteAccountTile> {
+  bool _busy = false;
+
+  Future<void> _confirm() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final sure = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete your account?'),
+        content: const Text(
+          'Your sign-in and profile (username and newsletter choices) are '
+          "removed for good. Posts you've published stay, credited as they "
+          'are.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const Key('confirm-delete-account'),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (sure != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await widget.members.deleteAccount();
+      await widget.auth.signOut();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Your account has been deleted.')),
+      );
+    } on MemberException catch (e) {
+      if (e.sessionExpired && mounted) {
+        return handleSessionExpired(context, widget.auth);
+      }
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final error = Theme.of(context).colorScheme.error;
+    return ListTile(
+      key: const Key('delete-account'),
+      leading: Icon(Icons.delete_forever_outlined, color: error),
+      title: Text('Delete account', style: TextStyle(color: error)),
+      subtitle: const Text('Removes your sign-in and profile for good'),
+      enabled: !_busy,
+      onTap: _confirm,
     );
   }
 }
