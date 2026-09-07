@@ -8,6 +8,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:bikes_pizza/account/member_service.dart';
 import 'package:bikes_pizza/app_settings.dart';
 import 'package:bikes_pizza/auth/auth_service.dart';
+import 'package:bikes_pizza/auth/passkey_service.dart';
 import 'package:bikes_pizza/data/post_repository.dart';
 import 'package:bikes_pizza/main.dart';
 import 'package:bikes_pizza/models/post.dart';
@@ -294,6 +295,67 @@ class FakeMemberService implements MemberService {
   }
 }
 
+/// In-memory passkeys; signing in with one signs the fake auth in.
+class FakePasskeyService implements PasskeyService {
+  FakePasskeyService({this.supported = true});
+
+  bool supported;
+  FakeAuthService? auth;
+  bool failSignIn = false;
+  bool cancel = false;
+  int signIns = 0;
+  List<Passkey> passkeys = [
+    Passkey(
+      id: 'k1',
+      name: 'Safari on Mac',
+      createdAt: DateTime(2026, 8, 1),
+      lastUsedAt: DateTime(2026, 9, 1),
+    ),
+  ];
+
+  @override
+  Future<bool> get available async => supported;
+
+  @override
+  Future<List<Passkey>> list() async => List.of(passkeys);
+
+  @override
+  Future<List<Passkey>> add() async {
+    if (cancel) throw PasskeyException.cancelled();
+    passkeys = [
+      Passkey(id: 'k${passkeys.length + 1}', name: 'The app on iPhone or iPad'),
+      ...passkeys,
+    ];
+    return List.of(passkeys);
+  }
+
+  @override
+  Future<List<Passkey>> remove(String id) async {
+    passkeys = [
+      for (final p in passkeys)
+        if (p.id != id) p,
+    ];
+    return List.of(passkeys);
+  }
+
+  @override
+  Future<void> signIn() async {
+    if (cancel) throw PasskeyException.cancelled();
+    if (failSignIn) {
+      throw PasskeyException('This device has no passkey for bikes.pizza yet.');
+    }
+    signIns++;
+    auth?._set(
+      const AppUser(
+        uid: 'u9',
+        email: 'passkey@example.com',
+        emailVerified: true,
+        providerIds: ['password'],
+      ),
+    );
+  }
+}
+
 /// Records submissions; can be told to fail.
 class FakeSubmissionService implements SubmissionService {
   final submissions = <Submission>[];
@@ -425,6 +487,7 @@ void main() {
   FakeStoreRepository? store;
   Cart cart = Cart();
   FakeMemberService? members;
+  FakePasskeyService? passkeys;
   late FakeSubmissionService submissions;
   late FakePhotoPicker photos;
 
@@ -439,6 +502,7 @@ void main() {
     store = null;
     cart = Cart();
     members = null;
+    passkeys = null;
     submissions = FakeSubmissionService();
     photos = FakePhotoPicker();
   });
@@ -456,6 +520,7 @@ void main() {
 
   Future<FakePostRepository> pumpApp(WidgetTester tester) async {
     auth = FakeAuthService();
+    passkeys?.auth = auth;
     final repo = FakePostRepository({
       PostFeed.all: [
         _post('Newest post', DateTime(2025, 4, 12), author: _ada),
@@ -490,6 +555,7 @@ void main() {
         store: store ??= FakeStoreRepository(),
         cart: cart,
         members: members,
+        passkeys: passkeys,
         submissions: submissions,
         photos: photos,
       ),
@@ -1370,6 +1436,86 @@ void main() {
     await tester.tap(find.byKey(const Key('google-sign-in')));
     await tester.pumpAndSettle();
   }
+
+  testWidgets('a device with a passkey can sign in with it', (tester) async {
+    passkeys = FakePasskeyService();
+    await pumpApp(tester);
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign in'));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byKey(const Key('passkey-sign-in')));
+    await tester.tap(find.byKey(const Key('passkey-sign-in')));
+    await tester.pumpAndSettle();
+
+    expect(passkeys!.signIns, 1);
+    expect(auth.currentUser?.email, 'passkey@example.com');
+    // Back on Settings, signed in without a code step.
+    expect(find.text('passkey@example.com'), findsOneWidget);
+  });
+
+  testWidgets('passkey sign-in failures show the message; cancelling shows '
+      'nothing', (tester) async {
+    passkeys = FakePasskeyService()..failSignIn = true;
+    await openSignIn(tester);
+    await tester.ensureVisible(find.byKey(const Key('passkey-sign-in')));
+    await tester.tap(find.byKey(const Key('passkey-sign-in')));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('This device has no passkey for bikes.pizza yet.'),
+      findsOneWidget,
+    );
+    expect(auth.currentUser, isNull);
+
+    passkeys!
+      ..failSignIn = false
+      ..cancel = true;
+    await tester.tap(find.byKey(const Key('passkey-sign-in')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('no passkey'), findsNothing);
+    expect(auth.currentUser, isNull);
+  });
+
+  testWidgets('devices that cannot use passkeys get no passkey button', (
+    tester,
+  ) async {
+    passkeys = FakePasskeyService(supported: false);
+    await openSignIn(tester);
+    expect(find.byKey(const Key('google-sign-in')), findsOneWidget);
+    expect(find.byKey(const Key('passkey-sign-in')), findsNothing);
+  });
+
+  testWidgets('members add and remove passkeys on the account screen', (
+    tester,
+  ) async {
+    members = FakeMemberService();
+    passkeys = FakePasskeyService();
+    await openSignIn(tester);
+    await tester.ensureVisible(find.byKey(const Key('google-sign-in')));
+    await tester.tap(find.byKey(const Key('google-sign-in')));
+    await tester.pumpAndSettle();
+    await openAccount(tester);
+
+    await scrollTo(tester, find.byKey(const Key('add-passkey')));
+    expect(find.text('Safari on Mac'), findsOneWidget);
+    expect(find.textContaining('Added 2026-08-01'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('add-passkey')));
+    await tester.pumpAndSettle();
+    expect(find.text('The app on iPhone or iPad'), findsOneWidget);
+    expect(find.textContaining('Passkey added.'), findsOneWidget);
+    expect(passkeys!.passkeys, hasLength(2));
+    // Let that snackbar go before expecting the next one.
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('remove-passkey-k1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Safari on Mac'), findsNothing);
+    expect(find.textContaining('Removed the passkey'), findsOneWidget);
+    expect(passkeys!.passkeys.map((p) => p.id), ['k2']);
+  });
 
   testWidgets('members can delete their account from Settings', (tester) async {
     members = FakeMemberService();

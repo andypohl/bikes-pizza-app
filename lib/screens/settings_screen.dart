@@ -5,14 +5,23 @@ import '../account/account_screen.dart';
 import '../account/member_service.dart';
 import '../app_settings.dart';
 import '../auth/auth_service.dart';
+import '../auth/passkey_service.dart';
 import '../auth/session_expiry.dart';
 import '../auth/sign_in_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key, required this.auth, this.members});
+  const SettingsScreen({
+    super.key,
+    required this.auth,
+    this.members,
+    this.passkeys,
+  });
 
   final AuthService auth;
   final MemberService? members;
+
+  /// Null when this build cannot use passkeys; the screens then omit them.
+  final PasskeyService? passkeys;
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +32,7 @@ class SettingsScreen extends StatelessWidget {
       body: ListView(
         children: [
           const _SectionHeader('Account'),
-          _AccountSection(auth: auth, members: members),
+          _AccountSection(auth: auth, members: members, passkeys: passkeys),
           const Divider(),
           const _SectionHeader('Appearance'),
           RadioGroup<ThemeMode>(
@@ -61,10 +70,15 @@ class SettingsScreen extends StatelessWidget {
 /// Shows "Sign in" when signed out, or the user's email with a sign-out
 /// action when signed in.
 class _AccountSection extends StatelessWidget {
-  const _AccountSection({required this.auth, required this.members});
+  const _AccountSection({
+    required this.auth,
+    required this.members,
+    required this.passkeys,
+  });
 
   final AuthService auth;
   final MemberService? members;
+  final PasskeyService? passkeys;
 
   @override
   Widget build(BuildContext context) {
@@ -80,7 +94,9 @@ class _AccountSection extends StatelessWidget {
             subtitle: const Text('Sign in or create a bikes.pizza account'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => SignInScreen(auth: auth)),
+              MaterialPageRoute<void>(
+                builder: (_) => SignInScreen(auth: auth, passkeys: passkeys),
+              ),
             ),
           );
         }
@@ -105,7 +121,11 @@ class _AccountSection extends StatelessWidget {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => AccountScreen(auth: auth, members: members),
+                    builder: (_) => AccountScreen(
+                      auth: auth,
+                      members: members,
+                      passkeys: passkeys,
+                    ),
                   ),
                 ),
               )

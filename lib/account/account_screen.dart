@@ -1,20 +1,27 @@
 import 'package:flutter/material.dart';
 
 import '../auth/auth_service.dart';
+import '../auth/passkey_service.dart';
 import '../auth/session_expiry.dart';
 import 'member_service.dart';
 import 'totp_setup_screen.dart';
 
 /// Lets a signed-in member edit their username and newsletters, change
 /// their password (password accounts only), turn two-factor authentication
-/// on or off, and sign out. A member without
-/// a username yet (a new account, or one from before usernames) is asked
-/// to choose one here.
+/// on or off, manage passkeys (when [passkeys] is given), and sign out. A
+/// member without a username yet (a new account, or one from before
+/// usernames) is asked to choose one here.
 class AccountScreen extends StatefulWidget {
-  const AccountScreen({super.key, required this.auth, required this.members});
+  const AccountScreen({
+    super.key,
+    required this.auth,
+    required this.members,
+    this.passkeys,
+  });
 
   final AuthService auth;
   final MemberService members;
+  final PasskeyService? passkeys;
 
   @override
   State<AccountScreen> createState() => _AccountScreenState();
@@ -194,6 +201,10 @@ class _AccountScreenState extends State<AccountScreen> {
             ),
           const _Heading('Two-factor authentication'),
           _SecondFactorSection(auth: widget.auth),
+          if (widget.passkeys case final passkeys?) ...[
+            const _Heading('Passkeys'),
+            _PasskeySection(auth: widget.auth, passkeys: passkeys),
+          ],
           const SizedBox(height: 24),
           TextButton(
             key: const Key('sign-out'),
@@ -469,6 +480,145 @@ class _SecondFactorSectionState extends State<_SecondFactorSection> {
                 _turnOff(factors.first);
               }
             },
+    );
+  }
+}
+
+/// Passkeys on the account: the list, with Remove, and a button to add one
+/// on this device (Face ID, Touch ID or the screen lock). Signing in with
+/// one skips the authenticator code.
+class _PasskeySection extends StatefulWidget {
+  const _PasskeySection({required this.auth, required this.passkeys});
+
+  final AuthService auth;
+  final PasskeyService passkeys;
+
+  @override
+  State<_PasskeySection> createState() => _PasskeySectionState();
+}
+
+class _PasskeySectionState extends State<_PasskeySection> {
+  List<Passkey>? _passkeys;
+  bool _available = false;
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final available = await widget.passkeys.available;
+    if (mounted) setState(() => _available = available);
+    await _run(() async => widget.passkeys.list(), busy: false);
+  }
+
+  /// Runs a passkey operation and shows its resulting list.
+  Future<void> _run(
+    Future<List<Passkey>> Function() action, {
+    bool busy = true,
+    String? done,
+  }) async {
+    final messenger = ScaffoldMessenger.of(context);
+    if (busy) setState(() => _busy = true);
+    try {
+      final list = await action();
+      if (!mounted) return;
+      setState(() {
+        _passkeys = list;
+        _error = null;
+      });
+      if (done != null) {
+        messenger.showSnackBar(SnackBar(content: Text(done)));
+      }
+    } on PasskeyException catch (e) {
+      if (!mounted) return;
+      if (e.sessionExpired) return handleSessionExpired(context, widget.auth);
+      if (e.cancelled) return;
+      if (_passkeys == null) {
+        setState(() => _error = e.message);
+      } else {
+        messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } finally {
+      if (mounted && busy) setState(() => _busy = false);
+    }
+  }
+
+  static String _when(DateTime? date) => date == null
+      ? ''
+      : '${date.year}-${date.month.toString().padLeft(2, '0')}-'
+            '${date.day.toString().padLeft(2, '0')}';
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final passkeys = _passkeys;
+    final error = _error;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Sign in with Face ID, Touch ID or your screen lock instead of a '
+          'password and authenticator code. Add a passkey on each device '
+          'you use.',
+          style: theme.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 8),
+        if (error != null)
+          Text(error, style: TextStyle(color: theme.colorScheme.error))
+        else if (passkeys == null)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: LinearProgressIndicator(),
+          )
+        else
+          for (final p in passkeys)
+            ListTile(
+              key: Key('passkey-${p.id}'),
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.key_outlined),
+              title: Text(p.name),
+              subtitle: Text(
+                [
+                  'Added ${_when(p.createdAt)}',
+                  if (p.lastUsedAt != null) 'last used ${_when(p.lastUsedAt)}',
+                  if (p.backedUp) 'synced by your device',
+                ].join(' · '),
+              ),
+              trailing: IconButton(
+                key: Key('remove-passkey-${p.id}'),
+                tooltip: 'Remove this passkey',
+                icon: const Icon(Icons.delete_outline),
+                onPressed: _busy
+                    ? null
+                    : () => _run(
+                        () => widget.passkeys.remove(p.id),
+                        done: 'Removed the passkey ${p.name}.',
+                      ),
+              ),
+            ),
+        const SizedBox(height: 8),
+        if (_available)
+          OutlinedButton.icon(
+            key: const Key('add-passkey'),
+            onPressed: _busy
+                ? null
+                : () => _run(
+                    widget.passkeys.add,
+                    done: 'Passkey added. This device can now sign you in.',
+                  ),
+            icon: const Icon(Icons.fingerprint),
+            label: const Text('Add a passkey on this device'),
+          )
+        else
+          Text(
+            'This device cannot add passkeys.',
+            style: theme.textTheme.bodyMedium,
+          ),
+      ],
     );
   }
 }

@@ -5,21 +5,25 @@ import 'package:flutter/material.dart';
 import '../account/member_service.dart';
 import '../account/pending_profile.dart';
 import 'auth_service.dart';
+import 'passkey_service.dart';
 
 enum _Mode { signIn, createAccount }
 
 /// Email + password sign-in, with a toggle to create a new account and a
 /// password-reset link. Pops itself on success. Accounts with two-factor
-/// authentication on get a second step asking for the authenticator code.
+/// authentication on get a second step asking for the authenticator code,
+/// unless they sign in with a passkey (offered when [passkeys] is given and
+/// the device supports them), which the device has already verified.
 ///
 /// Creating an account asks for the password twice, plus a username and
 /// whether to get the newsletter; those last two wait on the device (see
 /// [PendingProfile]) until the email is verified, since the member
 /// functions need a verified email.
 class SignInScreen extends StatefulWidget {
-  const SignInScreen({super.key, required this.auth});
+  const SignInScreen({super.key, required this.auth, this.passkeys});
 
   final AuthService auth;
+  final PasskeyService? passkeys;
 
   @override
   State<SignInScreen> createState() => _SignInScreenState();
@@ -41,7 +45,16 @@ class _SignInScreenState extends State<SignInScreen> {
   // Set when the account has two-factor authentication on: the sign-in is
   // parked until the code from the authenticator app arrives.
   bool _awaitingCode = false;
+  bool _passkeysAvailable = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.passkeys?.available.then((available) {
+      if (mounted) setState(() => _passkeysAvailable = available);
+    });
+  }
 
   @override
   void dispose() {
@@ -152,6 +165,8 @@ class _SignInScreenState extends State<SignInScreen> {
     } on SecondFactorRequired {
       _askForCode();
     } on AuthException catch (e) {
+      if (!e.cancelled) setState(() => _error = e.message);
+    } on PasskeyException catch (e) {
       if (!e.cancelled) setState(() => _error = e.message);
     } on Object {
       setState(() => _error = 'Something went wrong. Please try again.');
@@ -417,6 +432,17 @@ class _SignInScreenState extends State<SignInScreen> {
                   icon: const Icon(Icons.g_mobiledata, size: 28),
                   label: const Text('Continue with Google'),
                 ),
+                if (_passkeysAvailable) ...[
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    key: const Key('passkey-sign-in'),
+                    onPressed: _busy
+                        ? null
+                        : () => _withProvider(widget.passkeys!.signIn),
+                    icon: const Icon(Icons.fingerprint),
+                    label: const Text('Sign in with a passkey'),
+                  ),
+                ],
                 if (_appleAvailable) ...[
                   const SizedBox(height: 12),
                   FilledButton.icon(

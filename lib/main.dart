@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'account/member_service.dart';
 import 'app_settings.dart';
 import 'auth/auth_service.dart';
+import 'auth/passkey_service.dart';
 import 'firebase_options.dart';
 import 'firebase_options_dev.dart';
 import 'data/post_repository.dart';
@@ -42,6 +43,7 @@ Future<Widget> _loadApp() async {
     cart: cart,
     auth: FirebaseAuthService(),
     members: CloudFunctionsMemberService(),
+    passkeys: FirebasePasskeyService(),
     submissions: CloudFunctionsSubmissionService(),
     photos: ImagePickerPhotoPicker(),
   );
@@ -56,6 +58,7 @@ class BikesPizzaApp extends StatelessWidget {
     required this.store,
     required this.cart,
     this.members,
+    this.passkeys,
     this.submissions,
     this.photos,
   });
@@ -70,6 +73,9 @@ class BikesPizzaApp extends StatelessWidget {
 
   /// Null when account management is unavailable; Settings then hides it.
   final MemberService? members;
+
+  /// Null when passkeys are unavailable; sign-in and account omit them.
+  final PasskeyService? passkeys;
 
   /// Both needed for the Submit Pizza / Submit Bike buttons; null hides them.
   final SubmissionService? submissions;
@@ -100,6 +106,7 @@ class BikesPizzaApp extends StatelessWidget {
             store: store,
             cart: cart,
             members: members,
+            passkeys: passkeys,
             submissions: submissions,
             photos: photos,
           ),
@@ -120,6 +127,7 @@ class HomeShell extends StatefulWidget {
     required this.store,
     required this.cart,
     this.members,
+    this.passkeys,
     this.submissions,
     this.photos,
   });
@@ -129,6 +137,7 @@ class HomeShell extends StatefulWidget {
   final StoreRepository store;
   final Cart cart;
   final MemberService? members;
+  final PasskeyService? passkeys;
   final SubmissionService? submissions;
   final PhotoPicker? photos;
 
@@ -165,7 +174,11 @@ class _HomeShellState extends State<HomeShell> {
         auth: widget.auth,
         cart: widget.cart,
       ),
-      SettingsScreen(auth: widget.auth, members: widget.members),
+      SettingsScreen(
+        auth: widget.auth,
+        members: widget.members,
+        passkeys: widget.passkeys,
+      ),
     ];
 
     return Scaffold(
