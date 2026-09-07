@@ -6,5 +6,10 @@
 	<array>
 		<string>Default</string>
 	</array>
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>webcredentials:bikes.pizza</string>
+		<string>webcredentials:bikes-pizza.dev</string>
+	</array>
 </dict>
 </plist>

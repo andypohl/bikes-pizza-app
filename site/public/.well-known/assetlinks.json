@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.get_login_creds", "delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.pizzapredator.bikes_pizza",
+      "sha256_cert_fingerprints": [
+        "55:9F:E5:72:03:50:8D:CF:04:51:9A:E7:E5:7E:47:28:9D:7E:0C:0E:40:45:20:AB:93:54:E1:8A:AF:AE:17:2F"
+      ]
+    }
+  }
+]

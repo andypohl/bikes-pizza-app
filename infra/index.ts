@@ -393,8 +393,20 @@ const environment = new github.RepositoryEnvironment(
 /** Resource name in the form google-github-actions/auth expects (project number). */
 const providerResourceName = pulumi.interpolate`projects/${project.number}/locations/global/workloadIdentityPools/${pool.workloadIdentityPoolId}/providers/${poolProvider.workloadIdentityPoolProviderId}`;
 
+/**
+ * The Android app's WebAuthn origin for each signing key: the SHA-256
+ * fingerprint as base64url, as the platform presents it (functions/passkeys.js
+ * checks responses against this list; the website's own hosts are allowed
+ * without being listed).
+ */
+const passkeyOrigins = androidSha256Hashes
+  .map((hex) => Buffer.from(hex.replace(/:/g, ""), "hex").toString("base64url"))
+  .map((hash) => `android:apk-key-hash:${hash}`)
+  .join(",");
+
 const variables: Record<string, pulumi.Input<string>> = {
   FIREBASE_PROJECT: project.projectId,
+  PASSKEY_ORIGINS: passkeyOrigins,
   GCP_DEPLOY_SERVICE_ACCOUNT: deployer.email,
   GCP_WORKLOAD_IDENTITY_PROVIDER: providerResourceName,
   SITE_URL: `https://${domain}`,
