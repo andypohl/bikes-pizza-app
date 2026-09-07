@@ -273,7 +273,10 @@ sign-in is verified by the `passkey*` Cloud Functions
 that path is not subject to Firebase's multi-factor step, so on an account
 with two-factor authentication on the passkey takes the place of the
 authenticator code, while every other way of signing in still asks for
-it. The apps do not offer passkeys yet (see `docs/firebase.md`).
+it. The app offers the same: "Sign in with a passkey" on its sign-in
+screen and a Passkeys section on Manage account (`lib/auth/passkey_service.dart`,
+on the `passkeys` package); the platform trust it needs is described in
+`docs/firebase.md`.
 Both also offer "Delete account", at the very bottom (in the app, at the
 end of the Settings screen): after a confirmation it calls
 `deleteAccount` and signs the member out.

@@ -261,7 +261,7 @@ creating it with defaults on first use.
   custom token for its owner carrying `passkey: true`, which the client
   passes to `signInWithCustomToken`. The relying party ID is the host of
   `SITE_URL` (`bikes.pizza`, `bikes-pizza.dev`), so the same passkey works
-  on the website, the account page and, once they are wired up, the apps;
+  on the website, the account page and the apps;
   responses are accepted from https origins on that host or a subdomain
   and from the origins in `PASSKEY_ORIGINS`. Registration asks for a
   platform authenticator with user verification, so the device's Face ID,
@@ -474,11 +474,15 @@ the site.
   `<Team ID>.<bundle ID>` under `webcredentials`, and
   `ios/Runner/Runner.entitlements` carries the Associated Domains
   entitlement with `webcredentials:bikes.pizza` and
-  `webcredentials:bikes-pizza.dev`. The App ID in Apple Developer must
-  have the Associated Domains capability enabled (Xcode adds it to the App
-  ID when it signs with the team; otherwise enable it under Certificates,
-  Identifiers & Profiles). Apple fetches the file through its CDN, so a
-  change can take up to a day to reach devices.
+  `webcredentials:bikes-pizza.dev?mode=developer` (the suffix makes
+  development-signed builds, including the simulator, fetch the file
+  straight from the site instead of Apple's CDN; App Store builds ignore
+  it). The App ID in Apple Developer has the Associated Domains capability
+  enabled (ticked by hand under Identifiers). Apple fetches the file
+  through its CDN, so a change can take up to a day to reach devices.
+  The app side is `lib/auth/passkey_service.dart` on the `passkeys`
+  package: "Sign in with a passkey" on the sign-in screen and a Passkeys
+  section on the account screen.
 - Android: `assetlinks.json` grants `common.get_login_creds` to the
   package for each SHA-256 signing certificate, the same fingerprints the
   Pulumi config registers with Firebase (`androidSha256Hashes`). The
