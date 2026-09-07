@@ -6,6 +6,11 @@
 // a single workspace at the root for that dataset and deploys to that
 // dataset's hostname. `.env.production` sets it for a plain `sanity deploy`
 // (production mode); the deploy:dev script overrides it on the command line.
+//
+// This file is bundled into the browser, so it may only touch
+// `process.env.SANITY_STUDIO_*` (which the build inlines); anything else on
+// `process` is a ReferenceError at runtime. Node-only checks belong in
+// sanity.cli.ts.
 
 export const projectId = 'nva9b0ia'
 
@@ -15,13 +20,6 @@ export const datasets = {
 }
 
 export type Dataset = keyof typeof datasets
-
-// An unattended deploy must say which dataset it means, rather than fall
-// back to .env.production and publish the production Studio by default.
-const deploying = process.argv.includes('deploy')
-if (process.env.CI && deploying && !process.env.SANITY_STUDIO_DATASET) {
-  throw new Error('SANITY_STUDIO_DATASET must be set when deploying from CI.')
-}
 
 const requested = process.env.SANITY_STUDIO_DATASET || undefined
 
