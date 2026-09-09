@@ -1936,4 +1936,22 @@ void main() {
     final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
     expect(app.themeMode, ThemeMode.dark);
   });
+
+  testWidgets('Settings links to the privacy policy', (tester) async {
+    await pumpApp(tester);
+
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+
+    final tile = find.byKey(const Key('privacy-policy'));
+    await tester.dragUntilVisible(
+      tile,
+      find.byType(ListView),
+      const Offset(0, -100),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tile, findsOneWidget);
+    expect(find.text('Privacy policy'), findsOneWidget);
+  });
 }
