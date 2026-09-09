@@ -1,0 +1,173 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+// Change this if a different address should receive privacy mail.
+const contact = 'privacy@bikes.pizza';
+const updated = 'September 9, 2026';
+---
+
+<Layout
+  title="Privacy Policy · bikes.pizza"
+  description="What bikes.pizza collects, why, and how to have it deleted."
+>
+  <div class="container mx-auto px-6 py-16 max-w-3xl">
+    <h1 class="text-4xl sm:text-5xl font-light tracking-wide text-ink">Privacy Policy</h1>
+    <p class="mt-3 text-muted text-sm font-light">Last updated {updated}</p>
+
+    <div class="mt-12 space-y-10 text-ink font-light leading-relaxed">
+      <section>
+        <p>
+          bikes.pizza is a place to share photographs of bicycles and pizza. This
+          policy covers the bikes.pizza website and the bikes.pizza apps for iOS
+          and Android, all operated by Pizza Predator LLC.
+        </p>
+        <p class="mt-4">
+          The short version: we collect what an account and a photo submission
+          need, and nothing else. There is no analytics SDK, no advertising, no
+          third-party tracker, and no profile built about you. We do not sell
+          personal information, and we never have.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-2xl font-light text-ink">What we collect</h2>
+
+        <h3 class="mt-6 text-lg text-ink">Your account</h3>
+        <p class="mt-2">
+          Signing up stores your email address and an account identifier. You can
+          sign in with an email address and password, with Google, or with Apple.
+          When you sign in with Google or Apple we receive your email address from
+          them; if you use Apple's Hide My Email, we only ever see the relay
+          address Apple gives us, not your real one.
+        </p>
+
+        <h3 class="mt-6 text-lg text-ink">Passkeys and two-factor codes</h3>
+        <p class="mt-2">
+          If you create a passkey we store its public key, its credential
+          identifier, and when it was created and last used. The private key stays
+          on your device or in your password manager and is never sent to us — it
+          is not something we can read, copy, or hand over. If you enroll an
+          authenticator app instead, we store the shared secret that verifies your
+          codes.
+        </p>
+
+        <h3 class="mt-6 text-lg text-ink">Submissions</h3>
+        <p class="mt-2">
+          When you submit a photo we store the image together with the title,
+          description, and name you attach to it, plus the account it came from
+          and the time it arrived. Photos you submit are intended for publication:
+          if a reviewer approves one, it appears publicly on bikes.pizza with the
+          title, description, and name you supplied. Your email address is not
+          published.
+        </p>
+
+        <h3 class="mt-6 text-lg text-ink">On your device</h3>
+        <p class="mt-2">
+          The app and the website keep a little information on your own device —
+          whether you are signed in, your light or dark theme choice, and what is
+          in your shopping cart. This stays on the device and is not a tracking
+          cookie.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-2xl font-light text-ink">What we do not collect</h2>
+        <p class="mt-2">
+          We do not collect your location, your contacts, your health or fitness
+          data, your browsing on other sites, or an advertising identifier. The app
+          asks for camera and photo library access only so that you can choose a
+          picture to submit; it does not read your photo library otherwise, and
+          nothing is uploaded until you submit it.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-2xl font-light text-ink">How submitted photos are reviewed</h2>
+        <p class="mt-2">
+          Every submitted photo is checked automatically by Google Cloud Vision
+          before anyone looks at it. That check screens for unsafe content and for
+          pictures containing people or faces, which this site does not accept. A
+          human reviewer then approves, queues, or rejects the submission. The
+          automated check is a filter, not a decision about you, and it is not used
+          to identify anyone.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-2xl font-light text-ink">Who else processes your data</h2>
+        <p class="mt-2">
+          We use a small number of service providers, each handling only what its
+          job requires:
+        </p>
+        <ul class="mt-4 space-y-2 list-disc list-outside pl-6">
+          <li><span class="text-ink">Google Firebase</span> — accounts and sign-in, the database, file storage for photos, and the server functions behind the app.</li>
+          <li><span class="text-ink">Google Cloud Vision</span> — the automated photo check described above.</li>
+          <li><span class="text-ink">Sanity</span> — stores the posts that have been published to the site.</li>
+          <li><span class="text-ink">Mailgun</span> — sends the notification email that tells a reviewer a submission is waiting.</li>
+          <li><span class="text-ink">Shopify</span> — runs the shop. If you buy something, your order and payment details are handled by Shopify under their privacy policy; we never see your card number.</li>
+          <li><span class="text-ink">Cloudflare</span> — serves the website and its domain.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2 class="text-2xl font-light text-ink">Deleting your account</h2>
+        <p class="mt-2">
+          You can delete your account yourself, at any time, from the Settings
+          screen in the app or from the account page on this website. Deleting an
+          account removes your sign-in details, your email address, and your
+          passkeys.
+        </p>
+        <p class="mt-4">
+          Photos that have already been published as posts stay on the site, since
+          they are part of the public record of what has been posted. If you would
+          like a published photo taken down as well, write to us and we will remove
+          it.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-2xl font-light text-ink">Keeping it</h2>
+        <p class="mt-2">
+          Account information is kept for as long as the account exists. Rejected
+          submissions are kept only long enough to handle any question about the
+          decision. Published posts are kept until they are taken down.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-2xl font-light text-ink">Children</h2>
+        <p class="mt-2">
+          bikes.pizza is not directed at children under 13, and we do not knowingly
+          collect information from them. If you believe a child has created an
+          account, write to us and we will remove it.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-2xl font-light text-ink">Your rights</h2>
+        <p class="mt-2">
+          You can ask us for a copy of the information we hold about you, ask us to
+          correct it, or ask us to delete it. Depending on where you live you may
+          have further rights over that information, including under the GDPR or
+          the CCPA. Write to the address below and we will help.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-2xl font-light text-ink">Changes</h2>
+        <p class="mt-2">
+          If this policy changes we will update the date at the top of this page.
+          Substantial changes will be announced on the site.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-2xl font-light text-ink">Contact</h2>
+        <p class="mt-2">
+          Questions about privacy, or a request about your data, can go to{' '}
+          <a href={`mailto:${contact}`} class="text-spice hover:underline">{contact}</a>.
+        </p>
+      </section>
+    </div>
+  </div>
+</Layout>
