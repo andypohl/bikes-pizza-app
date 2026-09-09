@@ -15,16 +15,21 @@ import {
   getMultiFactorResolver,
   multiFactor,
   onAuthStateChanged,
+  signInWithCustomToken,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-functions.js";
 const PAGE_SIZE = 20;
 const $ = (sel) => document.querySelector(sel);
 
 const config = await fetch("/__/firebase/init.json").then((r) => r.json());
 const app = initializeApp(config);
 const auth = getAuth(app);
+const functions = getFunctions(app, "us-central1");
+const passkeySignInOptions = httpsCallable(functions, "passkeySignInOptions");
+const passkeySignIn = httpsCallable(functions, "passkeySignIn");
 
 let status = "pending"; // current filter; "" means all
 let cursors = []; // next-page cursor returned for each loaded page
@@ -303,21 +308,89 @@ $("#d-dequeue").addEventListener("click", async () => {
   }
 });
 
+// ---- passkeys ---------------------------------------------------------------
+//
+// The same passkeys as the account page (the relying party is the site's
+// own domain, and these pages are subdomains of it). A passkey sign-in
+// mints a custom token carrying `passkey: true`, which the API and the
+// check below accept in place of the authenticator code, so it also
+// answers the second factor for an account that has one.
+
+const PASSKEYS_SUPPORTED = typeof PublicKeyCredential !== "undefined" && typeof PublicKeyCredential.parseRequestOptionsFromJSON === "function";
+
+// Whether a passkey for this site has been used in this browser. The web
+// cannot ask whether one is present, and a passkey prompt nobody asked for
+// (offering to scan a QR code with a phone) is worse than the code, so the
+// second-factor step only reaches for a passkey once this browser has been
+// seen to have one. The code step's button works either way.
+const PASSKEY_SEEN = "bikes-pizza-passkey";
+const passkeyOnThisDevice = () => {
+  try {
+    return localStorage.getItem(PASSKEY_SEEN) === "1";
+  } catch {
+    return false; // storage blocked
+  }
+};
+const rememberPasskey = () => {
+  try {
+    localStorage.setItem(PASSKEY_SEEN, "1");
+  } catch {
+    // Nothing to remember it with.
+  }
+};
+
+function describePasskeyError(error, fallback) {
+  switch (error?.name) {
+    case "NotAllowedError":
+    case "AbortError":
+      return null; // the person backed out of the prompt
+    case "NotSupportedError":
+    case "SecurityError":
+      return "Passkeys are not available here.";
+    default:
+      return describe(error) ?? fallback;
+  }
+}
+
+/**
+ * Signs in with a passkey. With an [email] only that account's passkeys
+ * count, so a passkey can stand in for its authenticator code; without one
+ * the browser offers whichever it holds for the site. False when there is
+ * nothing to try, so the caller can ask for the code instead.
+ */
+async function passkeySignInWith(email) {
+  const { data: start } = await passkeySignInOptions(email ? { email } : {});
+  if (!start.options) return false; // that account has no passkeys
+  const credential = await navigator.credentials.get({
+    publicKey: PublicKeyCredential.parseRequestOptionsFromJSON(start.options),
+  });
+  const { data } = await passkeySignIn({ challengeId: start.challengeId, response: credential.toJSON() });
+  await signInWithCustomToken(auth, data.token);
+  rememberPasskey();
+  return true;
+}
+
 // ---- second factor --------------------------------------------------------
 
 let resolver = null; // pending sign-in waiting for the authenticator code
+let secondFactorEmail = null; // the account that sign-in is for
 
-/** Runs a sign-in; when Firebase asks for the second factor, shows the code prompt. */
-async function attemptSignIn(signIn) {
+/** The address a sign-in was for, as far as Firebase reported it. */
+const emailFromError = (error) => error?.customData?.email ?? error?.customData?._serverResponse?.email ?? null;
+
+/**
+ * Runs a sign-in; when Firebase asks for the second factor, a passkey on
+ * this device answers it and otherwise the code prompt appears. [email] is
+ * the account being signed in to, when the caller knows it.
+ */
+async function attemptSignIn(signIn, email = null) {
   busy(true);
   try {
     await signIn();
   } catch (error) {
     if (error?.code === "auth/multi-factor-auth-required") {
       resolver = getMultiFactorResolver(auth, error);
-      $("#mfa-code-form").code.value = "";
-      show("mfa-code");
-      $("#mfa-code-form").code.focus();
+      await secondFactor(email ?? emailFromError(error));
       return;
     }
     const text = describe(error);
@@ -325,6 +398,30 @@ async function attemptSignIn(signIn) {
   } finally {
     busy(false);
   }
+}
+
+/**
+ * A sign-in Firebase parked for its second factor. A passkey this browser
+ * holds for the account settles it without a code; anything else falls
+ * through to the code step, which offers the passkey again.
+ */
+async function secondFactor(email) {
+  secondFactorEmail = email;
+  if (email && PASSKEYS_SUPPORTED && passkeyOnThisDevice()) {
+    try {
+      if (await passkeySignInWith(email)) return; // signed in, no code
+    } catch {
+      // Ask for the code instead.
+    }
+  }
+  askForCode();
+}
+
+function askForCode() {
+  $("#mfa-passkey").hidden = !PASSKEYS_SUPPORTED;
+  $("#mfa-code-form").code.value = "";
+  show("mfa-code");
+  $("#mfa-code-form").code.focus();
 }
 
 $("#mfa-code-form").addEventListener("submit", async (event) => {
@@ -337,6 +434,7 @@ $("#mfa-code-form").addEventListener("submit", async (event) => {
   try {
     await resolver.resolveSignIn(TotpMultiFactorGenerator.assertionForSignIn(hint.uid, code));
     resolver = null;
+    secondFactorEmail = null;
   } catch (error) {
     say(describe(error) ?? "Could not verify the code.");
   } finally {
@@ -346,7 +444,23 @@ $("#mfa-code-form").addEventListener("submit", async (event) => {
 
 $("#mfa-code-cancel").addEventListener("click", () => {
   resolver = null;
+  secondFactorEmail = null;
   show("signin");
+});
+
+// The code step's own passkey button, for a browser that has one but was
+// interrupted, or that this page had not seen use a passkey before.
+$("#mfa-passkey").addEventListener("click", async () => {
+  busy(true);
+  try {
+    if (await passkeySignInWith(secondFactorEmail)) return;
+    say("No passkey is saved for this account yet. Enter the code, then add one from your account page.");
+  } catch (error) {
+    const text = describePasskeyError(error, "Could not sign in with the passkey.");
+    if (text) say(text);
+  } finally {
+    busy(false);
+  }
 });
 
 let enrolling = null; // the TOTP secret being enrolled
@@ -401,6 +515,17 @@ $("#mfa-setup-cancel").addEventListener("click", () => signOut(auth));
 async function signInWith(provider) {
   await attemptSignIn(() => signInWithPopup(auth, provider));
 }
+$("#passkey-signin").hidden = !PASSKEYS_SUPPORTED;
+$("#passkey-signin").addEventListener("click", () =>
+  attemptSignIn(async () => {
+    try {
+      if (!(await passkeySignInWith(null))) say("This browser has no passkey for bikes.pizza yet.");
+    } catch (error) {
+      const text = describePasskeyError(error, "Could not sign in with the passkey.");
+      if (text) say(text);
+    }
+  }),
+);
 $("#google").addEventListener("click", () => signInWith(new GoogleAuthProvider()));
 $("#apple").addEventListener("click", () => {
   const apple = new OAuthProvider("apple.com");
@@ -410,7 +535,8 @@ $("#apple").addEventListener("click", () => {
 $("#auth-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
-  await attemptSignIn(() => signInWithEmailAndPassword(auth, form.email.value.trim(), form.password.value));
+  const email = form.email.value.trim();
+  await attemptSignIn(() => signInWithEmailAndPassword(auth, email, form.password.value), email);
 });
 $("#signout").addEventListener("click", () => signOut(auth));
 

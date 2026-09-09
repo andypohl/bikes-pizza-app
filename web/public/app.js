@@ -431,9 +431,17 @@ async function renderMfa(user) {
 
 let resolver = null; // a sign-in waiting for the authenticator code
 let enrolling = null; // the TOTP secret being enrolled
+let secondFactorEmail = null; // the account that sign-in is for
 
-/** Runs a sign-in; when Firebase asks for the second factor, shows the code prompt. */
-async function attemptSignIn(signIn) {
+/** The address a sign-in was for, as far as Firebase reported it. */
+const emailFromError = (error) => error?.customData?.email ?? error?.customData?._serverResponse?.email ?? null;
+
+/**
+ * Runs a sign-in; when Firebase asks for the second factor, a passkey on
+ * this device answers it and otherwise the code prompt appears. [email] is
+ * the account being signed in to, when the caller knows it.
+ */
+async function attemptSignIn(signIn, email = null) {
   busy(true);
   try {
     freshSignIn = true;
@@ -442,9 +450,7 @@ async function attemptSignIn(signIn) {
   } catch (error) {
     if (error?.code === "auth/multi-factor-auth-required") {
       resolver = getMultiFactorResolver(auth, error);
-      $("#mfa-code-form").code.value = "";
-      show("mfa-code");
-      $("#mfa-code-form").code.focus();
+      await secondFactor(email ?? emailFromError(error));
       return;
     }
     const text = describe(error);
@@ -452,6 +458,31 @@ async function attemptSignIn(signIn) {
   } finally {
     busy(false);
   }
+}
+
+/**
+ * A sign-in Firebase parked for its second factor. A passkey this browser
+ * holds for the account settles it without a code; anything else (no
+ * passkey here, or the person backing out of the prompt) falls through to
+ * the code step, which offers the passkey again.
+ */
+async function secondFactor(email) {
+  secondFactorEmail = email;
+  if (email && PASSKEYS_SUPPORTED && passkeyOnThisDevice()) {
+    try {
+      if (await passkeySignInWith(email)) return; // signed in, no code
+    } catch {
+      // Ask for the code instead.
+    }
+  }
+  askForCode();
+}
+
+function askForCode() {
+  $("#mfa-passkey").hidden = !PASSKEYS_SUPPORTED;
+  $("#mfa-code-form").code.value = "";
+  show("mfa-code");
+  $("#mfa-code-form").code.focus();
 }
 
 $("#mfa-code-form").addEventListener("submit", async (event) => {
@@ -464,6 +495,7 @@ $("#mfa-code-form").addEventListener("submit", async (event) => {
   try {
     await resolver.resolveSignIn(TotpMultiFactorGenerator.assertionForSignIn(hint.uid, code));
     resolver = null;
+    secondFactorEmail = null;
     // onAuthStateChanged takes it from here.
   } catch (error) {
     say(describe(error) ?? "Could not verify the code.");
@@ -474,7 +506,23 @@ $("#mfa-code-form").addEventListener("submit", async (event) => {
 
 $("#mfa-code-cancel").addEventListener("click", () => {
   resolver = null;
+  secondFactorEmail = null;
   show("auth");
+});
+
+// The code step's own passkey button, for a browser that has one but was
+// interrupted, or that this page had not seen use a passkey before.
+$("#mfa-passkey").addEventListener("click", async () => {
+  busy(true);
+  try {
+    if (await passkeySignInWith(secondFactorEmail)) return;
+    say("No passkey is saved for this account yet. Enter the code, then add one below.");
+  } catch (error) {
+    const text = describePasskeyError(error, "Could not sign in with the passkey.");
+    if (text) say(text);
+  } finally {
+    busy(false);
+  }
 });
 
 /** Shows the QR code and asks for a first code to finish enrolment. */
@@ -635,6 +683,46 @@ const PASSKEYS_SUPPORTED =
   typeof PublicKeyCredential.parseCreationOptionsFromJSON === "function" &&
   typeof PublicKeyCredential.parseRequestOptionsFromJSON === "function";
 
+// Whether a passkey for this site has been added or used in this browser.
+// The web cannot ask whether one is present, and a passkey prompt nobody
+// asked for (offering to scan a QR code with a phone) is worse than the
+// authenticator code, so the second-factor step only reaches for a passkey
+// once this browser has been seen to have one. It is a hint, not a
+// permission: the code step's button works either way.
+const PASSKEY_SEEN = "bikes-pizza-passkey";
+const passkeyOnThisDevice = () => {
+  try {
+    return localStorage.getItem(PASSKEY_SEEN) === "1";
+  } catch {
+    return false; // storage blocked; the button still works
+  }
+};
+const rememberPasskey = () => {
+  try {
+    localStorage.setItem(PASSKEY_SEEN, "1");
+  } catch {
+    // Nothing to remember it with.
+  }
+};
+
+/**
+ * Signs in with a passkey. With an [email] only that account's passkeys
+ * count, so a passkey can stand in for its authenticator code; without one
+ * the browser offers whichever it holds for the site. False when there is
+ * nothing to try, so the caller can ask for the code instead.
+ */
+async function passkeySignInWith(email) {
+  const { data: start } = await passkeySignInOptions(email ? { email } : {});
+  if (!start.options) return false; // that account has no passkeys
+  const credential = await navigator.credentials.get({
+    publicKey: PublicKeyCredential.parseRequestOptionsFromJSON(start.options),
+  });
+  const { data } = await passkeySignIn({ challengeId: start.challengeId, response: credential.toJSON() });
+  await signInWithCustomToken(auth, data.token);
+  rememberPasskey();
+  return true;
+}
+
 /** A name for the passkey being added: the browser and device, roughly. */
 function deviceName() {
   const ua = navigator.userAgent;
@@ -736,7 +824,8 @@ $("#add-passkey").addEventListener("click", async () => {
     });
     const { data } = await passkeyRegister({ challengeId: start.challengeId, response: credential.toJSON(), name: deviceName() });
     renderPasskeyList(data);
-    say("Passkey added. This device can now sign you in.", true);
+    rememberPasskey();
+    say("Passkey added. This device can now sign you in, and answer for your authenticator code.", true);
   } catch (error) {
     const text = describePasskeyError(error, "Could not add a passkey.");
     if (text) say(text);
@@ -761,12 +850,7 @@ async function removePasskey(passkey) {
 $("#passkey-signin").addEventListener("click", () =>
   attemptSignIn(async () => {
     try {
-      const { data: start } = await passkeySignInOptions();
-      const credential = await navigator.credentials.get({
-        publicKey: PublicKeyCredential.parseRequestOptionsFromJSON(start.options),
-      });
-      const { data } = await passkeySignIn({ challengeId: start.challengeId, response: credential.toJSON() });
-      await signInWithCustomToken(auth, data.token);
+      await passkeySignInWith(null);
     } catch (error) {
       const text = describePasskeyError(error, "Could not sign in with the passkey.");
       if (text) say(text);
@@ -843,7 +927,7 @@ $("#auth-form").addEventListener("submit", async (event) => {
     } else {
       await signInWithEmailAndPassword(auth, email, password);
     }
-  });
+  }, email);
 });
 
 

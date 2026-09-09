@@ -59,8 +59,15 @@ class AuthException implements Exception {
 /// Thrown by a sign-in when the account has two-factor authentication on:
 /// the sign-in is parked until [AuthService.resolveSecondFactor] gets the
 /// code from the authenticator app, or [AuthService.cancelSecondFactor].
+///
+/// [email] is the address the sign-in was for, when the provider named one.
+/// A passkey for that account can take the place of the code, so the
+/// sign-in screen offers it first (see `PasskeyService.signIn`).
 class SecondFactorRequired extends AuthException {
-  SecondFactorRequired() : super('Enter the code from your authenticator app.');
+  SecondFactorRequired({this.email})
+    : super('Enter the code from your authenticator app.');
+
+  final String? email;
 }
 
 /// A second factor enrolled on the account.
@@ -156,6 +163,7 @@ class FirebaseAuthService implements AuthService {
   final GoogleSignIn _google;
   Future<void>? _googleInit;
   fb.MultiFactorResolver? _resolver; // a sign-in waiting for its code
+  String? _pendingEmail; // the account that sign-in is for, when known
   fb.TotpSecret? _enrolling; // the secret being enrolled
 
   static const _factorName = 'Authenticator app';
@@ -169,6 +177,7 @@ class FirebaseAuthService implements AuthService {
   @override
   Future<void> signIn({required String email, required String password}) =>
       _guard(() async {
+        _pendingEmail = email.trim();
         await _auth.signInWithEmailAndPassword(
           email: email.trim(),
           password: password,
@@ -237,6 +246,7 @@ class FirebaseAuthService implements AuthService {
     if (idToken == null) {
       throw AuthException('Google did not return a sign-in token.');
     }
+    _pendingEmail = account.email;
     await _auth.signInWithCredential(
       fb.GoogleAuthProvider.credential(idToken: idToken),
     );
@@ -267,6 +277,9 @@ class FirebaseAuthService implements AuthService {
     if (idToken == null) {
       throw AuthException('Apple did not return a sign-in token.');
     }
+    // Apple only fills in the email the first time an account authorizes
+    // the app; the token carries it every time, private relay included.
+    _pendingEmail = apple.email ?? _emailFromIdToken(idToken);
     await _auth.signInWithCredential(
       // The name parameter is required by the API; nothing is passed.
       fb.AppleAuthProvider.credentialWithIDToken(
@@ -382,6 +395,22 @@ class FirebaseAuthService implements AuthService {
           providerIds: [for (final p in user.providerData) p.providerId],
         );
 
+  /// The `email` claim of a JWT, without verifying it: the token has just
+  /// come from the provider and Firebase checks it for real.
+  static String? _emailFromIdToken(String idToken) {
+    final parts = idToken.split('.');
+    if (parts.length != 3) return null;
+    try {
+      final payload = jsonDecode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+      );
+      final email = payload is Map ? payload['email'] : null;
+      return email is String && email.isNotEmpty ? email : null;
+    } on Object {
+      return null;
+    }
+  }
+
   static String _randomNonce([int length = 32]) {
     const chars =
         '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._';
@@ -396,13 +425,14 @@ class FirebaseAuthService implements AuthService {
   /// A sign-in that needs its second factor is parked for
   /// [resolveSecondFactor] and reported as [SecondFactorRequired].
   Future<void> _guard(Future<void> Function() action) async {
+    _pendingEmail = null;
     try {
       await action();
     } on AuthException {
       rethrow;
     } on fb.FirebaseAuthMultiFactorException catch (e) {
       _resolver = e.resolver;
-      throw SecondFactorRequired();
+      throw SecondFactorRequired(email: _pendingEmail);
     } on fb.FirebaseAuthException catch (e) {
       throw AuthException(
         _describe(e),

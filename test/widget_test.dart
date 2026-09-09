@@ -86,7 +86,7 @@ class FakeAuthService implements AuthService {
   void _complete(AppUser user) {
     if (requireSecondFactor) {
       _parked = user;
-      throw SecondFactorRequired();
+      throw SecondFactorRequired(email: user.email);
     }
     _set(user);
   }
@@ -338,21 +338,34 @@ class FakePasskeyService implements PasskeyService {
     return List.of(passkeys);
   }
 
+  /// Accounts this fake device holds a passkey for; null means any.
+  Set<String>? onDevice;
+
+  /// The email the last sign-in was scoped to.
+  String? scopedTo;
+
   @override
-  Future<void> signIn() async {
+  Future<bool> signIn({String? email, bool onlyIfPresent = false}) async {
+    scopedTo = email;
+    if (email != null && onDevice != null && !onDevice!.contains(email)) {
+      // As the server and the platform answer: nothing to try here.
+      if (onlyIfPresent || onDevice!.isEmpty) return false;
+      throw PasskeyException('This device has no passkey for bikes.pizza yet.');
+    }
     if (cancel) throw PasskeyException.cancelled();
     if (failSignIn) {
       throw PasskeyException('This device has no passkey for bikes.pizza yet.');
     }
     signIns++;
     auth?._set(
-      const AppUser(
+      AppUser(
         uid: 'u9',
-        email: 'passkey@example.com',
+        email: email ?? 'passkey@example.com',
         emailVerified: true,
-        providerIds: ['password'],
+        providerIds: const ['password'],
       ),
     );
+    return true;
   }
 }
 
@@ -1130,6 +1143,75 @@ void main() {
 
     expect(auth.currentUser?.email, 'g@example.com');
     expect(find.text('g@example.com'), findsOneWidget);
+  });
+
+  testWidgets('a passkey on the device stands in for the authenticator code', (
+    tester,
+  ) async {
+    passkeys = FakePasskeyService()..onDevice = {'andy@example.com'};
+    await openSignIn(tester);
+    auth.requireSecondFactor = true;
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'andy@example.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'correct-horse');
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
+    await tester.pumpAndSettle();
+
+    // Signed in, with no code step in between.
+    expect(find.text('Enter your authenticator code'), findsNothing);
+    expect(passkeys!.scopedTo, 'andy@example.com');
+    expect(auth.currentUser?.email, 'andy@example.com');
+    // The parked sign-in was dropped rather than left waiting.
+    expect(auth.cancelledSecondFactors, 1);
+  });
+
+  testWidgets('a device without a passkey gets the code step, which can '
+      'still try one', (tester) async {
+    // The account has no passkeys at all.
+    passkeys = FakePasskeyService()..onDevice = <String>{};
+    await openSignIn(tester);
+    auth.requireSecondFactor = true;
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'andy@example.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'correct-horse');
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter your authenticator code'), findsOneWidget);
+    expect(auth.currentUser, isNull);
+
+    await tester.tap(find.byKey(const Key('mfa-passkey')));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('No passkey is saved for this account'),
+      findsOneWidget,
+    );
+    expect(auth.currentUser, isNull);
+
+    // With one on the account, the same button finishes the sign-in.
+    passkeys!.onDevice = {'andy@example.com'};
+    await tester.tap(find.byKey(const Key('mfa-passkey')));
+    await tester.pumpAndSettle();
+    expect(auth.currentUser?.email, 'andy@example.com');
+  });
+
+  testWidgets('devices that cannot use passkeys keep the code step to '
+      'themselves', (tester) async {
+    passkeys = FakePasskeyService(supported: false);
+    await openSignIn(tester);
+    auth.requireSecondFactor = true;
+
+    await tester.ensureVisible(find.byKey(const Key('google-sign-in')));
+    await tester.tap(find.byKey(const Key('google-sign-in')));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter your authenticator code'), findsOneWidget);
+    expect(find.byKey(const Key('mfa-passkey')), findsNothing);
+    expect(passkeys!.signIns, 0);
   });
 
   testWidgets('verified users can edit their username and newsletters', (
