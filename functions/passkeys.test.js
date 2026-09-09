@@ -74,7 +74,8 @@ function fakes({ records = [], now = new Date("2026-09-07T00:00:00Z") } = {}) {
     },
     async generateAuthenticationOptions(opts) {
       calls.push(["auth-options", opts]);
-      return { challenge: "auth-challenge", rpId: opts.rpID };
+      // As the real library does: a field left out is set to undefined.
+      return { challenge: "auth-challenge", rpId: opts.rpID, allowCredentials: opts.allowCredentials, extensions: undefined };
     },
     async verifyAuthenticationResponse(opts) {
       calls.push(["verify-authentication", opts]);
@@ -221,6 +222,19 @@ test("sign-in for a named account offers only its passkeys and refuses the rest"
 
   const next = await signInOptions({ email: "andy@example.com" }, f.deps);
   assert.deepEqual(await signIn({ challengeId: next.challengeId, response: response("mine") }, f.deps), { token: "token-for-u1" });
+});
+
+test("options leave out what they do not set, so nothing reaches the browser as null", async () => {
+  const f = fakes({ records: [{ id: "c1", uid: "u1", transports: ["internal"], createdAt: new Date(0) }] });
+  const anyPasskey = await signInOptions({}, f.deps);
+  // `allowCredentials` absent is what makes it "any passkey for this
+  // site"; sent as a null the browser refuses to read the options at all.
+  assert.ok(!("allowCredentials" in anyPasskey.options), "allowCredentials should be absent, not undefined");
+  assert.ok(!("extensions" in anyPasskey.options));
+  assert.deepEqual(Object.keys(anyPasskey.options).sort(), ["challenge", "rpId"]);
+
+  const oneAccount = await signInOptions({ uid: "u1" }, f.deps);
+  assert.deepEqual(oneAccount.options.allowCredentials, [{ id: "c1", transports: ["internal"] }]);
 });
 
 test("a uid names the account directly, without an email lookup", async () => {

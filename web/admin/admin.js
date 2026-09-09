@@ -429,6 +429,14 @@ function describePasskeyError(error, fallback) {
 }
 
 /**
+ * Options as the browser's parser will take them. A field the server left
+ * out arrives as a null (the callable encoder's doing), and the parser
+ * refuses a null where it wants a list; the server drops those keys now,
+ * and this keeps an older deployment from breaking the page.
+ */
+const readable = (options) => Object.fromEntries(Object.entries(options).filter(([, value]) => value !== null));
+
+/**
  * Signs in with a passkey. Given an [account] ({email, uid}) only that
  * account's passkeys count, so a passkey can stand in for its
  * authenticator code; without one the browser offers whichever it holds
@@ -442,7 +450,7 @@ async function passkeySignInWith(account) {
   const { data: start } = await passkeySignInOptions(hint);
   if (!start.options) return false; // that account has no passkeys
   const credential = await navigator.credentials.get({
-    publicKey: PublicKeyCredential.parseRequestOptionsFromJSON(start.options),
+    publicKey: PublicKeyCredential.parseRequestOptionsFromJSON(readable(start.options)),
   });
   const { data } = await passkeySignIn({ challengeId: start.challengeId, response: credential.toJSON() });
   await signInWithCustomToken(auth, data.token);
