@@ -149,6 +149,17 @@ function checkOrigin(response, deps) {
 
 const defaultRandomId = () => b64(crypto.getRandomValues(new Uint8Array(24)));
 
+/**
+ * Options as the clients can read them. The WebAuthn library leaves a
+ * field out by setting it to `undefined`, and the callable encoder turns
+ * every `undefined` into `null` on the way out; the browser's
+ * `PublicKeyCredential.parse*OptionsFromJSON` then refuses a null where it
+ * wants a list, which is how an unscoped sign-in ("any passkey you hold
+ * for this site", so no `allowCredentials`) used to fail before it began.
+ * Dropping those keys keeps them out of the JSON entirely.
+ */
+const readable = (options) => Object.fromEntries(Object.entries(options).filter(([, value]) => value !== undefined));
+
 /** The member's passkeys, newest first. */
 export async function listPasskeys(uid, { store }) {
   const records = await store.listForUser(uid);
@@ -190,7 +201,7 @@ export async function registrationOptions(user, member, deps) {
     uid: user.uid,
     expiresAt: new Date(now().getTime() + CHALLENGE_TTL_MS),
   });
-  return { challengeId, options };
+  return { challengeId, options: readable(options) };
 }
 
 /**
@@ -278,7 +289,7 @@ export async function signInOptions(data, deps) {
     expectedUid,
     expiresAt: new Date(now().getTime() + CHALLENGE_TTL_MS),
   });
-  return { challengeId, options, hasPasskeys: true };
+  return { challengeId, options: readable(options), hasPasskeys: true };
 }
 
 /**
