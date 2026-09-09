@@ -3,6 +3,8 @@ import Layout from '../layouts/Layout.astro';
 
 // Change this if a different address should receive privacy mail.
 const contact = 'privacy@bikes.pizza';
+// Requests to take a published post down go here rather than to privacy mail.
+const removals = 'remove.post@bikes.pizza';
 const updated = 'September 9, 2026';
 ---
 
@@ -120,8 +122,9 @@ const updated = 'September 9, 2026';
         <p class="mt-4">
           Photos that have already been published as posts stay on the site, since
           they are part of the public record of what has been posted. If you would
-          like a published photo taken down as well, write to us and we will remove
-          it.
+          like a published photo taken down as well, write to{' '}
+          <a href={`mailto:${removals}`} class="text-spice hover:underline">{removals}</a>{' '}
+          with a link to the post, and we will remove it.
         </p>
       </section>
 
@@ -166,6 +169,11 @@ const updated = 'September 9, 2026';
         <p class="mt-2">
           Questions about privacy, or a request about your data, can go to{' '}
           <a href={`mailto:${contact}`} class="text-spice hover:underline">{contact}</a>.
+        </p>
+        <p class="mt-4">
+          To have a published post taken down, write to{' '}
+          <a href={`mailto:${removals}`} class="text-spice hover:underline">{removals}</a>{' '}
+          instead, with a link to the post.
         </p>
       </section>
     </div>
