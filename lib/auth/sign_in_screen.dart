@@ -124,10 +124,15 @@ class _SignInScreenState extends State<SignInScreen> {
   /// device holds for [email] settles it without a code; anything else
   /// (no passkey here, or the person backing out of the system prompt)
   /// falls through to the code step.
+  ///
+  /// Without an [email] — a provider that named no address — the device's
+  /// own passkeys are all there is to go on, which is still worth asking
+  /// for: confined to passkeys already here, the system either offers one
+  /// or says there is none, and never asks to scan a QR code.
   Future<void> _secondFactor(String? email) async {
     _secondFactorEmail = email;
     final passkeys = widget.passkeys;
-    if (passkeys != null && _passkeysAvailable && email != null) {
+    if (passkeys != null && _passkeysAvailable) {
       try {
         if (await passkeys.signIn(email: email, onlyIfPresent: true)) {
           _finishWithPasskey();

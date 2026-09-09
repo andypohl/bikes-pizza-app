@@ -107,14 +107,21 @@ OAuth token that has the cloud-platform scope.
   functions' runtime service account (the project's default compute
   account) to hold Service Account Token Creator on itself; the Pulumi
   program grants it (`functions-token-creator` in `infra/index.ts`).
-  - The app knows when the device holds none (the platform answers "no
-    credentials" for a request confined to credentials already on it), so
-    it can try quietly. Browsers cannot be asked that, and an unexpected
-    passkey prompt offering a QR code is worse than the code, so the web
-    pages only try a passkey once that browser has been seen to use one
-    (a `bikes-pizza-passkey` flag in `localStorage`, set when a passkey is
-    added or used there). Until then the code step's button does it in one
-    click, which also sets the flag.
+  - Which account the parked sign-in is for has to be dug out of
+    Firebase: a multi-factor error carries no address of its own, only the
+    raw sign-in response. The web pages take the address from that
+    response, failing that from the provider's token in it (Apple fills
+    the address in only on the first authorization, but its token carries
+    it every time), and failing that the uid it reports;
+    `passkeySignInOptions` accepts either an email or a uid. The app gets
+    the address from the provider directly.
+  - With no account to name, the app still asks for passkeys already on
+    the device: the platform either offers one or answers "no
+    credentials", and never asks to scan a QR code. Browsers have no such
+    request, and an unexpected prompt offering a QR code is worse than the
+    code, so there the fallback is whether that browser has been seen to
+    add or use a passkey for the site (a `bikes-pizza-passkey` flag in
+    `localStorage`). A named account never needs the flag.
 - Multi-factor authentication is `ENABLED` (not `MANDATORY`) with the TOTP
   provider (authenticator apps), so any account may enroll and none is
   forced to. Members choose it on the website's account page or the app's

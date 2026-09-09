@@ -82,11 +82,17 @@ class FakeAuthService implements AuthService {
     );
   }
 
+  /// Whether a parked sign-in reports the address it was for; providers
+  /// do not always name one.
+  bool secondFactorKnowsEmail = true;
+
   /// Signs [user] in, or parks the sign-in behind the second factor.
   void _complete(AppUser user) {
     if (requireSecondFactor) {
       _parked = user;
-      throw SecondFactorRequired(email: user.email);
+      throw SecondFactorRequired(
+        email: secondFactorKnowsEmail ? user.email : null,
+      );
     }
     _set(user);
   }
@@ -1198,6 +1204,23 @@ void main() {
     await tester.tap(find.byKey(const Key('mfa-passkey')));
     await tester.pumpAndSettle();
     expect(auth.currentUser?.email, 'andy@example.com');
+  });
+
+  testWidgets('a sign-in that names no account still tries the passkeys on '
+      'the device', (tester) async {
+    passkeys = FakePasskeyService();
+    await openSignIn(tester);
+    auth
+      ..requireSecondFactor = true
+      ..secondFactorKnowsEmail = false;
+
+    await tester.ensureVisible(find.byKey(const Key('google-sign-in')));
+    await tester.tap(find.byKey(const Key('google-sign-in')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Enter your authenticator code'), findsNothing);
+    expect(passkeys!.scopedTo, isNull);
+    expect(auth.currentUser?.email, 'passkey@example.com');
   });
 
   testWidgets('devices that cannot use passkeys keep the code step to '

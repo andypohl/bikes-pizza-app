@@ -8,10 +8,11 @@
 // of `firebase.sign_in_second_factor` (see errors.js).
 //
 // That also covers a sign-in Firebase has parked for its second factor:
-// the clients pass the account's email to `signInOptions`, which answers
-// with that account's credentials and nothing else, so the passkey the
-// device offers can only be one of theirs. An account with no passkeys is
-// told so up front (`hasPasskeys: false`) and asked for the code instead.
+// the clients pass the account's email (or its uid, which the web SDK
+// sometimes reports instead) to `signInOptions`, which answers with that
+// account's credentials and nothing else, so the passkey the device offers
+// can only be one of theirs. An account with no passkeys is told so up
+// front (`hasPasskeys: false`) and asked for the code instead.
 //
 // Pure: the WebAuthn library, the credential store and the token minting
 // are injected, so the flows are unit-tested without Firebase.
@@ -235,26 +236,32 @@ export async function register(user, data, deps) {
 }
 
 /**
- * Step one of signing in: options for `navigator.credentials.get`. With no
- * `email`, no account is named and the authenticator offers whichever
+ * Step one of signing in: options for `navigator.credentials.get`. Naming
+ * no account leaves it to the authenticator, which offers whichever
  * passkeys it holds for this site (discoverable credentials).
  *
- * With an `email` the ceremony is scoped to that account: the options list
- * only its credentials, and {@link signIn} refuses anything else. That is
- * what makes a passkey usable in place of the authenticator code, where
- * the account is already decided. An account with no passkeys (or no
- * account at all) gets `{hasPasskeys: false}` and no challenge.
+ * Naming one, by `email` or by `uid`, scopes the ceremony to that account:
+ * the options list only its credentials, and {@link signIn} refuses
+ * anything else. That is what makes a passkey usable in place of the
+ * authenticator code, where the account is already decided. An account
+ * with no passkeys (or no account at all) gets `{hasPasskeys: false}` and
+ * no challenge, so the client can ask for the code without a prompt
+ * nobody could have answered.
  *
- * @param {{email?: string}} data
+ * A `uid` is taken as given: it only decides which passkeys are offered,
+ * and {@link signIn} still needs an assertion from one of them.
+ *
+ * @param {{email?: string, uid?: string}} data
  * @param {PasskeyDeps} deps
  */
 export async function signInOptions(data, deps) {
   const { store, rp, webauthn, lookupUidByEmail, now = () => new Date(), randomId = defaultRandomId } = deps;
   const email = typeof data?.email === "string" ? data.email.trim() : "";
+  const uid = typeof data?.uid === "string" ? data.uid.trim() : "";
   let expectedUid = null;
   let allowCredentials;
-  if (email) {
-    expectedUid = (await lookupUidByEmail?.(email)) ?? null;
+  if (email || uid) {
+    expectedUid = uid || (await lookupUidByEmail?.(email)) || null;
     const owned = expectedUid ? await store.listForUser(expectedUid) : [];
     if (owned.length === 0) return { hasPasskeys: false };
     allowCredentials = owned.map((c) => ({ id: c.id, transports: c.transports ?? [] }));
