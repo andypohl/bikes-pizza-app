@@ -68,7 +68,9 @@ class PasskeyException implements Exception {
 /// Passkeys: the device's Face ID, Touch ID or screen lock as a way to sign
 /// in, kept on the account by the `passkey*` Cloud Functions. A passkey
 /// sign-in skips the authenticator code on accounts with two-factor
-/// authentication on, since the device has verified the person.
+/// authentication on, since the device has verified the person: the
+/// sign-in screen uses one in place of the code whenever this device holds
+/// a passkey for the account being signed in to.
 abstract class PasskeyService {
   /// Whether this device can make and use passkeys.
   Future<bool> get available;
@@ -85,7 +87,17 @@ abstract class PasskeyService {
 
   /// Signs in with a passkey this device holds for bikes.pizza. On return
   /// the Firebase user is signed in; `AuthService.userChanges` reflects it.
-  Future<void> signIn();
+  ///
+  /// With an [email] only that account's passkeys are offered, so the
+  /// result is always the account that was being signed in to; without one
+  /// the device offers whichever passkeys it holds for the site.
+  ///
+  /// Returns false when there was nothing to try rather than throwing:
+  /// that account has no passkeys at all, or, with [onlyIfPresent], this
+  /// device holds none of them. Callers then ask for the authenticator
+  /// code. Backing out of the system prompt still throws a cancelled
+  /// [PasskeyException].
+  Future<bool> signIn({String? email, bool onlyIfPresent = false});
 }
 
 /// [PasskeyService] backed by the platform's passkey support and the
@@ -162,21 +174,28 @@ class FirebasePasskeyService implements PasskeyService {
       _passkeys(await _call<List<dynamic>>('passkeyRemove', {'id': id}));
 
   @override
-  Future<void> signIn() async {
-    final start = await _call<Map<String, dynamic>>(
-      'passkeySignInOptions',
-      const {},
-    );
-    final options = Map<String, dynamic>.from(start['options'] as Map);
+  Future<bool> signIn({String? email, bool onlyIfPresent = false}) async {
+    final start = await _call<Map<String, dynamic>>('passkeySignInOptions', {
+      'email': ?email,
+    });
+    // Absent when the account named by [email] has no passkeys; the
+    // server does not make a challenge for a ceremony that cannot work.
+    final options = start['options'];
+    if (options is! Map) return false;
     final AuthenticateResponseType response;
     try {
       response = await _authenticator.authenticate(
         AuthenticateRequestType.fromJson(
-          options,
+          Map<String, dynamic>.from(options),
           mediation: MediationType.Optional,
+          // Keeps the system to passkeys already on this device, instead
+          // of offering to scan a QR code with another one.
           preferImmediatelyAvailableCredentials: true,
         ),
       );
+    } on NoCredentialsAvailableException catch (e) {
+      if (onlyIfPresent) return false;
+      throw _translate(e);
     } on AuthenticatorException catch (e) {
       throw _translate(e);
     }
@@ -193,6 +212,7 @@ class FirebasePasskeyService implements PasskeyService {
             : 'Could not finish signing in. Please try again.',
       );
     }
+    return true;
   }
 
   static List<Passkey> _passkeys(List<dynamic> items) => [

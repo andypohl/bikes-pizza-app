@@ -272,11 +272,16 @@ sign-in is verified by the `passkey*` Cloud Functions
 (`functions/passkeys.js`, WebAuthn) and ends in a Firebase custom token;
 that path is not subject to Firebase's multi-factor step, so on an account
 with two-factor authentication on the passkey takes the place of the
-authenticator code, while every other way of signing in still asks for
-it. The app offers the same: "Sign in with a passkey" on its sign-in
-screen and a Passkeys section on Manage account (`lib/auth/passkey_service.dart`,
-on the `passkeys` package); the platform trust it needs is described in
-`docs/firebase.md`.
+authenticator code. It does so however the sign-in started: signing in
+with Apple, Google or a password on a device that holds a passkey for the
+account finishes with the passkey and never asks for a code, and the code
+step is what a device without one gets (with a button to try a passkey
+anyway). The app offers the same: "Sign in with a passkey" on its sign-in
+screen and a Passkeys section on Manage account
+(`lib/auth/passkey_service.dart`, on the `passkeys` package); the platform
+trust it needs is described in `docs/firebase.md`. The review and admin
+pages sign in with a passkey too, since a passkey counts as their required
+second factor; passkeys are added and removed on the account page only.
 Both also offer "Delete account", at the very bottom (in the app, at the
 end of the Settings screen): after a confirmation it calls
 `deleteAccount` and signs the member out.

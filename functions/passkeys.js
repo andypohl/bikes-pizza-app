@@ -7,6 +7,12 @@
 // two-factor authentication on; the admin pages accept the claim in place
 // of `firebase.sign_in_second_factor` (see errors.js).
 //
+// That also covers a sign-in Firebase has parked for its second factor:
+// the clients pass the account's email to `signInOptions`, which answers
+// with that account's credentials and nothing else, so the passkey the
+// device offers can only be one of theirs. An account with no passkeys is
+// told so up front (`hasPasskeys: false`) and asked for the code instead.
+//
 // Pure: the WebAuthn library, the credential store and the token minting
 // are injected, so the flows are unit-tested without Firebase.
 //
@@ -43,8 +49,8 @@ export const NAME_MAX = 60;
  * @property {(record: PasskeyRecord) => Promise<void>} put
  * @property {(id: string, patch: object) => Promise<void>} update
  * @property {(id: string) => Promise<void>} delete
- * @property {(id: string, data: {challenge: string, uid: string|null, expiresAt: Date}) => Promise<void>} putChallenge
- * @property {(id: string) => Promise<{challenge: string, uid: string|null, expiresAt: Date}|null>} takeChallenge  Reads and deletes
+ * @property {(id: string, data: {challenge: string, uid: string|null, expectedUid?: string|null, expiresAt: Date}) => Promise<void>} putChallenge
+ * @property {(id: string) => Promise<{challenge: string, uid: string|null, expectedUid?: string|null, expiresAt: Date}|null>} takeChallenge  Reads and deletes
  */
 
 /**
@@ -55,6 +61,8 @@ export const NAME_MAX = 60;
  * @property {string[]} [extraOrigins]  Origins allowed besides the rp's own
  *   hosts, e.g. `android:apk-key-hash:...` for the Android app
  * @property {(uid: string, claims: object) => Promise<string>} [createToken]
+ * @property {(email: string) => Promise<string|null>} [lookupUidByEmail]  For
+ *   scoping a sign-in to one account; null when there is no such account
  * @property {() => Date} [now]
  * @property {() => string} [randomId]
  */
@@ -227,28 +235,49 @@ export async function register(user, data, deps) {
 }
 
 /**
- * Step one of signing in: options for `navigator.credentials.get`. No
- * account is named; the authenticator offers the passkeys it holds for
- * this site (discoverable credentials).
+ * Step one of signing in: options for `navigator.credentials.get`. With no
+ * `email`, no account is named and the authenticator offers whichever
+ * passkeys it holds for this site (discoverable credentials).
+ *
+ * With an `email` the ceremony is scoped to that account: the options list
+ * only its credentials, and {@link signIn} refuses anything else. That is
+ * what makes a passkey usable in place of the authenticator code, where
+ * the account is already decided. An account with no passkeys (or no
+ * account at all) gets `{hasPasskeys: false}` and no challenge.
+ *
+ * @param {{email?: string}} data
+ * @param {PasskeyDeps} deps
  */
-export async function signInOptions(deps) {
-  const { store, rp, webauthn, now = () => new Date(), randomId = defaultRandomId } = deps;
+export async function signInOptions(data, deps) {
+  const { store, rp, webauthn, lookupUidByEmail, now = () => new Date(), randomId = defaultRandomId } = deps;
+  const email = typeof data?.email === "string" ? data.email.trim() : "";
+  let expectedUid = null;
+  let allowCredentials;
+  if (email) {
+    expectedUid = (await lookupUidByEmail?.(email)) ?? null;
+    const owned = expectedUid ? await store.listForUser(expectedUid) : [];
+    if (owned.length === 0) return { hasPasskeys: false };
+    allowCredentials = owned.map((c) => ({ id: c.id, transports: c.transports ?? [] }));
+  }
   const options = await webauthn.generateAuthenticationOptions({
     rpID: rp.rpID,
     userVerification: "required",
+    allowCredentials,
   });
   const challengeId = randomId();
   await store.putChallenge(challengeId, {
     challenge: options.challenge,
     uid: null,
+    expectedUid,
     expiresAt: new Date(now().getTime() + CHALLENGE_TTL_MS),
   });
-  return { challengeId, options };
+  return { challengeId, options, hasPasskeys: true };
 }
 
 /**
  * Step two: verifies the assertion against the stored credential and
- * returns a Firebase custom token for its owner, with `passkey: true`.
+ * returns a Firebase custom token for its owner, with `passkey: true`. A
+ * challenge that named an account only accepts that account's passkeys.
  *
  * @param {{challengeId: string, response: object}} data
  * @param {PasskeyDeps} deps
@@ -261,6 +290,9 @@ export async function signIn(data, deps) {
   const origin = checkOrigin(response, deps);
   const record = await store.get(response.id);
   if (!record) throw new AppError("not-found", "That passkey is no longer registered. Sign in another way and add it again.");
+  if (challenge.expectedUid && record.uid !== challenge.expectedUid) {
+    throw new AppError("permission-denied", "That passkey belongs to a different account.");
+  }
   let verification;
   try {
     verification = await webauthn.verifyAuthenticationResponse({

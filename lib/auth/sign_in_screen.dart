@@ -15,6 +15,12 @@ enum _Mode { signIn, createAccount }
 /// unless they sign in with a passkey (offered when [passkeys] is given and
 /// the device supports them), which the device has already verified.
 ///
+/// That holds however the sign-in started: when Firebase parks one for its
+/// second factor and this device already has a passkey for the account,
+/// the screen finishes with the passkey and never asks for a code. The
+/// code step is what happens when the device has none, so it also offers
+/// the passkey again for a device that has one but was interrupted.
+///
 /// Creating an account asks for the password twice, plus a username and
 /// whether to get the newsletter; those last two wait on the device (see
 /// [PendingProfile]) until the email is verified, since the member
@@ -43,8 +49,10 @@ class _SignInScreenState extends State<SignInScreen> {
   bool _obscure = true;
   bool _newsletter = true;
   // Set when the account has two-factor authentication on: the sign-in is
-  // parked until the code from the authenticator app arrives.
+  // parked until the code from the authenticator app arrives, or a passkey
+  // for [_secondFactorEmail] stands in for it.
   bool _awaitingCode = false;
+  String? _secondFactorEmail;
   bool _passkeysAvailable = false;
   String? _error;
 
@@ -99,12 +107,64 @@ class _SignInScreenState extends State<SignInScreen> {
         }
       }
       if (mounted) Navigator.of(context).pop();
-    } on SecondFactorRequired {
-      _askForCode();
+    } on SecondFactorRequired catch (e) {
+      await _secondFactor(e.email);
     } on AuthException catch (e) {
       setState(() {
         _error = e.message;
       });
+    } on Object {
+      setState(() => _error = 'Something went wrong. Please try again.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// A sign-in Firebase parked for its second factor. A passkey this
+  /// device holds for [email] settles it without a code; anything else
+  /// (no passkey here, or the person backing out of the system prompt)
+  /// falls through to the code step.
+  Future<void> _secondFactor(String? email) async {
+    _secondFactorEmail = email;
+    final passkeys = widget.passkeys;
+    if (passkeys != null && _passkeysAvailable && email != null) {
+      try {
+        if (await passkeys.signIn(email: email, onlyIfPresent: true)) {
+          _finishWithPasskey();
+          return;
+        }
+      } on PasskeyException {
+        // Ask for the code instead.
+      }
+    }
+    _askForCode();
+  }
+
+  /// A passkey has signed the member in; the parked sign-in is dropped.
+  void _finishWithPasskey() {
+    widget.auth.cancelSecondFactor();
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  /// The code step's own passkey button, for a device that has one: unlike
+  /// the automatic attempt this reports what went wrong.
+  Future<void> _codeStepPasskey() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      if (await widget.passkeys!.signIn(email: _secondFactorEmail)) {
+        _finishWithPasskey();
+        return;
+      }
+      setState(
+        () => _error =
+            'No passkey is saved for this account yet. Enter the code, '
+            'then add one from Manage account.',
+      );
+    } on PasskeyException catch (e) {
+      if (!e.cancelled) setState(() => _error = e.message);
     } on Object {
       setState(() => _error = 'Something went wrong. Please try again.');
     } finally {
@@ -122,6 +182,7 @@ class _SignInScreenState extends State<SignInScreen> {
     widget.auth.cancelSecondFactor();
     setState(() {
       _awaitingCode = false;
+      _secondFactorEmail = null;
       _error = null;
     });
   }
@@ -162,8 +223,8 @@ class _SignInScreenState extends State<SignInScreen> {
     try {
       await signIn();
       if (mounted) Navigator.of(context).pop();
-    } on SecondFactorRequired {
-      _askForCode();
+    } on SecondFactorRequired catch (e) {
+      await _secondFactor(e.email);
     } on AuthException catch (e) {
       if (!e.cancelled) setState(() => _error = e.message);
     } on PasskeyException catch (e) {
@@ -174,6 +235,17 @@ class _SignInScreenState extends State<SignInScreen> {
       if (mounted) setState(() => _busy = false);
     }
   }
+
+  /// "Sign in with a passkey": any passkey this device holds for the site,
+  /// so no account is named up front.
+  Future<void> _passkeySignIn() => _withProvider(() async {
+    if (!await widget.passkeys!.signIn()) {
+      throw PasskeyException(
+        'This device has no passkey for bikes.pizza yet. Sign in another '
+        'way and add one from Manage account.',
+      );
+    }
+  });
 
   Future<void> _resetPassword() async {
     final email = _email.text.trim();
@@ -244,6 +316,13 @@ class _SignInScreenState extends State<SignInScreen> {
                 )
               : const Text('Verify'),
         ),
+        if (_passkeysAvailable && widget.passkeys != null)
+          TextButton.icon(
+            key: const Key('mfa-passkey'),
+            onPressed: _busy ? null : _codeStepPasskey,
+            icon: const Icon(Icons.fingerprint),
+            label: const Text('Use a passkey instead'),
+          ),
         TextButton(
           onPressed: _busy ? null : _cancelCode,
           child: const Text('Use a different account'),
@@ -436,9 +515,7 @@ class _SignInScreenState extends State<SignInScreen> {
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     key: const Key('passkey-sign-in'),
-                    onPressed: _busy
-                        ? null
-                        : () => _withProvider(widget.passkeys!.signIn),
+                    onPressed: _busy ? null : _passkeySignIn,
                     icon: const Icon(Icons.fingerprint),
                     label: const Text('Sign in with a passkey'),
                   ),

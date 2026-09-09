@@ -83,10 +83,12 @@ function fakes({ records = [], now = new Date("2026-09-07T00:00:00Z") } = {}) {
     },
   };
   const tokens = [];
+  const accounts = new Map([["andy@example.com", "u1"], ["someone@example.com", "u2"]]);
   const deps = {
     store,
     rp: RP,
     webauthn,
+    lookupUidByEmail: async (email) => accounts.get(email) ?? null,
     now: () => clock,
     randomId: () => `id-${challenges.size + 1}`,
     createToken: async (uid, claims) => {
@@ -179,7 +181,7 @@ test("registration stops at the passkey limit", async () => {
 
 test("sign-in: options name no account; a verified assertion bumps the counter and mints a token", async () => {
   const f = fakes({ records: [{ id: "c1", uid: "u1", publicKey: Buffer.from([9]).toString("base64url"), counter: 4, transports: ["internal"], createdAt: new Date(0) }] });
-  const { challengeId, options } = await signInOptions(f.deps);
+  const { challengeId, options } = await signInOptions({}, f.deps);
   assert.equal(options.challenge, "auth-challenge");
   const [, opts] = f.calls.find(([name]) => name === "auth-options");
   assert.equal(opts.rpID, "bikes.pizza");
@@ -196,12 +198,48 @@ test("sign-in: options name no account; a verified assertion bumps the counter a
   assert.equal(f.passkeys.get("c1").lastUsedAt.toISOString(), "2026-09-07T00:00:00.000Z");
 });
 
+test("sign-in for a named account offers only its passkeys and refuses the rest", async () => {
+  const f = fakes({
+    records: [
+      { id: "mine", uid: "u1", publicKey: Buffer.from([9]).toString("base64url"), counter: 0, transports: ["internal"], createdAt: new Date(0) },
+      { id: "theirs", uid: "u2", publicKey: Buffer.from([9]).toString("base64url"), counter: 0, transports: [], createdAt: new Date(0) },
+    ],
+  });
+  const { challengeId, options, hasPasskeys } = await signInOptions({ email: " andy@example.com " }, f.deps);
+  assert.equal(hasPasskeys, true);
+  assert.equal(options.challenge, "auth-challenge");
+  const [, opts] = f.calls.find(([name]) => name === "auth-options");
+  assert.deepEqual(opts.allowCredentials, [{ id: "mine", transports: ["internal"] }]);
+  assert.equal(f.challenges.get(challengeId).expectedUid, "u1");
+
+  // Another member's passkey cannot finish this account's sign-in.
+  await assert.rejects(
+    signIn({ challengeId, response: response("theirs") }, f.deps),
+    (e) => e.code === "permission-denied" && /different account/.test(e.message),
+  );
+  assert.deepEqual(f.tokens, []);
+
+  const next = await signInOptions({ email: "andy@example.com" }, f.deps);
+  assert.deepEqual(await signIn({ challengeId: next.challengeId, response: response("mine") }, f.deps), { token: "token-for-u1" });
+});
+
+test("an account with no passkeys, and an address with no account, get no challenge", async () => {
+  const f = fakes({ records: [{ id: "mine", uid: "u1", transports: [], createdAt: new Date(0) }] });
+  assert.deepEqual(await signInOptions({ email: "someone@example.com" }, f.deps), { hasPasskeys: false });
+  assert.deepEqual(await signInOptions({ email: "nobody@example.com" }, f.deps), { hasPasskeys: false });
+  assert.equal(f.challenges.size, 0);
+  assert.equal(
+    f.calls.filter(([name]) => name === "auth-options").length,
+    0,
+  );
+});
+
 test("sign-in refuses unknown passkeys, registration challenges and failed verification, and never mints a token", async () => {
   const f = fakes({ records: [{ id: "stale", uid: "u1", publicKey: "AA", counter: 5, transports: [] }] });
-  let { challengeId } = await signInOptions(f.deps);
+  let { challengeId } = await signInOptions({}, f.deps);
   await assert.rejects(signIn({ challengeId, response: response("unknown") }, f.deps), (e) => e instanceof AppError && e.code === "not-found");
 
-  ({ challengeId } = await signInOptions(f.deps));
+  ({ challengeId } = await signInOptions({}, f.deps));
   await assert.rejects(signIn({ challengeId, response: response("stale") }, f.deps), (e) => e.code === "permission-denied" && /counter/.test(e.message));
 
   ({ challengeId } = await registrationOptions(user, {}, f.deps));

@@ -15,7 +15,9 @@
 //                    a member's passkeys (passkeys.js).
 // passkeySignInOptions, passkeySignIn:
 //                    signing in with a passkey; no user yet. The result is
-//                    a custom token with `passkey: true`.
+//                    a custom token with `passkey: true`. Given an email,
+//                    the ceremony is scoped to that account, which is how a
+//                    passkey stands in for the authenticator code.
 // submitPost:        checks a bike/pizza submission's photo with Google
 //                    Vision (SafeSearch, and no people or faces), stores it
 //                    (photo + text) in Firestore and Storage and emails the
@@ -206,6 +208,15 @@ const passkeyDeps = () => ({
     .map((o) => o.trim())
     .filter(Boolean),
   createToken: (uid, claims) => getAuth().createCustomToken(uid, claims),
+  // Scopes a sign-in to one account (see passkeys.js); an address with no
+  // account looks the same as an account with no passkeys.
+  lookupUidByEmail: async (email) => {
+    try {
+      return (await getAuth().getUserByEmail(email)).uid;
+    } catch {
+      return null;
+    }
+  },
   log: logger.info,
 });
 
@@ -240,8 +251,8 @@ export const passkeyRemove = onCall(passkeyOptions, (request) =>
 );
 
 // Signing in: nobody is signed in yet, so these take no user.
-export const passkeySignInOptions = onCall(passkeyOptions, () =>
-  guarded(null, "start the passkey sign-in", () => passkeys.signInOptions(passkeyDeps())),
+export const passkeySignInOptions = onCall(passkeyOptions, (request) =>
+  guarded(null, "start the passkey sign-in", () => passkeys.signInOptions(request.data, passkeyDeps())),
 );
 
 export const passkeySignIn = onCall(passkeyOptions, (request) =>

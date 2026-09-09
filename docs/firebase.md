@@ -96,11 +96,25 @@ OAuth token that has the cloud-platform scope.
 - Passkeys are a second way in (see the `passkey*` functions above). A
   custom-token sign-in is not subject to Firebase's multi-factor step, so a
   passkey stands in for the authenticator code on accounts with two-factor
-  authentication on: the device already verified the person. Signing in
-  any other way still asks for the code. Minting the custom token needs the
+  authentication on: the device already verified the person. That holds
+  however the sign-in started. When Firebase parks one for its second
+  factor, the clients ask `passkeySignInOptions` for the account's own
+  passkeys and finish with one from this device instead of the code; the
+  code step is what a device without a passkey gets, and it offers the
+  passkey again for a device that has one. Because the options name the
+  account, only its passkeys can answer, so a shared device cannot sign
+  somebody in as the wrong member. Minting the custom token needs the
   functions' runtime service account (the project's default compute
   account) to hold Service Account Token Creator on itself; the Pulumi
   program grants it (`functions-token-creator` in `infra/index.ts`).
+  - The app knows when the device holds none (the platform answers "no
+    credentials" for a request confined to credentials already on it), so
+    it can try quietly. Browsers cannot be asked that, and an unexpected
+    passkey prompt offering a QR code is worse than the code, so the web
+    pages only try a passkey once that browser has been seen to use one
+    (a `bikes-pizza-passkey` flag in `localStorage`, set when a passkey is
+    added or used there). Until then the code step's button does it in one
+    click, which also sets the flag.
 - Multi-factor authentication is `ENABLED` (not `MANDATORY`) with the TOTP
   provider (authenticator apps), so any account may enroll and none is
   forced to. Members choose it on the website's account page or the app's
@@ -259,7 +273,13 @@ creating it with defaults on first use.
   `passkeySignInOptions` and `passkeySignIn` need no user: the assertion is
   checked against the stored credential and the result is a Firebase
   custom token for its owner carrying `passkey: true`, which the client
-  passes to `signInWithCustomToken`. The relying party ID is the host of
+  passes to `signInWithCustomToken`. Given an `email`,
+  `passkeySignInOptions` scopes the ceremony to that account (its
+  credentials in `allowCredentials`, the uid kept on the challenge, and
+  `passkeySignIn` refusing any other passkey), and answers
+  `{hasPasskeys: false}` with no challenge when the account has none or
+  there is no such account; that is how a passkey answers the second
+  factor for a sign-in already tied to one account. The relying party ID is the host of
   `SITE_URL` (`bikes.pizza`, `bikes-pizza.dev`), so the same passkey works
   on the website, the account page and the apps;
   responses are accepted from https origins on that host or a subdomain
