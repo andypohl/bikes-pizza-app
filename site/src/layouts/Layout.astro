@@ -95,6 +95,14 @@ const Brand = Astro.url.pathname === '/' ? 'h1' : 'p';
       <div class="container mx-auto px-6 text-center text-muted text-sm font-light">
         <p>&copy; {new Date().getFullYear()} bikes.pizza</p>
         <p class="mt-2">
+          Questions or comments?{' '}
+          <a href="mailto:contact@bikes.pizza" class="hover:text-spice transition-colors">
+            contact@bikes.pizza
+          </a>
+          {' · '}
+          <a href="/privacy" class="hover:text-spice transition-colors">Privacy</a>
+        </p>
+        <p class="mt-2">
           Theme:{' '}
           <a
             href="https://github.com/EmaSuriano/astro-frame-shift"

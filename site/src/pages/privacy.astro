@@ -5,6 +5,8 @@ import Layout from '../layouts/Layout.astro';
 const contact = 'privacy@bikes.pizza';
 // Requests to take a published post down go here rather than to privacy mail.
 const removals = 'remove.post@bikes.pizza';
+// Everything that is neither a privacy request nor a takedown.
+const general = 'contact@bikes.pizza';
 const updated = 'September 9, 2026';
 ---
 
@@ -174,6 +176,10 @@ const updated = 'September 9, 2026';
           To have a published post taken down, write to{' '}
           <a href={`mailto:${removals}`} class="text-spice hover:underline">{removals}</a>{' '}
           instead, with a link to the post.
+        </p>
+        <p class="mt-4">
+          General questions and comments about bikes.pizza are welcome at{' '}
+          <a href={`mailto:${general}`} class="text-spice hover:underline">{general}</a>.
         </p>
       </section>
     </div>
