@@ -1206,6 +1206,24 @@ void main() {
     expect(auth.currentUser?.email, 'andy@example.com');
   });
 
+  testWidgets('a Google sign-in with a passkey skips the code step too', (
+    tester,
+  ) async {
+    passkeys = FakePasskeyService()..onDevice = {'g@example.com'};
+    await openSignIn(tester);
+    auth.requireSecondFactor = true;
+
+    await tester.ensureVisible(find.byKey(const Key('google-sign-in')));
+    await tester.tap(find.byKey(const Key('google-sign-in')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Enter your authenticator code'), findsNothing);
+    // Scoped to the Google account, so only its passkeys could answer.
+    expect(passkeys!.scopedTo, 'g@example.com');
+    expect(auth.currentUser?.email, 'g@example.com');
+    expect(auth.cancelledSecondFactors, 1);
+  });
+
   testWidgets('a sign-in that names no account still tries the passkeys on '
       'the device', (tester) async {
     passkeys = FakePasskeyService();
