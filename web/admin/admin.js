@@ -394,11 +394,11 @@ $("#next").addEventListener("click", () => {
 
 const PASSKEYS_SUPPORTED = typeof PublicKeyCredential !== "undefined" && typeof PublicKeyCredential.parseRequestOptionsFromJSON === "function";
 
-// Whether a passkey for this site has been used in this browser. The web
-// cannot ask whether one is present, and a passkey prompt nobody asked for
-// (offering to scan a QR code with a phone) is worse than the code, so the
-// second-factor step only reaches for a passkey once this browser has been
-// seen to have one. The code step's button works either way.
+// Whether a passkey for this site has been added or used in this browser.
+// The web cannot ask whether one is present, so this is the last resort
+// for deciding whether to reach for one: it only matters when the parked
+// sign-in named no account, since a named account is settled by asking the
+// server what passkeys it has.
 const PASSKEY_SEEN = "bikes-pizza-passkey";
 const passkeyOnThisDevice = () => {
   try {
@@ -429,13 +429,17 @@ function describePasskeyError(error, fallback) {
 }
 
 /**
- * Signs in with a passkey. With an [email] only that account's passkeys
- * count, so a passkey can stand in for its authenticator code; without one
- * the browser offers whichever it holds for the site. False when there is
- * nothing to try, so the caller can ask for the code instead.
+ * Signs in with a passkey. Given an [account] ({email, uid}) only that
+ * account's passkeys count, so a passkey can stand in for its
+ * authenticator code; without one the browser offers whichever it holds
+ * for the site. False when there is nothing to try, so the caller can ask
+ * for the code instead.
  */
-async function passkeySignInWith(email) {
-  const { data: start } = await passkeySignInOptions(email ? { email } : {});
+async function passkeySignInWith(account) {
+  const hint = {};
+  if (account?.email) hint.email = account.email;
+  if (account?.uid) hint.uid = account.uid;
+  const { data: start } = await passkeySignInOptions(hint);
   if (!start.options) return false; // that account has no passkeys
   const credential = await navigator.credentials.get({
     publicKey: PublicKeyCredential.parseRequestOptionsFromJSON(start.options),
@@ -449,10 +453,37 @@ async function passkeySignInWith(email) {
 // ---- second factor --------------------------------------------------------
 
 let resolver = null; // pending sign-in waiting for the authenticator code
-let secondFactorEmail = null; // the account that sign-in is for
+let secondFactorAccount = null; // who that sign-in is for
 
-/** The address a sign-in was for, as far as Firebase reported it. */
-const emailFromError = (error) => error?.customData?.email ?? error?.customData?._serverResponse?.email ?? null;
+/**
+ * Who a parked sign-in is for. A multi-factor error carries no address of
+ * its own, only the raw sign-in response, so this digs the account out of
+ * that: the address the response reported, or the provider's own token
+ * (Apple fills the address in only on the first authorization, but its
+ * token carries it every time), or the uid, which names the account just
+ * as well.
+ */
+function pendingAccount(error, email) {
+  const response = error?.customData?._serverResponse ?? {};
+  return {
+    email: email ?? response.email ?? emailFromIdToken(response.oauthIdToken) ?? null,
+    uid: response.localId ?? null,
+  };
+}
+
+/** The `email` claim of a token the provider signed and Firebase checked. */
+function emailFromIdToken(token) {
+  if (typeof token !== "string") return null;
+  const [, payload] = token.split(".");
+  if (!payload) return null;
+  try {
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const { email } = JSON.parse(atob(base64 + "=".repeat((4 - (base64.length % 4)) % 4)));
+    return typeof email === "string" && email ? email : null;
+  } catch {
+    return null; // not a token this understands
+  }
+}
 
 /**
  * Runs a sign-in; when Firebase asks for the second factor, a passkey on
@@ -466,7 +497,7 @@ async function attemptSignIn(signIn, email = null) {
   } catch (error) {
     if (error?.code === "auth/multi-factor-auth-required") {
       resolver = getMultiFactorResolver(auth, error);
-      await secondFactor(email ?? emailFromError(error));
+      await secondFactor(pendingAccount(error, email));
       return;
     }
     const text = describe(error);
@@ -481,11 +512,15 @@ async function attemptSignIn(signIn, email = null) {
  * holds for the account settles it without a code; anything else falls
  * through to the code step, which offers the passkey again.
  */
-async function secondFactor(email) {
-  secondFactorEmail = email;
-  if (email && PASSKEYS_SUPPORTED && passkeyOnThisDevice()) {
+async function secondFactor(account) {
+  secondFactorAccount = account;
+  // With the account named, the server says whether it has any passkeys,
+  // so nothing is prompted for that a passkey could not answer. Without a
+  // name, go by whether this browser has been seen using one.
+  const worthTrying = PASSKEYS_SUPPORTED && (account.email || account.uid || passkeyOnThisDevice());
+  if (worthTrying) {
     try {
-      if (await passkeySignInWith(email)) return; // signed in, no code
+      if (await passkeySignInWith(account)) return; // signed in, no code
     } catch {
       // Ask for the code instead.
     }
@@ -510,7 +545,7 @@ $("#mfa-code-form").addEventListener("submit", async (event) => {
   try {
     await resolver.resolveSignIn(TotpMultiFactorGenerator.assertionForSignIn(hint.uid, code));
     resolver = null;
-    secondFactorEmail = null;
+    secondFactorAccount = null;
     // onAuthStateChanged takes it from here.
   } catch (error) {
     say(describe(error) ?? "Could not verify the code.");
@@ -521,7 +556,7 @@ $("#mfa-code-form").addEventListener("submit", async (event) => {
 
 $("#mfa-code-cancel").addEventListener("click", () => {
   resolver = null;
-  secondFactorEmail = null;
+  secondFactorAccount = null;
   show("signin");
 });
 
@@ -530,7 +565,7 @@ $("#mfa-code-cancel").addEventListener("click", () => {
 $("#mfa-passkey").addEventListener("click", async () => {
   busy(true);
   try {
-    if (await passkeySignInWith(secondFactorEmail)) return;
+    if (await passkeySignInWith(secondFactorAccount)) return;
     say("No passkey is saved for this account yet. Enter the code, then add one from your account page.");
   } catch (error) {
     const text = describePasskeyError(error, "Could not sign in with the passkey.");

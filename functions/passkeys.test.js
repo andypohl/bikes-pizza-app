@@ -223,6 +223,23 @@ test("sign-in for a named account offers only its passkeys and refuses the rest"
   assert.deepEqual(await signIn({ challengeId: next.challengeId, response: response("mine") }, f.deps), { token: "token-for-u1" });
 });
 
+test("a uid names the account directly, without an email lookup", async () => {
+  const f = fakes({
+    records: [
+      { id: "mine", uid: "u1", publicKey: Buffer.from([9]).toString("base64url"), counter: 0, transports: ["internal"], createdAt: new Date(0) },
+      { id: "theirs", uid: "u2", publicKey: Buffer.from([9]).toString("base64url"), counter: 0, transports: [], createdAt: new Date(0) },
+    ],
+  });
+  const { challengeId, hasPasskeys } = await signInOptions({ uid: "u1" }, f.deps);
+  assert.equal(hasPasskeys, true);
+  const [, opts] = f.calls.find(([name]) => name === "auth-options");
+  assert.deepEqual(opts.allowCredentials, [{ id: "mine", transports: ["internal"] }]);
+  await assert.rejects(signIn({ challengeId, response: response("theirs") }, f.deps), (e) => e.code === "permission-denied");
+
+  // A uid with nothing on it is the same answer as an unknown address.
+  assert.deepEqual(await signInOptions({ uid: "nobody" }, f.deps), { hasPasskeys: false });
+});
+
 test("an account with no passkeys, and an address with no account, get no challenge", async () => {
   const f = fakes({ records: [{ id: "mine", uid: "u1", transports: [], createdAt: new Date(0) }] });
   assert.deepEqual(await signInOptions({ email: "someone@example.com" }, f.deps), { hasPasskeys: false });
