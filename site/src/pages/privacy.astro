@@ -29,7 +29,9 @@ const updated = 'September 9, 2026';
           The short version: we collect what an account and a photo submission
           need, and nothing else. There is no analytics SDK, no advertising, no
           third-party tracker, and no profile built about you. We do not sell
-          personal information, and we never have.
+          personal information, and we never have. Photos of people are refused
+          automatically, and nothing is published without a human reviewer's
+          approval.
         </p>
       </section>
 
@@ -102,14 +104,48 @@ const updated = 'September 9, 2026';
       </section>
 
       <section>
-        <h2 class="text-2xl font-light text-ink">How submitted photos are reviewed</h2>
+        <h2 class="text-2xl font-light text-ink">No people, and a review before anything is published</h2>
         <p class="mt-2">
-          Every submitted photo is checked automatically by Google Cloud Vision
-          before anyone looks at it. That check screens for unsafe content and for
-          pictures containing people or faces, which this site does not accept. A
-          human reviewer then approves, queues, or rejects the submission. The
-          automated check is a filter, not a decision about you, and it is not used
-          to identify anyone.
+          bikes.pizza is a site about bicycles and pizza, not about people, and it
+          is built to keep people out of the pictures. Nothing you submit is
+          published as-is. Every photo passes two checks, in this order, before it
+          can appear anywhere on the site or in the apps.
+        </p>
+        <ol class="mt-4 space-y-3 list-decimal list-outside pl-6">
+          <li>
+            <span class="text-ink">An automatic check, at the moment of
+            submission.</span> Before a photo is stored, it is sent to Google
+            Cloud Vision, which reports whether it appears to contain a face or a
+            person-shaped figure, and whether it appears to contain adult, violent,
+            or racy content. A photo that reaches our threshold on any of those is
+            refused on the spot: it is not saved, not queued, and not seen by a
+            reviewer, and you are asked to choose a different photo. This is how we
+            keep imagery of people off the site proactively rather than after the
+            fact. The check is a filter applied to the image; it is not used to
+            identify anyone, and the result is kept only as a note on the
+            submission for the reviewer.
+          </li>
+          <li>
+            <span class="text-ink">A human review, before publication.</span> A
+            photo that passes the automatic check goes to a reviewer, who decides
+            whether to publish it, queue it, or reject it. Nothing becomes a post
+            without that approval.
+          </li>
+        </ol>
+        <p class="mt-4">
+          A word about the limits of this. Automated detection is not perfect, and
+          a photo with no person in it can still contain something the submitter
+          did not notice or did not intend to share: a reflection, a document on a
+          table, a license plate, a name on a mailbox, an address, something in the
+          background that is private, embarrassing, or unfortunate. The reviewer
+          makes an honest, good-faith effort to catch such things and not to
+          publish them, and rejects a photo when in doubt. That effort is a
+          commitment to care, not a guarantee: we cannot promise that nothing of
+          the kind will ever be published. Before you submit a photo, look at all
+          of it, not just the bike or the pizza, because once it is published it
+          is subject to the retention and removal terms in "Published posts and
+          requests for removal", and the fact that something slipped past review
+          is one of the reasons we give weight to when a removal is requested.
         </p>
       </section>
 
