@@ -58,11 +58,27 @@ const updated = 'September 9, 2026';
         <h3 class="mt-6 text-lg text-ink">Submissions</h3>
         <p class="mt-2">
           When you submit a photo we store the image together with the title,
-          description, and name you attach to it, plus the account it came from
-          and the time it arrived. Photos you submit are intended for publication:
-          if a reviewer approves one, it appears publicly on bikes.pizza with the
-          title, description, and name you supplied. Your email address is not
-          published.
+          description, and name you attach to it, the account it came from
+          (including the email address on that account), and the time it arrived.
+          Your email address is never published.
+        </p>
+        <p class="mt-4">
+          Please read the rest of this part carefully, because it is the one place
+          where this policy asks something of you. A submission is an offer of the
+          photo to the public. By submitting it, you grant Pizza Predator LLC a
+          non-exclusive, worldwide, royalty-free, perpetual license to store,
+          review, reproduce, resize, publish, and display the photo and its
+          accompanying text on bikes.pizza and in the bikes.pizza apps, as part of
+          a lasting public archive of bicycles and pizza. If a reviewer approves
+          the submission it becomes a post, published with the title, description,
+          and name you supplied, and posts are intended to remain available
+          indefinitely as a historical record.
+        </p>
+        <p class="mt-4">
+          Posts are not part of your account. A post you submitted is retained, and
+          remains public, after your account is deleted, whoever deletes it and for
+          whatever reason. The section "Published posts and requests for removal"
+          below explains what can and cannot be done about that.
         </p>
 
         <h3 class="mt-6 text-lg text-ink">On your device</h3>
@@ -118,16 +134,76 @@ const updated = 'September 9, 2026';
         <p class="mt-2">
           You can delete your account yourself, at any time, from the Settings
           screen in the app or from the account page on this website. Deleting an
-          account removes your sign-in details, your email address, and your
-          passkeys.
+          account removes your sign-in details, your email address as an account
+          identifier, your passkeys, and any authenticator enrollment.
         </p>
         <p class="mt-4">
-          Photos that have already been published as posts stay on the site, since
-          they are part of the public record of what has been posted. If you would
-          like a published photo taken down as well, write to{' '}
-          <a href={`mailto:${removals}`} class="text-spice hover:underline">{removals}</a>{' '}
-          with a link to the post, and we will remove it.
+          Deleting your account does not delete posts that have already been
+          published, and it does not delete the record of the submissions behind
+          them. Those are kept as described in the next section.
         </p>
+      </section>
+
+      <section>
+        <h2 class="text-2xl font-light text-ink">Published posts and requests for removal</h2>
+        <p class="mt-2">
+          Because posts are published as part of a public archive, they are treated
+          differently from account information. The following applies to every
+          post, regardless of who submitted it or whether that person still has an
+          account.
+        </p>
+        <ol class="mt-4 space-y-3 list-decimal list-outside pl-6">
+          <li>
+            <span class="text-ink">Retention.</span> Published posts are retained
+            indefinitely. We do not remove a post automatically when the account
+            that submitted it is deleted, when any period of time has passed, or on
+            any other automatic trigger. The submission record behind a post,
+            including the account and email address it was submitted from, is kept
+            with the post so that its origin is known.
+          </li>
+          <li>
+            <span class="text-ink">Requests.</span> Anyone may ask for a post to be
+            removed by writing to{' '}
+            <a href={`mailto:${removals}`} class="text-spice hover:underline">{removals}</a>{' '}
+            with a link to the post and the reason for the request. Each request is
+            considered individually.
+          </li>
+          <li>
+            <span class="text-ink">No guarantee.</span> Removal is at our
+            discretion. We give weight to reasons such as: the photo shows you,
+            your home, or your property and you did not intend it to be public; it
+            was submitted by someone who had no right to submit it; it contains
+            something that should not have passed review; or the law requires its
+            removal. We are under no obligation to grant a request, and we may
+            decline one, in particular where the post has become part of the record
+            this site exists to keep.
+          </li>
+          <li>
+            <span class="text-ink">Timing.</span> A request that is granted is acted
+            on within a reasonable time. We do not undertake to act immediately.
+            After a post is removed from bikes.pizza, copies may continue to exist
+            for a period in caches, in content delivery networks, in search engine
+            indexes, in backups, and with anyone who copied the post while it was
+            public. Those copies are outside our control, and this policy makes no
+            promise about their removal.
+          </li>
+          <li>
+            <span class="text-ink">What removal means.</span> Removing a post takes
+            it off the public site and out of the apps. It does not by itself
+            delete the underlying file or the submission record, which may be
+            retained for as long as needed to document the removal and the reason
+            for it.
+          </li>
+          <li>
+            <span class="text-ink">Legal rights.</span> If the law where you live
+            gives you a right to have personal information erased, that right
+            applies to a published post only to the extent the law provides, and it
+            is subject to the exceptions the law allows, including exceptions for
+            archiving, for freedom of expression, and for establishing or defending
+            legal claims. A request made under such a law goes to the same address
+            and is answered as the law requires.
+          </li>
+        </ol>
       </section>
 
       <section>
@@ -135,7 +211,9 @@ const updated = 'September 9, 2026';
         <p class="mt-2">
           Account information is kept for as long as the account exists. Rejected
           submissions are kept only long enough to handle any question about the
-          decision. Published posts are kept until they are taken down.
+          decision. Published posts, and the submission records behind them, are
+          retained indefinitely, as described under "Published posts and requests
+          for removal".
         </p>
       </section>
 
@@ -156,6 +234,14 @@ const updated = 'September 9, 2026';
           have further rights over that information, including under the GDPR or
           the CCPA. Write to the address below and we will help.
         </p>
+        <p class="mt-4">
+          These rights concern your personal information: your account details and
+          the records tied to them. They do not by themselves entitle you to the
+          removal of a published post. A post is public content that you offered
+          for publication, and a request to remove it is handled as described under
+          "Published posts and requests for removal", taking account of any legal
+          right you have.
+        </p>
       </section>
 
       <section>
@@ -173,9 +259,10 @@ const updated = 'September 9, 2026';
           <a href={`mailto:${contact}`} class="text-spice hover:underline">{contact}</a>.
         </p>
         <p class="mt-4">
-          To have a published post taken down, write to{' '}
+          To ask for a published post to be removed, write to{' '}
           <a href={`mailto:${removals}`} class="text-spice hover:underline">{removals}</a>{' '}
-          instead, with a link to the post.
+          instead, with a link to the post and your reason. Requests are considered
+          individually and are not guaranteed to be granted.
         </p>
         <p class="mt-4">
           General questions and comments about bikes.pizza are welcome at{' '}
