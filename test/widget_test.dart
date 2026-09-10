@@ -624,9 +624,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
   }
 
-  testWidgets('phones leave out the All tab and start on News', (
-    tester,
-  ) async {
+  testWidgets('phones leave out the All tab and start on News', (tester) async {
     usePhone(tester);
     await pumpApp(tester);
 
