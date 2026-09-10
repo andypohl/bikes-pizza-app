@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../account/account_screen.dart';
 import '../account/member_service.dart';
@@ -8,6 +9,7 @@ import '../auth/auth_service.dart';
 import '../auth/passkey_service.dart';
 import '../auth/session_expiry.dart';
 import '../auth/sign_in_screen.dart';
+import '../config.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({
@@ -60,6 +62,8 @@ class SettingsScreen extends StatelessWidget {
           const Divider(),
           const _SectionHeader('About'),
           const _AboutTile(),
+          const _PrivacyTile(),
+          const _ContactTile(),
           _DeleteAccountSection(auth: auth, members: members),
         ],
       ),
@@ -337,9 +341,63 @@ class _AboutTile extends StatelessWidget {
         return ListTile(
           leading: const Icon(Icons.info_outline),
           title: const Text('bikes.pizza'),
-          subtitle: Text(version),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(version),
+              Text('© ${DateTime.now().year} Pizza Predator, LLC'),
+            ],
+          ),
+          isThreeLine: true,
         );
       },
+    );
+  }
+}
+
+/// Opens the website's privacy policy. Debug and profile builds point at
+/// bikes-pizza.dev and release builds at bikes.pizza, like the rest of the app.
+class _PrivacyTile extends StatelessWidget {
+  const _PrivacyTile();
+
+  Future<bool> _open() {
+    final uri = Uri.parse('${SanityConfig.siteUrl}/privacy');
+    return launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      key: const Key('privacy-policy'),
+      leading: const Icon(Icons.privacy_tip_outlined),
+      title: const Text('Privacy policy'),
+      subtitle: const Text('What we collect and how to delete your account'),
+      trailing: const Icon(Icons.open_in_new),
+      onTap: _open,
+    );
+  }
+}
+
+/// Opens a mail composer for general questions and comments.
+class _ContactTile extends StatelessWidget {
+  const _ContactTile();
+
+  static const String address = 'contact@bikes.pizza';
+
+  Future<bool> _open() {
+    final uri = Uri(scheme: 'mailto', path: address);
+    return launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      key: const Key('contact-us'),
+      leading: const Icon(Icons.mail_outline),
+      title: const Text('Contact us'),
+      subtitle: const Text(address),
+      trailing: const Icon(Icons.open_in_new),
+      onTap: _open,
     );
   }
 }

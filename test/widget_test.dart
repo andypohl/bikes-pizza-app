@@ -1665,6 +1665,14 @@ void main() {
     expect(members!.deletions, 1);
     expect(auth.currentUser, isNull);
     expect(find.text('Your account has been deleted.'), findsOneWidget);
+
+    // The list is still scrolled down to where the delete tile was.
+    await tester.scrollUntilVisible(
+      find.text('Sign in'),
+      -120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     expect(find.text('Sign in'), findsOneWidget);
   });
 
@@ -1935,5 +1943,41 @@ void main() {
 
     final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
     expect(app.themeMode, ThemeMode.dark);
+  });
+
+  testWidgets('Settings links to the privacy policy', (tester) async {
+    await pumpApp(tester);
+
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+
+    final tile = find.byKey(const Key('privacy-policy'));
+    await tester.dragUntilVisible(
+      tile,
+      find.byType(ListView),
+      const Offset(0, -100),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tile, findsOneWidget);
+    expect(find.text('Privacy policy'), findsOneWidget);
+  });
+
+  testWidgets('Settings offers a contact address', (tester) async {
+    await pumpApp(tester);
+
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+
+    final tile = find.byKey(const Key('contact-us'));
+    await tester.dragUntilVisible(
+      tile,
+      find.byType(ListView),
+      const Offset(0, -100),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tile, findsOneWidget);
+    expect(find.text('contact@bikes.pizza'), findsOneWidget);
   });
 }
