@@ -55,6 +55,7 @@ import { inspectImage } from "./vision.js";
 import { requestRebuild } from "./rebuild.js";
 import { TIME_ZONE, cronFor } from "./schedule.js";
 import { notificationEmail } from "./submission.js";
+import { accountDeletedEmail } from "./account.js";
 import { SanityClient } from "./sanity.js";
 import { firestoreSiteSettings, getSettings, updateSettings } from "./site_settings.js";
 import { firestoreSubmissionStore } from "./submission_store.js";
@@ -181,13 +182,15 @@ export const updateMember = onCall(memberOptions, (request) =>
  * the other callables this does not insist on a verified email: an account
  * that never verified must still be able to remove itself.
  */
-export const deleteAccount = onCall({ region: "us-central1" }, (request) =>
+export const deleteAccount = onCall({ region: "us-central1", secrets: [mailgunApiKey] }, (request) =>
   guarded(request.auth?.uid, "delete your account", async () => {
     const uid = request.auth?.uid;
     if (!uid) throw new AppError("unauthenticated", "Sign in first.");
     const result = await adminUsers.deleteUser(uid, {
       auth: getAuth(),
       members: firestoreMemberStore(getFirestore()),
+      notify: notifyDeleted(true),
+      log: logger.warn,
     });
     const removed = await passkeys.removeAllPasskeys(uid, passkeyDeps());
     logger.info("account deleted by member", { uid, passkeys: removed });
@@ -296,6 +299,28 @@ async function notify(submission, user) {
   }
 }
 
+// Tells an account's owner that the account is gone. Nothing to do when mail
+// is not configured; deleteUser treats a failure here as a warning.
+function notifyDeleted(requested) {
+  return async ({ uid, email }) => {
+    const domain = mailgunDomain.value().trim();
+    const apiKey = mailgunApiKey.value();
+    if (!isMailConfigured({ apiKey, domain })) {
+      logger.warn("account deletion email skipped: MAILGUN_API_KEY or MAILGUN_DOMAIN not set", { uid });
+      return;
+    }
+    await sendMail({
+      apiKey,
+      domain,
+      apiBase: mailgunApiBase.value(),
+      from: fromEmail.value().trim() || `postmaster@${domain}`,
+      to: email,
+      ...accountDeletedEmail({ email, siteUrl: siteUrl(), requested }),
+    });
+    logger.info("account deletion email sent", { uid });
+  };
+}
+
 // Cloud Vision (vision.js) is called with the function's own service account.
 const googleAuth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
 const safeSearch = (bytes) => inspectImage(bytes, { getToken: () => googleAuth.getAccessToken() });
@@ -339,7 +364,7 @@ const service = {
       return result;
     },
     remove: async (uid, admin) => {
-      const result = await adminUsers.deleteUser(uid, userAdminDeps());
+      const result = await adminUsers.deleteUser(uid, { ...userAdminDeps(), notify: notifyDeleted(false) });
       logger.info("user deleted by admin", { uid, by: admin.uid });
       return result;
     },

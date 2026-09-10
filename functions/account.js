@@ -80,3 +80,31 @@ export function validateUpdate(data, allowed) {
   if (Object.keys(patch).length === 0) throw new ValidationError("Nothing to update.");
   return patch;
 }
+
+/**
+ * The email sent to an account's address once the account is gone.
+ * `requested` says whether the member asked for it themselves (from the
+ * app or the account page) rather than an admin removing them.
+ */
+export function accountDeletedEmail({ email, siteUrl, requested = true, contact = "contact@bikes.pizza" }) {
+  const site = siteUrl.replace(/\/+$/, "");
+  const lines = [
+    requested
+      ? `Your bikes.pizza account for ${email} has been deleted, as you asked.`
+      : `Your bikes.pizza account for ${email} has been deleted.`,
+    "",
+    "Your sign-in details, passkeys and authenticator enrollment are gone, and",
+    "the address above is no longer attached to an account.",
+    "",
+    "Any photos you submitted that were published stay on the site as part of",
+    "the archive. The privacy policy explains how to ask for one to be removed:",
+    `${site}/privacy`,
+    "",
+    requested
+      ? `If you did not ask for this, write to ${contact} straight away.`
+      : `If you have a question about this, write to ${contact}.`,
+    "",
+    "bikes.pizza",
+  ];
+  return { subject: "Your bikes.pizza account has been deleted", text: lines.join("\n") };
+}
