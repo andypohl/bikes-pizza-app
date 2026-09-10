@@ -1,0 +1,33 @@
+---
+// One news article, with buttons to the ones published just before and
+// just after it.
+import Layout from '../../layouts/Layout.astro';
+import CategoryFilters from '../../components/CategoryFilters.astro';
+import NewsArticle from '../../components/NewsArticle.astro';
+import { CATEGORIES, summaryOf, urlFor, type Post } from '../../lib/sanity';
+
+export async function getStaticPaths() {
+  const { getNewsPosts } = await import('../../lib/sanity');
+  const news = await getNewsPosts();
+  return news.map((post, i) => ({
+    params: { slug: post.id },
+    props: { post, newer: news[i - 1] ?? null, older: news[i + 1] ?? null },
+  }));
+}
+
+interface Props {
+  post: Post;
+  newer: Post | null;
+  older: Post | null;
+}
+
+const { post, newer, older } = Astro.props;
+const ogImage = post.image ? urlFor(post.image).width(1200).height(630).quality(80).url() : undefined;
+---
+
+<Layout title={`${post.title} | bikes.pizza`} description={summaryOf(post)} image={ogImage}>
+  <main class="container mx-auto px-6 pt-10 pb-24">
+    <CategoryFilters categories={CATEGORIES} active="news" newsHref="/news/" />
+    <NewsArticle post={post} older={older} newer={newer} />
+  </main>
+</Layout>

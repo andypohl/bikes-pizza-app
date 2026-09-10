@@ -1,8 +1,10 @@
-/// The content tabs of the bottom navigation bar: "All" shows every post,
-/// the others one feed each, matching the website's filters.
+/// The content tabs of the bottom navigation bar: "All" shows the gallery
+/// (bikes and pizza together, as the website's front page does), the others
+/// one feed each. News is written in the Studio and read as full articles,
+/// so it is kept out of "All" and has no submissions.
 enum PostFeed {
-  all(label: 'All', feeds: []),
-  blog(label: 'Blog', feeds: ['blog']),
+  all(label: 'All', feeds: ['bikes', 'pizza']),
+  news(label: 'News', feeds: ['news']),
   pizza(
     label: 'Pizza',
     feeds: ['pizza'],
@@ -38,9 +40,6 @@ enum PostFeed {
   /// Grey example text in the submission form's Title field.
   final String? submitTitleHint;
 
-  /// Values of the posts' `feed` field that make up this tab. Empty means
-  /// "every post".
+  /// Values of the posts' `feed` field that make up this tab.
   final List<String> feeds;
-
-  bool get isFiltered => feeds.isNotEmpty;
 }

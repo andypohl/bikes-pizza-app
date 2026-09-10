@@ -4,11 +4,11 @@
 // only the category and date appear on hover (the featured row). Shared by
 // the featured row and the grid; `widths` and `sizes` describe how wide
 // the tile can be so the browser picks a fitting image.
-import { detailLine, categoryOf, responsive, TILE_RATIO, type Post } from '../lib/sanity';
+import { detailLine, categoryOf, postPath, responsive, TILE_RATIO, type GalleryPost } from '../lib/sanity';
 import { formatDate } from '../utils/format';
 
 interface Props {
-  post: Post;
+  post: GalleryPost;
   eager?: boolean;
   titleAbove?: boolean;
   widths?: number[];
@@ -29,7 +29,7 @@ const details = detailLine(post);
 ---
 
 <a
-  href={`/post/${post.id}/`}
+  href={postPath(post)}
   class="group block overflow-hidden rounded-lg transition-all duration-300 relative"
   transition:name={`post-${post.id}`}
 >

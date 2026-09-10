@@ -279,7 +279,7 @@ class _ThankYou extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'Your ${feed.submitNoun} is on its way to bikes.pizza. '
-              'Keep an eye on the blog.',
+              'Keep an eye on the ${feed.label} tab.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium,
             ),

@@ -7,8 +7,8 @@ import Layout from '../../layouts/Layout.astro';
 import PostGrid from '../../components/PostGrid.astro';
 
 export async function getStaticPaths() {
-  const { getPosts, membersOf } = await import('../../lib/sanity');
-  const posts = await getPosts();
+  const { getGalleryPosts, membersOf } = await import('../../lib/sanity');
+  const posts = await getGalleryPosts();
   return membersOf(posts).map(({ author, posts }) => ({
     params: { username: author.username.toLowerCase() },
     props: { username: author.username, posts },

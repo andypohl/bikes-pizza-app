@@ -179,7 +179,7 @@ test("createSubmission stores nothing when the photo fails SafeSearch", async ()
 test("createSubmission rejects invalid input before touching the store", async () => {
   const store = memoryStore();
   await assert.rejects(
-    createSubmission({ ...body, feed: "blog" }, user, { store, processImage, safeSearch, notify: async () => true }),
+    createSubmission({ ...body, feed: "news" }, user, { store, processImage, safeSearch, notify: async () => true }),
     ValidationError,
   );
   assert.equal(store.docs.size, 0);
@@ -255,7 +255,7 @@ test("reviewSubmission publish queues instead of posting, and refuses re-review"
 test("enqueue and dequeue check the feed and the status", async () => {
   const store = await seeded();
   await assert.rejects(enqueue({ feed: "pizza", id: "s1" }, admin, { store }), (e) => /bikes feed/.test(e.message));
-  await assert.rejects(enqueue({ feed: "blog", id: "s1" }, admin, { store }), ValidationError);
+  await assert.rejects(enqueue({ feed: "news", id: "s1" }, admin, { store }), ValidationError);
   await assert.rejects(enqueue({ feed: "bikes", id: "zzz" }, admin, { store }), (e) => e.code === "not-found");
   await assert.rejects(dequeue({ feed: "bikes", id: "s1" }, admin, { store }), (e) => /not in the queue/.test(e.message));
   await enqueue({ feed: "bikes", id: "s1" }, admin, { store, now: NOW });
@@ -285,7 +285,7 @@ test("queueInfo and queueItems describe the queue in order", async () => {
   assert.deepEqual(q.items.map((i) => [i.position, i.id, i.status]), [[1, "s3", "queued"], [2, "s1", "queued"]]);
   assert.equal(q.items[0].queue.byEmail, "admin@example.com");
   assert.equal((await queueInfo("pizza", { store, now: NOW })).length, 0);
-  await assert.rejects(queueInfo("blog", { store }), ValidationError);
+  await assert.rejects(queueInfo("news", { store }), ValidationError);
 });
 
 test("submitNext posts the oldest entry and leaves the rest queued", async () => {

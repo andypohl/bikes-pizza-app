@@ -10,7 +10,7 @@ import { countdown } from "./schedule.js";
 import { FEEDS, submissionRecord, validateSubmission } from "./submission.js";
 
 // pending -> queued (approved for posting) -> posting -> approved (on the
-// blog), or pending -> rejected; drafts go pending -> approved directly.
+// site), or pending -> rejected; drafts go pending -> approved directly.
 export const STATUSES = ["pending", "queued", "posting", "approved", "rejected"];
 export const REVIEW_ACTIONS = ["publish", "draft", "reject"];
 export const DEFAULT_PAGE = 20;
@@ -186,7 +186,7 @@ export async function queueItems(feed, { store, now = new Date() }) {
 }
 
 /**
- * Posts the oldest queued submission of a feed to the blog. Run by the
+ * Posts the oldest queued submission of a feed to the site. Run by the
  * scheduled functions at the feed's posting times, and by the API on
  * request. Returns the posted submission, or null when the queue is empty.
  */

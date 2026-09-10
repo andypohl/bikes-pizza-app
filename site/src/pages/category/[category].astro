@@ -8,8 +8,8 @@ import { splitFeatured } from '../../lib/sanity';
 import { slugify } from '../../utils/slug';
 
 export async function getStaticPaths() {
-  const { CATEGORIES, categoryOf, getPosts } = await import('../../lib/sanity');
-  const posts = await getPosts();
+  const { CATEGORIES, categoryOf, getGalleryPosts } = await import('../../lib/sanity');
+  const posts = await getGalleryPosts();
   const categories = CATEGORIES;
   return categories.map((category) => ({
     params: { category: slugify(category) },
@@ -28,7 +28,7 @@ const { featured, rest } = splitFeatured(posts, posts.length ? [posts[0].feed] :
 <Layout title={`${category} | bikes.pizza`}>
   <main class="container mx-auto px-6 pt-10 pb-16">
     <h1 class="text-3xl font-light tracking-wide mb-6 text-ink">{category}</h1>
-        <CategoryFilters categories={categories} active={slugify(category)} />
+        <CategoryFilters categories={categories} active={slugify(category)} newsHref="/news/" />
     {
       posts.length === 0 && (
         <p class="text-lg font-light text-muted">Nothing in {category} yet. Check back soon.</p>

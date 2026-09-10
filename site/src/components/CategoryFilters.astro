@@ -3,15 +3,24 @@ import { slugify } from '../utils/slug';
 
 interface Props {
   categories: string[];
-  active: string | 'all';
+  active: string | 'all' | 'news';
   /** Where "All" links to, and the label for it. */
   allHref?: string;
   allLabel?: string;
   /** Prefix a category's slug is appended to, e.g. `/category/`. */
   categoryBase?: string;
+  /** The news page, linked after the categories (the gallery pages); left out by default. */
+  newsHref?: string | null;
 }
 
-const { categories, active, allHref = '/', allLabel = 'All', categoryBase = '/category/' } = Astro.props;
+const {
+  categories,
+  active,
+  allHref = '/',
+  allLabel = 'All',
+  categoryBase = '/category/',
+  newsHref = null,
+} = Astro.props;
 const chipClass =
   'category-chip px-3 py-1 text-sm font-light tracking-wide rounded-full border border-line text-muted hover:text-spice transition-colors duration-300';
 ---
@@ -31,6 +40,7 @@ const chipClass =
       );
     })
   }
+  {newsHref && <a href={newsHref} class:list={[chipClass, { 'is-active': active === 'news' }]}>News</a>}
 </nav>
 
 <style>

@@ -537,7 +537,10 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<FakePostRepository> pumpApp(WidgetTester tester) async {
+  Future<FakePostRepository> pumpApp(
+    WidgetTester tester, {
+    List<Post>? news,
+  }) async {
     auth = FakeAuthService();
     passkeys?.auth = auth;
     final repo = FakePostRepository({
@@ -545,7 +548,7 @@ void main() {
         _post('Newest post', DateTime(2025, 4, 12), author: _ada),
         _post('Older post', DateTime(2025, 3, 3)),
       ],
-      PostFeed.blog: [_post('Older post', DateTime(2025, 3, 3))],
+      PostFeed.news: news ?? [_post('Older post', DateTime(2025, 3, 3))],
       PostFeed.pizza: [
         _post(
           'Detroit style',
@@ -591,7 +594,7 @@ void main() {
     expect(find.byType(NavigationBar), findsOneWidget);
     for (final label in [
       'All',
-      'Blog',
+      'News',
       'Pizza',
       'Bikes',
       'Store',
@@ -610,8 +613,69 @@ void main() {
         .first;
     expect(
       tester.getTopLeft(inBar('All')).dx,
-      lessThan(tester.getTopLeft(inBar('Blog')).dx),
+      lessThan(tester.getTopLeft(inBar('News')).dx),
     );
+  });
+
+  /// Sizes the test surface like a phone, where the All tab is left out.
+  void usePhone(WidgetTester tester) {
+    tester.view.physicalSize =
+        const Size(390, 844) * tester.view.devicePixelRatio;
+    addTearDown(tester.view.resetPhysicalSize);
+  }
+
+  testWidgets('phones leave out the All tab and start on News', (tester) async {
+    usePhone(tester);
+    await pumpApp(tester);
+
+    Finder inBar(String label) => find.descendant(
+      of: find.byType(NavigationBar),
+      matching: find.text(label),
+    );
+    expect(inBar('All'), findsNothing);
+    for (final label in ['News', 'Pizza', 'Bikes', 'Store', 'Settings']) {
+      expect(inBar(label), findsOneWidget);
+    }
+    // News is selected, showing its newest article in full.
+    expect(find.text('Older post'), findsOneWidget);
+    expect(find.byType(PostTile), findsNothing);
+  });
+
+  testWidgets('News shows the newest article and steps through older ones', (
+    tester,
+  ) async {
+    usePhone(tester);
+    await pumpApp(
+      tester,
+      news: [
+        _post('Store opens', DateTime(2026, 9, 1)),
+        _post('Hello world', DateTime(2026, 8, 1)),
+      ],
+    );
+
+    final older = find.byKey(const Key('news-older'));
+    final newer = find.byKey(const Key('news-newer'));
+    expect(find.text('Store opens'), findsOneWidget);
+    expect(find.text('Hello world'), findsNothing);
+    expect(newer, findsNothing);
+    expect(
+      tester.widget<FloatingActionButton>(older).tooltip,
+      'Older: Aug 1, 2026 · Hello world',
+    );
+
+    await tester.tap(older);
+    await tester.pumpAndSettle();
+    expect(find.text('Hello world'), findsOneWidget);
+    expect(find.text('Store opens'), findsNothing);
+    expect(older, findsNothing);
+    expect(
+      tester.widget<FloatingActionButton>(newer).tooltip,
+      'Newer: Sep 1, 2026 · Store opens',
+    );
+
+    await tester.tap(newer);
+    await tester.pumpAndSettle();
+    expect(find.text('Store opens'), findsOneWidget);
   });
 
   testWidgets('All tab lists every post with thumbnails', (tester) async {
@@ -699,12 +763,12 @@ void main() {
     expect(find.byKey(const Key('post-details')), findsNothing);
   });
 
-  testWidgets('Blog, Pizza and Bikes tabs request their own feeds', (
+  testWidgets('News, Pizza and Bikes tabs request their own feeds', (
     tester,
   ) async {
     final repo = await pumpApp(tester);
 
-    await tester.tap(find.text('Blog'));
+    await tester.tap(find.text('News'));
     await tester.pumpAndSettle();
     expect(find.text('Older post'), findsOneWidget);
     expect(find.text('Newest post'), findsNothing);
@@ -1718,7 +1782,7 @@ void main() {
     expect(find.text('Submit Pizza'), findsOneWidget);
     expect(find.text('Submit Bike'), findsNothing);
 
-    await tester.tap(find.text('Blog'));
+    await tester.tap(find.text('News'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Submit'), findsNothing);
 

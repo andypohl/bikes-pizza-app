@@ -23,7 +23,7 @@ test("validateSubmission trims text and decodes the image", () => {
 
 test("validateSubmission rejects bad requests", () => {
   const bad = (patch) => assert.throws(() => validateSubmission({ ...good, ...patch }), ValidationError);
-  bad({ feed: "blog" });
+  bad({ feed: "news" });
   bad({ title: "" });
   bad({ title: "x".repeat(256) });
   bad({ from: "   " });

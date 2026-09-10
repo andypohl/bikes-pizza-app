@@ -10,6 +10,7 @@ import 'firebase_options.dart';
 import 'firebase_options_dev.dart';
 import 'data/post_repository.dart';
 import 'models/post_feed.dart';
+import 'screens/news_screen.dart';
 import 'screens/post_list_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/store_screen.dart';
@@ -116,9 +117,10 @@ class BikesPizzaApp extends StatelessWidget {
   }
 }
 
-/// Root screen: a bottom navigation bar switching between the three post
-/// feeds, the Store, and Settings. Each tab keeps its scroll position and loaded data
-/// because the pages live in an [IndexedStack].
+/// Root screen: a bottom navigation bar switching between the post feeds
+/// (News, Pizza and Bikes, plus All on tablets), the Store, and Settings.
+/// Each tab keeps its scroll position and loaded data because the pages
+/// live in an [IndexedStack].
 class HomeShell extends StatefulWidget {
   const HomeShell({
     super.key,
@@ -148,11 +150,18 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
+  /// Tablets get the "All" tab (bikes and pizza together, as on the
+  /// website's front page); phones start at News to keep the bar short.
+  static bool isTablet(BuildContext context) =>
+      MediaQuery.sizeOf(context).shortestSide >= 600;
+
   @override
   Widget build(BuildContext context) {
+    final tablet = isTablet(context);
     final pages = <Widget>[
-      PostListScreen(feed: PostFeed.all, repository: widget.repository),
-      PostListScreen(feed: PostFeed.blog, repository: widget.repository),
+      if (tablet)
+        PostListScreen(feed: PostFeed.all, repository: widget.repository),
+      NewsScreen(repository: widget.repository),
       PostListScreen(
         feed: PostFeed.pizza,
         repository: widget.repository,
@@ -180,39 +189,42 @@ class _HomeShellState extends State<HomeShell> {
         passkeys: widget.passkeys,
       ),
     ];
+    // A window can shrink below tablet width; keep the index in range.
+    final index = _index.clamp(0, pages.length - 1);
 
     return Scaffold(
-      body: IndexedStack(index: _index, children: pages),
+      body: IndexedStack(index: index, children: pages),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
+        selectedIndex: index,
         onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.grid_view_outlined),
-            selectedIcon: Icon(Icons.grid_view),
-            label: 'All',
+        destinations: [
+          if (tablet)
+            const NavigationDestination(
+              icon: Icon(Icons.grid_view_outlined),
+              selectedIcon: Icon(Icons.grid_view),
+              label: 'All',
+            ),
+          const NavigationDestination(
+            icon: Icon(Icons.newspaper_outlined),
+            selectedIcon: Icon(Icons.newspaper),
+            label: 'News',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.article_outlined),
-            selectedIcon: Icon(Icons.article),
-            label: 'Blog',
-          ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.local_pizza_outlined),
             selectedIcon: Icon(Icons.local_pizza),
             label: 'Pizza',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.pedal_bike_outlined),
             selectedIcon: Icon(Icons.pedal_bike),
             label: 'Bikes',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.storefront_outlined),
             selectedIcon: Icon(Icons.storefront),
             label: 'Store',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.settings_outlined),
             selectedIcon: Icon(Icons.settings),
             label: 'Settings',
