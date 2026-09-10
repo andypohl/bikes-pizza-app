@@ -170,15 +170,28 @@ export async function updateUser(uid, data, deps) {
  * Deletes the Auth user and their member record (releasing the username).
  * Their posts, and the Sanity member document those reference, stay: the
  * posts remain credited as they were.
+ *
+ * `notify`, when given, is called afterwards with the deleted user's email
+ * so the owner can be told; the deletion has already happened by then, so
+ * a failure there is reported through `log` rather than thrown.
  */
-export async function deleteUser(uid, { auth, members }) {
+export async function deleteUser(uid, { auth, members, notify, log = () => {} }) {
+  let email = null;
   try {
+    email = (await auth.getUser(uid)).email ?? null;
     await auth.deleteUser(uid);
   } catch (error) {
     if (error?.code === "auth/user-not-found") throw new AppError("not-found", "No such user.");
     throw error;
   }
   await members.delete(uid);
+  if (notify && email) {
+    try {
+      await notify({ uid, email });
+    } catch (error) {
+      log("account deletion email failed", { uid, message: error.message });
+    }
+  }
   return { deleted: uid };
 }
 

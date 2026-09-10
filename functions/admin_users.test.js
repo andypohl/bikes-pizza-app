@@ -178,3 +178,31 @@ test("deleteUser removes the Auth user and the member record, freeing the userna
   assert.equal(f.reservations.has("ada"), false);
   await assert.rejects(deleteUser("u1", f.deps), (e) => e instanceof AppError && e.code === "not-found");
 });
+
+test("deleteUser tells the owner afterwards, with the address it looked up before deleting", async () => {
+  const f = fakes({ users: USERS, members: MEMBERS });
+  const sent = [];
+  const result = await deleteUser("u1", { ...f.deps, notify: async (m) => sent.push(m) });
+  assert.deepEqual(result, { deleted: "u1" });
+  assert.deepEqual(sent, [{ uid: "u1", email: "ada@x.y" }]);
+  assert.equal(f.authUsers.has("u1"), false);
+});
+
+test("deleteUser still succeeds when the email cannot be sent", async () => {
+  const f = fakes({ users: USERS, members: MEMBERS });
+  const result = await deleteUser("u2", {
+    ...f.deps,
+    notify: async () => {
+      throw new Error("mailgun down");
+    },
+  });
+  assert.deepEqual(result, { deleted: "u2" });
+  assert.equal(f.authUsers.has("u2"), false);
+  assert.equal(f.records.has("u2"), false);
+  assert.deepEqual(f.log, [["account deletion email failed", { uid: "u2", message: "mailgun down" }]]);
+});
+
+test("deleteUser without a notifier behaves as before", async () => {
+  const f = fakes({ users: USERS, members: MEMBERS });
+  assert.deepEqual(await deleteUser("u3", f.deps), { deleted: "u3" });
+});

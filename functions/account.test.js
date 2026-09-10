@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { ValidationError, profile, usernameKey, validateUpdate, validateUsername } from "./account.js";
+import { ValidationError, accountDeletedEmail, profile, usernameKey, validateUpdate, validateUsername } from "./account.js";
 
 const weekly = { id: "n1", name: "Weekly", description: "Every Friday" };
 const extra = { id: "n2", name: "Extras", description: null };
@@ -60,4 +60,21 @@ test("validateUpdate refuses newsletters the member may not choose", () => {
     () => validateUpdate({ newsletters: ["n2"] }, [weekly]),
     (e) => e instanceof ValidationError && /Unknown newsletter/.test(e.message),
   );
+});
+
+test("accountDeletedEmail tells the owner what is gone, what stays, and where to write", () => {
+  const mail = accountDeletedEmail({ email: "ada@x.y", siteUrl: "https://example.com/" });
+  assert.equal(mail.subject, "Your bikes.pizza account has been deleted");
+  assert.match(mail.text, /account for ada@x\.y has been deleted, as you asked/);
+  assert.match(mail.text, /passkeys and authenticator enrollment are gone/);
+  assert.match(mail.text, /published stay on the site/);
+  assert.match(mail.text, /https:\/\/example\.com\/privacy/);
+  assert.match(mail.text, /If you did not ask for this, write to contact@bikes\.pizza/);
+});
+
+test("accountDeletedEmail reads differently when an admin removed the account", () => {
+  const mail = accountDeletedEmail({ email: "bob@x.y", siteUrl: "https://example.com", requested: false });
+  assert.match(mail.text, /account for bob@x\.y has been deleted\.\n/);
+  assert.doesNotMatch(mail.text, /as you asked/);
+  assert.match(mail.text, /a question about this, write to contact@bikes\.pizza/);
 });
