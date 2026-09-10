@@ -39,9 +39,8 @@ class SanityPostRepository implements PostRepository {
   }''';
 
   static String query(PostFeed feed, {bool byAuthor = false}) {
-    final filter = feed.isFiltered ? ' && feed in \$feeds' : '';
     final author = byAuthor ? ' && author._ref == \$author' : '';
-    return '*[_type == "post" && defined(slug.current)$filter$author]'
+    return '*[_type == "post" && defined(slug.current) && feed in \$feeds$author]'
         ' | order(publishedAt desc) [\$start...\$end] $projection';
   }
 
@@ -56,7 +55,7 @@ class SanityPostRepository implements PostRepository {
         'query': query(feed, byAuthor: author != null),
         '\$start': '$start',
         '\$end': '$end',
-        if (feed.isFiltered) '\$feeds': jsonEncode(feed.feeds),
+        '\$feeds': jsonEncode(feed.feeds),
         if (author != null) '\$author': jsonEncode(author),
       },
     );

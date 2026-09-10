@@ -185,7 +185,11 @@ class Post {
     return Post(
       id: slug.isNotEmpty ? slug : json['_id'] as String? ?? '',
       title: json['title'] as String? ?? '(untitled)',
-      url: slug.isEmpty ? '' : '$siteUrl/post/$slug/',
+      url: slug.isEmpty
+          ? ''
+          : feed == 'news'
+          ? '$siteUrl/news/$slug/'
+          : '$siteUrl/post/$slug/',
       publishedAt:
           DateTime.tryParse(json['publishedAt'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),

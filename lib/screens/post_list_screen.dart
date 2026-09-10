@@ -8,6 +8,7 @@ import '../models/post_feed.dart';
 import '../submissions/photo_picker.dart';
 import '../submissions/submission_service.dart';
 import '../widgets/post_tile.dart';
+import '../widgets/status_message.dart';
 import 'post_detail_screen.dart';
 import 'submit_screen.dart';
 
@@ -173,9 +174,9 @@ class _PostListScreenState extends State<PostListScreen> {
         title: Text(
           widget.author != null
               ? 'Posts by ${widget.author!.username}'
-              : widget.feed.isFiltered
-              ? widget.feed.label
-              : 'bikes.pizza',
+              : widget.feed == PostFeed.all
+              ? 'bikes.pizza'
+              : widget.feed.label,
         ),
       ),
       body: _buildBody(context),
@@ -204,7 +205,7 @@ class _PostListScreenState extends State<PostListScreen> {
     }
 
     if (_error != null && _posts.isEmpty) {
-      return _Message(
+      return StatusMessage(
         icon: Icons.cloud_off_outlined,
         title: 'Could not load posts',
         detail: _error!,
@@ -214,7 +215,7 @@ class _PostListScreenState extends State<PostListScreen> {
     }
 
     if (_posts.isEmpty) {
-      return _Message(
+      return StatusMessage(
         icon: Icons.inbox_outlined,
         title: 'No posts yet',
         detail: 'Nothing has been published in ${widget.feed.label} yet.',
@@ -286,48 +287,6 @@ class _SubmitBar extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class _Message extends StatelessWidget {
-  const _Message({
-    required this.icon,
-    required this.title,
-    required this.detail,
-    required this.actionLabel,
-    required this.onAction,
-  });
-
-  final IconData icon;
-  final String title;
-  final String detail;
-  final String actionLabel;
-  final VoidCallback onAction;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 48, color: theme.colorScheme.onSurfaceVariant),
-            const SizedBox(height: 16),
-            Text(title, style: theme.textTheme.titleLarge),
-            const SizedBox(height: 8),
-            Text(
-              detail,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 20),
-            FilledButton.tonal(onPressed: onAction, child: Text(actionLabel)),
-          ],
-        ),
-      ),
     );
   }
 }

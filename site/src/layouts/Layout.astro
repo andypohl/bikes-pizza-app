@@ -12,10 +12,12 @@ interface Props {
   title: string;
   description?: string;
   image?: string;
+  /** Path of the page this one is a copy of, e.g. the newest article's own page for /news/. */
+  canonical?: string;
 }
 
-const { title, description = 'Pizza and bikes, one photo at a time.', image } = Astro.props;
-const canonical = new URL(Astro.url.pathname, Astro.site);
+const { title, description = 'Pizza and bikes, one photo at a time.', image, canonical: canonicalPath } = Astro.props;
+const canonical = new URL(canonicalPath ?? Astro.url.pathname, Astro.site);
 // The brand in the header is the front page's heading; elsewhere it is a link.
 const Brand = Astro.url.pathname === '/' ? 'h1' : 'p';
 ---

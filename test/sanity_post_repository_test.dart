@@ -52,10 +52,10 @@ void main() {
     expect(uri.path, '/v2025-02-19/data/query/production');
     expect(uri.queryParameters['query'], contains('_type == "post"'));
     expect(uri.queryParameters['query'], contains('order(publishedAt desc)'));
-    expect(uri.queryParameters['query'], isNot(contains('feed in')));
     expect(uri.queryParameters[r'$start'], '30');
     expect(uri.queryParameters[r'$end'], '46'); // one extra row
-    expect(uri.queryParameters.containsKey(r'$feeds'), isFalse);
+    // "All" is the gallery: bikes and pizza, never the news.
+    expect(uri.queryParameters[r'$feeds'], '["bikes","pizza"]');
   });
 
   test('lists one member with a reference match on the author', () {
@@ -77,7 +77,7 @@ void main() {
       r.buildUri(PostFeed.pizza, 1).queryParameters[r'$feeds'],
       '["pizza"]',
     );
-    expect(r.buildUri(PostFeed.blog, 1).queryParameters[r'$feeds'], '["blog"]');
+    expect(r.buildUri(PostFeed.news, 1).queryParameters[r'$feeds'], '["news"]');
   });
 
   test('parses posts and detects further pages from the extra row', () async {
@@ -199,7 +199,7 @@ void main() {
     final client = MockClient(
       (_) async => http.Response(_result([_row('a')]), 200),
     );
-    final page = await repo(client).fetchPosts(PostFeed.blog);
+    final page = await repo(client).fetchPosts(PostFeed.news);
     expect(page.hasMore, isFalse);
     expect(page.posts.length, 1);
   });
@@ -207,7 +207,7 @@ void main() {
   test('turns HTTP errors into PostFetchException', () async {
     final client = MockClient((_) async => http.Response('nope', 500));
     expect(
-      () => repo(client).fetchPosts(PostFeed.blog),
+      () => repo(client).fetchPosts(PostFeed.news),
       throwsA(isA<PostFetchException>()),
     );
   });

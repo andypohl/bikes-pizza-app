@@ -1,0 +1,91 @@
+---
+// One news article in full: title, date, photo when it has one, the body
+// and the credit. "Older" and "Newer" buttons float in the lower corners
+// of the screen, in the same pill style as the header's buttons; hovering
+// one shows the date and title of the article it leads to.
+import { PortableText } from 'astro-portabletext';
+import ImageBlock from './portable-text/ImageBlock.astro';
+import Link from './portable-text/Link.astro';
+import { creditOf, memberPath, postPath, responsive, type Post } from '../lib/sanity';
+import { formatDate } from '../utils/format';
+
+interface Props {
+  post: Post;
+  /** The next older article, if any (the "previous" button, lower left). */
+  older: Post | null;
+  /** The next newer article, if any (the "next" button, lower right). */
+  newer: Post | null;
+}
+
+const { post, older, newer } = Astro.props;
+const image = post.image ? responsive(post.image, [800, 1200, 1600]) : null;
+const components = { type: { image: ImageBlock }, mark: { link: Link } };
+const describe = (other: Post) => `${formatDate(other.publishedAt)} · ${other.title}`;
+const buttonClass =
+  'fixed bottom-6 z-40 inline-flex items-center justify-center h-12 w-12 rounded-full bg-pill hover:bg-pill-hover text-ink shadow-md transition-colors duration-200';
+---
+
+<article class="max-w-3xl mx-auto">
+  <h1 class="text-3xl sm:text-4xl font-light tracking-wide mb-2 text-ink">{post.title}</h1>
+  <p class="text-lg font-light mb-8 text-muted tracking-wide">{formatDate(post.publishedAt)}</p>
+
+  {
+    image && post.image && (
+      <img
+        src={image.src}
+        srcset={image.srcset}
+        sizes="(min-width: 768px) 48rem, 100vw"
+        alt={post.image.alt}
+        width={post.image.width}
+        height={post.image.height}
+        loading="eager"
+        decoding="async"
+        class="w-full h-auto rounded-lg mb-8"
+      />
+    )
+  }
+
+  <div class="post-body text-ink leading-relaxed font-light text-lg">
+    <PortableText value={post.body} components={components} />
+  </div>
+
+  {
+    creditOf(post) && (
+      <p class="mt-8 text-sm text-muted">
+        By{' '}
+        {post.author?.username ? (
+          <a href={memberPath(post.author)} class="text-ink underline decoration-line underline-offset-4 hover:text-spice">
+            {post.author.username}
+          </a>
+        ) : (
+          <span class="text-ink">{post.submittedBy}</span>
+        )}
+      </p>
+    )
+  }
+</article>
+
+{
+  older && (
+    <a href={postPath(older)} class:list={[buttonClass, 'left-6']} title={describe(older)} aria-label={`Older news: ${describe(older)}`}>
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <path
+          fill-rule="evenodd"
+          d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
+          clip-rule="evenodd"></path>
+      </svg>
+    </a>
+  )
+}
+{
+  newer && (
+    <a href={postPath(newer)} class:list={[buttonClass, 'right-6']} title={describe(newer)} aria-label={`Newer news: ${describe(newer)}`}>
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <path
+          fill-rule="evenodd"
+          d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+          clip-rule="evenodd"></path>
+      </svg>
+    </a>
+  )
+}

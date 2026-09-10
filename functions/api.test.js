@@ -55,7 +55,7 @@ const service = {
   },
   queue: {
     info: async (feed) => {
-      if (feed === "blog") throw new ValidationError("Unknown feed.");
+      if (feed === "news") throw new ValidationError("Unknown feed.");
       return { feed, length: 2, nextPostAt: "2026-09-04T17:00:00.000Z", seconds: 5400, countdown: "1h 30m 0s", clock: "01:30:00" };
     },
     items: async (feed) => ({ feed, length: 1, items: [{ position: 1, id: "s1" }] }),
@@ -157,7 +157,7 @@ test("queue reads are for members, queue changes for admins", async () => {
   assert.equal(cd.status, 200);
   assert.equal(cd.body.countdown, "1h 30m 0s");
   assert.equal(cd.body.nextPostAt, "2026-09-04T17:00:00.000Z");
-  assert.equal((await call("/api/queue/blog/length", { token: "member" })).status, 400);
+  assert.equal((await call("/api/queue/news/length", { token: "member" })).status, 400);
   assert.equal((await call("/api/queue/pizza", { token: "member" })).status, 403);
   const items = await call("/api/queue/pizza", { token: "admin2fa" });
   assert.equal(items.status, 200);

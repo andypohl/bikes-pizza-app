@@ -29,7 +29,7 @@ export const post = defineType({
         list: [
           { title: 'Bikes', value: 'bikes' },
           { title: 'Pizza', value: 'pizza' },
-          { title: 'Blog', value: 'blog' },
+          { title: 'News', value: 'news' },
         ],
         layout: 'radio',
       },

@@ -4,13 +4,13 @@ import Layout from '../../layouts/Layout.astro';
 import PostGrid from '../../components/PostGrid.astro';
 import ImageBlock from '../../components/portable-text/ImageBlock.astro';
 import Link from '../../components/portable-text/Link.astro';
-import { detailSpecs, categoryOf, creditOf, memberPath, responsive, summaryOf, urlFor, type Post } from '../../lib/sanity';
+import { detailSpecs, categoryOf, creditOf, memberPath, responsive, summaryOf, urlFor, type GalleryPost } from '../../lib/sanity';
 import { formatDate } from '../../utils/format';
 
 export async function getStaticPaths() {
   const RELATED_LIMIT = 8;
-  const { categoryOf, getPosts } = await import('../../lib/sanity');
-  const posts = await getPosts();
+  const { categoryOf, getGalleryPosts } = await import('../../lib/sanity');
+  const posts = await getGalleryPosts();
   return posts.map((post) => ({
     params: { slug: post.id },
     props: {
@@ -23,8 +23,8 @@ export async function getStaticPaths() {
 }
 
 interface Props {
-  post: Post;
-  related: Post[];
+  post: GalleryPost;
+  related: GalleryPost[];
 }
 
 const { post, related } = Astro.props;

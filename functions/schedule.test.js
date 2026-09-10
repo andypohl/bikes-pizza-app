@@ -30,7 +30,7 @@ test("nextSlot picks the next hour today, or the first one tomorrow", () => {
   // Across the November fall-back: 8am CST is 14:00Z the day after clocks change.
   const beforeChange = new Date("2026-11-01T02:00:00Z"); // 21:00 CDT 31 Oct
   assert.equal(nextSlot("bikes", beforeChange).toISOString(), "2026-11-01T14:00:00.000Z");
-  assert.throws(() => nextSlot("blog"));
+  assert.throws(() => nextSlot("news"));
 });
 
 test("countdown formats hours, minutes and seconds", () => {

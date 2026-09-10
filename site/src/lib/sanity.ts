@@ -9,8 +9,15 @@ import { PIZZA_STYLES } from '../../../studio/schemaTypes/pizzaOptions';
 export const FEED_LABELS: Record<string, string> = {
   bikes: 'Bikes',
   pizza: 'Pizza',
-  blog: 'Blog',
+  news: 'News',
 };
+
+/**
+ * The feed written in the Studio and read as full articles at /news/.
+ * News stays out of the gallery (the front page, the category pages and
+ * the member pages) and may go without a photo.
+ */
+export const NEWS_FEED = 'news';
 
 export interface PostImage {
   asset: { _ref: string };
@@ -49,7 +56,8 @@ export interface Post {
   excerpt: string | null;
   plain: string;
   body: unknown[];
-  image: PostImage;
+  /** Null only for a news post without a main image. */
+  image: PostImage | null;
   /** The credit typed at submission; the fallback when there is no author. */
   submittedBy: string | null;
   author: Author | null;
@@ -59,8 +67,11 @@ export interface Post {
   pizza: PizzaDetails | null;
 }
 
+/** A post in the gallery: not news, and always with a photo. */
+export type GalleryPost = Post & { image: PostImage };
+
 const POSTS_QUERY = defineQuery(`
-  *[_type == "post" && defined(slug.current) && defined(mainImage.asset)]
+  *[_type == "post" && defined(slug.current) && (defined(mainImage.asset) || feed == "${NEWS_FEED}")]
     | order(publishedAt desc) {
     "id": slug.current,
     title,
@@ -93,8 +104,27 @@ export function getPosts(): Promise<Post[]> {
   return cache;
 }
 
+export function isNews(post: Post): boolean {
+  return post.feed === NEWS_FEED;
+}
+
+/** The gallery, newest first: every post but the news. */
+export async function getGalleryPosts(): Promise<GalleryPost[]> {
+  return (await getPosts()).filter((post): post is GalleryPost => !isNews(post) && post.image !== null);
+}
+
+/** The news, newest first. */
+export async function getNewsPosts(): Promise<Post[]> {
+  return (await getPosts()).filter(isNews);
+}
+
 export function categoryOf(post: Post): string {
   return FEED_LABELS[post.feed] ?? post.feed;
+}
+
+/** Path of a post's own page: news articles live under /news/, the gallery under /post/. */
+export function postPath(post: Post): string {
+  return `${isNews(post) ? '/news/' : '/post/'}${post.id}/`;
 }
 
 /** Path of a member's page: their username lowercased, as usernames differ only by case are one name. */
@@ -151,8 +181,8 @@ export function detailLine(post: Post): string | null {
  * their posts newest first. Members who have not chosen a username yet
  * have no page; their posts show the typed credit instead.
  */
-export function membersOf(posts: Post[]): { author: Author; posts: Post[] }[] {
-  const byId = new Map<string, { author: Author; posts: Post[] }>();
+export function membersOf(posts: GalleryPost[]): { author: Author; posts: GalleryPost[] }[] {
+  const byId = new Map<string, { author: Author; posts: GalleryPost[] }>();
   for (const post of posts) {
     if (!post.author?.username) continue;
     const entry = byId.get(post.author.id) ?? { author: post.author, posts: [] };
@@ -163,11 +193,11 @@ export function membersOf(posts: Post[]): { author: Author; posts: Post[] }[] {
 }
 
 /**
- * The category pages, in the order the filter shows them. Every feed has
- * one, whether or not it has posts yet, so the Blog page exists before the
- * first blog post.
+ * The gallery's category pages, in the order the filter shows them. Every
+ * feed has one, whether or not it has posts yet. The filter also links to
+ * the news, which has its own page rather than a category.
  */
-export const CATEGORY_FEEDS = ['bikes', 'pizza', 'blog'];
+export const CATEGORY_FEEDS = ['bikes', 'pizza'];
 export const CATEGORIES = CATEGORY_FEEDS.map((feed) => FEED_LABELS[feed]);
 
 /** Feeds whose newest post is featured on the front page, in row order. */
@@ -177,8 +207,13 @@ export const FEATURED_FEEDS = ['bikes', 'pizza'];
  * Splits `posts` (newest first) into the newest post of each of `feeds`,
  * in that order, and everything else in the original order.
  */
-export function splitFeatured(posts: Post[], feeds: string[] = FEATURED_FEEDS): { featured: Post[]; rest: Post[] } {
-  const featured = feeds.map((feed) => posts.find((post) => post.feed === feed)).filter((post): post is Post => !!post);
+export function splitFeatured(
+  posts: GalleryPost[],
+  feeds: string[] = FEATURED_FEEDS,
+): { featured: GalleryPost[]; rest: GalleryPost[] } {
+  const featured = feeds
+    .map((feed) => posts.find((post) => post.feed === feed))
+    .filter((post): post is GalleryPost => !!post);
   const ids = new Set(featured.map((post) => post.id));
   return { featured, rest: posts.filter((post) => !ids.has(post.id)) };
 }
