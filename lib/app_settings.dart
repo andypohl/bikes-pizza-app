@@ -2,9 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// User-adjustable preferences, persisted with shared_preferences.
+///
+/// The app starts in light mode on every platform rather than following
+/// the device, so it looks the same everywhere until the member chooses
+/// otherwise under Settings.
 class AppSettings extends ChangeNotifier {
-  AppSettings({ThemeMode themeMode = ThemeMode.system})
+  AppSettings({ThemeMode themeMode = defaultThemeMode})
     : _themeMode = themeMode; // ignore: prefer_initializing_formals
+
+  static const defaultThemeMode = ThemeMode.light;
 
   static const _themeKey = 'theme_mode';
 
@@ -19,7 +25,7 @@ class AppSettings extends ChangeNotifier {
       final saved = prefs.getString(_themeKey);
       final mode = ThemeMode.values.firstWhere(
         (m) => m.name == saved,
-        orElse: () => ThemeMode.system,
+        orElse: () => defaultThemeMode,
       );
       return AppSettings(themeMode: mode);
     } on Object {
