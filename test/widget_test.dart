@@ -13,6 +13,7 @@ import 'package:bikes_pizza/data/post_repository.dart';
 import 'package:bikes_pizza/main.dart';
 import 'package:bikes_pizza/models/post.dart';
 import 'package:bikes_pizza/models/post_feed.dart';
+import 'package:bikes_pizza/screens/post_detail_screen.dart';
 import 'package:bikes_pizza/store/cart.dart';
 import 'package:bikes_pizza/store/product.dart';
 import 'package:bikes_pizza/store/store_repository.dart';
@@ -537,10 +538,20 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// Sizes the test surface: a portrait tablet by default (the All tab is
+  /// present and posts open on their own screen), or a phone, or a
+  /// landscape tablet (posts open beside the list).
+  void useSize(WidgetTester tester, Size logical) {
+    tester.view.physicalSize = logical * tester.view.devicePixelRatio;
+    addTearDown(tester.view.resetPhysicalSize);
+  }
+
   Future<FakePostRepository> pumpApp(
     WidgetTester tester, {
     List<Post>? news,
+    Size size = const Size(800, 1200),
   }) async {
+    useSize(tester, size);
     auth = FakeAuthService();
     passkeys?.auth = auth;
     final repo = FakePostRepository({
@@ -617,16 +628,11 @@ void main() {
     );
   });
 
-  /// Sizes the test surface like a phone, where the All tab is left out.
-  void usePhone(WidgetTester tester) {
-    tester.view.physicalSize =
-        const Size(390, 844) * tester.view.devicePixelRatio;
-    addTearDown(tester.view.resetPhysicalSize);
-  }
+  const phone = Size(390, 844);
+  const landscapeTablet = Size(1200, 800);
 
   testWidgets('phones leave out the All tab and start on News', (tester) async {
-    usePhone(tester);
-    await pumpApp(tester);
+    await pumpApp(tester, size: phone);
 
     Finder inBar(String label) => find.descendant(
       of: find.byType(NavigationBar),
@@ -644,9 +650,9 @@ void main() {
   testWidgets('News shows the newest article and steps through older ones', (
     tester,
   ) async {
-    usePhone(tester);
     await pumpApp(
       tester,
+      size: phone,
       news: [
         _post('Store opens', DateTime(2026, 9, 1)),
         _post('Hello world', DateTime(2026, 8, 1)),
@@ -676,6 +682,42 @@ void main() {
     await tester.tap(newer);
     await tester.pumpAndSettle();
     expect(find.text('Store opens'), findsOneWidget);
+  });
+
+  testWidgets('landscape tablets open a post beside the list', (tester) async {
+    await pumpApp(tester, size: landscapeTablet);
+
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    expect(find.text('Choose a post to read it here.'), findsOneWidget);
+
+    await tester.tap(find.text('Detroit style'));
+    await tester.pumpAndSettle();
+    // No screen was pushed: the list is still there, the post beside it.
+    expect(find.byType(PostDetailScreen), findsNothing);
+    expect(find.byType(PostTile), findsOneWidget);
+    expect(find.byKey(const Key('post-pane')), findsOneWidget);
+    expect(find.byKey(const Key('post-details')), findsOneWidget);
+    expect(find.text('Detroit style'), findsNWidgets(2)); // row and article
+
+    await tester.tap(find.byKey(const Key('close-post')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('post-pane')), findsNothing);
+    expect(find.text('Choose a post to read it here.'), findsOneWidget);
+    expect(find.byType(PostTile), findsOneWidget);
+  });
+
+  testWidgets('portrait tablets open a post on its own screen', (tester) async {
+    await pumpApp(tester, size: const Size(800, 1200));
+
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    expect(find.text('Choose a post to read it here.'), findsNothing);
+
+    await tester.tap(find.text('Detroit style'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PostDetailScreen), findsOneWidget);
+    expect(find.byKey(const Key('post-pane')), findsNothing);
   });
 
   testWidgets('All tab lists every post with thumbnails', (tester) async {
