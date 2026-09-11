@@ -7,6 +7,8 @@ import '../models/post.dart';
 import '../models/post_feed.dart';
 import '../submissions/photo_picker.dart';
 import '../submissions/submission_service.dart';
+import '../widgets/layout.dart';
+import '../widgets/post_article.dart';
 import '../widgets/post_tile.dart';
 import '../widgets/status_message.dart';
 import 'post_detail_screen.dart';
@@ -14,6 +16,9 @@ import 'submit_screen.dart';
 
 /// Reverse-chronological list of posts for one [PostFeed], with pull-to-refresh
 /// and infinite scrolling (when the backend supports paging).
+///
+/// Tapping a post opens it on a new screen, except on a tablet in landscape,
+/// where it opens in the right half beside the list with a close button.
 ///
 /// Feeds that take submissions show a "Submit …" bar under the list to
 /// signed-in members when [auth], [submissions] and [photos] are all given.
@@ -55,6 +60,9 @@ class _PostListScreenState extends State<PostListScreen> {
   bool _hasMore = false;
   int _page = 1;
   String? _error;
+
+  /// The post shown beside the list on a landscape tablet.
+  Post? _selected;
 
   @override
   void initState() {
@@ -137,6 +145,10 @@ class _PostListScreenState extends State<PostListScreen> {
   }
 
   void _openPost(Post post) {
+    if (isLandscapeTablet(context)) {
+      setState(() => _selected = post);
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) =>
@@ -169,6 +181,25 @@ class _PostListScreenState extends State<PostListScreen> {
     final submissions = widget.submissions;
     final photos = widget.photos;
     final submitLabel = widget.feed.submitLabel;
+    // Sits between the list and the app's tab bar rather than floating
+    // over the posts. The post detail is a pushed route, so it is not
+    // shown there.
+    final submitBar =
+        widget.author == null &&
+            auth != null &&
+            submissions != null &&
+            photos != null &&
+            submitLabel != null
+        ? _SubmitBar(
+            auth: auth,
+            label: submitLabel,
+            buttonKey: Key('submit-${widget.feed.name}'),
+            onPressed: () => _openSubmit(auth, submissions, photos),
+          )
+        : null;
+    final split = isLandscapeTablet(context);
+    final selected = _selected;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -179,27 +210,37 @@ class _PostListScreenState extends State<PostListScreen> {
               : widget.feed.label,
         ),
       ),
-      body: _buildBody(context),
-      // Sits between the list and the app's tab bar rather than floating
-      // over the posts. The post detail is a pushed route, so it is not
-      // shown there.
-      bottomNavigationBar:
-          widget.author == null &&
-              auth != null &&
-              submissions != null &&
-              photos != null &&
-              submitLabel != null
-          ? _SubmitBar(
-              auth: auth,
-              label: submitLabel,
-              buttonKey: Key('submit-${widget.feed.name}'),
-              onPressed: () => _openSubmit(auth, submissions, photos),
+      body: split
+          ? Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    children: [
+                      Expanded(child: _buildBody(context)),
+                      ?submitBar,
+                    ],
+                  ),
+                ),
+                const VerticalDivider(width: 1, thickness: 1),
+                Expanded(
+                  child: selected == null
+                      ? const _NothingSelected()
+                      : _PostPane(
+                          key: ValueKey(selected.id),
+                          post: selected,
+                          repository: widget.repository,
+                          onClose: () => setState(() => _selected = null),
+                        ),
+                ),
+              ],
             )
-          : null,
+          : _buildBody(context),
+      bottomNavigationBar: split ? null : submitBar,
     );
   }
 
   Widget _buildBody(BuildContext context) {
+    final split = isLandscapeTablet(context);
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -239,8 +280,80 @@ class _PostListScreenState extends State<PostListScreen> {
             );
           }
           final post = _posts[index];
-          return PostTile(post: post, onTap: () => _openPost(post));
+          return PostTile(
+            post: post,
+            selected: split && post.id == _selected?.id,
+            onTap: () => _openPost(post),
+          );
         },
+      ),
+    );
+  }
+}
+
+/// The right half of a landscape tablet: the selected post in full, with a
+/// close button in its top-right corner that returns the list to the full
+/// screen.
+class _PostPane extends StatelessWidget {
+  const _PostPane({
+    super.key,
+    required this.post,
+    required this.repository,
+    required this.onClose,
+  });
+
+  final Post post;
+  final PostRepository repository;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: const Key('post-pane'),
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (post.url.isNotEmpty)
+                IconButton(
+                  tooltip: 'Open on bikes.pizza',
+                  icon: const Icon(Icons.open_in_browser),
+                  onPressed: () => PostArticle.open(post.url),
+                ),
+              IconButton(
+                key: const Key('close-post'),
+                tooltip: 'Close',
+                icon: const Icon(Icons.close),
+                onPressed: onClose,
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            child: PostArticle(post: post, repository: repository),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The right half before a post is chosen.
+class _NothingSelected extends StatelessWidget {
+  const _NothingSelected();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Text(
+        'Choose a post to read it here.',
+        style: theme.textTheme.bodyLarge?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
       ),
     );
   }

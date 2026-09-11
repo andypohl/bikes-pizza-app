@@ -19,6 +19,7 @@ import 'store/cart.dart';
 import 'store/store_repository.dart';
 import 'submissions/photo_picker.dart';
 import 'submissions/submission_service.dart';
+import 'widgets/layout.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -150,13 +151,10 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
-  /// Tablets get the "All" tab (bikes and pizza together, as on the
-  /// website's front page); phones start at News to keep the bar short.
-  static bool isTablet(BuildContext context) =>
-      MediaQuery.sizeOf(context).shortestSide >= 600;
-
   @override
   Widget build(BuildContext context) {
+    // Tablets get the "All" tab (bikes and pizza together, as on the
+    // website's front page); phones start at News to keep the bar short.
     final tablet = isTablet(context);
     final pages = <Widget>[
       if (tablet)

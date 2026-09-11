@@ -6,11 +6,18 @@ import '../models/post.dart';
 
 /// One row in a post list: thumbnail on the left, title and date on the
 /// right, plus a bike's brand, type and year or a pizza's style when known.
+/// [selected] tints the row, for the post open beside the list on a tablet.
 class PostTile extends StatelessWidget {
-  const PostTile({super.key, required this.post, this.onTap});
+  const PostTile({
+    super.key,
+    required this.post,
+    this.onTap,
+    this.selected = false,
+  });
 
   final Post post;
   final VoidCallback? onTap;
+  final bool selected;
 
   static const double thumbWidth = 112;
   static const double thumbHeight = 80;
@@ -23,7 +30,8 @@ class PostTile extends StatelessWidget {
     final details = post.details?.line;
     return InkWell(
       onTap: onTap,
-      child: Padding(
+      child: Ink(
+        color: selected ? theme.colorScheme.secondaryContainer : null,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
