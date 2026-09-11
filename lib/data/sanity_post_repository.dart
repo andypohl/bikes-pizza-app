@@ -31,6 +31,7 @@ class SanityPostRepository implements PostRepository {
     "slug": slug.current, title, feed, publishedAt, excerpt,
     "plain": pt::text(body),
     "image": mainImage.asset->url,
+    "imageSize": mainImage.asset->metadata.dimensions { width, height },
     submittedBy,
     "author": author->{ "id": _id, "username": coalesce(username, "") },
     "bike": bike { brand, year, color, type },

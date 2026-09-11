@@ -15,6 +15,7 @@ Map<String, dynamic> _row(String slug, {String feed = 'pizza'}) => {
   'excerpt': null,
   'plain': 'Body of $slug',
   'image': 'https://cdn.sanity.io/images/p/d/$slug-2000x1500.jpg',
+  'imageSize': {'width': 2000, 'height': 1500},
   'body': [
     {
       '_type': 'block',
@@ -101,6 +102,7 @@ void main() {
       startsWith('https://cdn.sanity.io/images/p/d/a-2000x1500.jpg?'),
     );
     expect(first.featureImage, contains('auto=format'));
+    expect(first.imageAspectRatio, closeTo(4 / 3, 0.001));
     expect(first.tags, ['pizza']);
     expect(first.excerpt, 'Body of a');
     expect(first.html, '<p>Body of a</p>');
