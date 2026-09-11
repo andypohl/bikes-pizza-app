@@ -105,6 +105,7 @@ class Post {
     this.excerpt = '',
     this.html = '',
     this.featureImage,
+    this.imageAspectRatio,
     this.tags = const [],
     this.submittedBy,
     this.author,
@@ -127,6 +128,10 @@ class Post {
 
   /// Thumbnail / hero image URL, if the post has one.
   final String? featureImage;
+
+  /// Width over height of [featureImage], when Sanity knows it; lets the
+  /// hero be laid out at its final size before the image arrives.
+  final double? imageAspectRatio;
 
   /// Feed values the post belongs to, e.g. `pizza`, `bikes`.
   final List<String> tags;
@@ -170,6 +175,9 @@ class Post {
     final rawBody = json['body'];
     final body = rawBody is List ? rawBody : const <dynamic>[];
     final image = json['image'] as String?;
+    final size = json['imageSize'];
+    final width = size is Map ? (size['width'] as num?)?.toDouble() : null;
+    final height = size is Map ? (size['height'] as num?)?.toDouble() : null;
     final custom = (json['excerpt'] as String?)?.trim() ?? '';
     final rawAuthor = json['author'];
     final authorId = rawAuthor is Map ? rawAuthor['id'] as String? : null;
@@ -200,6 +208,9 @@ class Post {
       featureImage: image == null || image.isEmpty
           ? null
           : '$image?$_imageParams',
+      imageAspectRatio: width != null && height != null && height > 0
+          ? width / height
+          : null,
       tags: feed == null || feed.isEmpty ? const [] : [feed],
       submittedBy: json['submittedBy'] as String?,
       author: authorId == null

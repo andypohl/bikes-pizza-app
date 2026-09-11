@@ -16,6 +16,8 @@ interface Props {
 }
 
 const { post, linkTitle = false, eager = false } = Astro.props;
+// The photo keeps its proportions, as wide as the text at most and never
+// taller than 22.5rem (360px), the same cap as the app's article image.
 const image = post.image ? responsive(post.image, [800, 1200, 1600]) : null;
 const components = { type: { image: ImageBlock }, mark: { link: Link } };
 ---
@@ -37,7 +39,7 @@ const components = { type: { image: ImageBlock }, mark: { link: Link } };
         height={post.image.height}
         loading={eager ? 'eager' : 'lazy'}
         decoding="async"
-        class="w-full h-auto rounded-lg mb-8"
+        class="block mx-auto w-auto h-auto max-w-full max-h-[22.5rem] rounded-lg mb-8"
       />
     )
   }

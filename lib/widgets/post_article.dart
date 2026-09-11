@@ -20,6 +20,10 @@ class PostArticle extends StatelessWidget {
   final Post post;
   final PostRepository? repository;
 
+  /// The photo is never taller than this, on any screen; the website caps
+  /// its article images at the same height.
+  static const double imageMaxHeight = 360;
+
   static final _dateFormat = DateFormat.yMMMMd();
 
   /// Opens [url] outside the app; false when it is not a URL at all.
@@ -126,13 +130,26 @@ class PostArticle extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // The photo at its own proportions, as wide as the text at most
+        // and never taller than [imageMaxHeight], centered.
         if (image != null && image.isNotEmpty)
-          AspectRatio(
-            aspectRatio: 16 / 9,
-            child: CachedNetworkImage(
-              imageUrl: image,
-              fit: BoxFit.cover,
-              errorWidget: (_, _, _) => const SizedBox.shrink(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: imageMaxHeight),
+                child: AspectRatio(
+                  aspectRatio: post.imageAspectRatio ?? 16 / 9,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: CachedNetworkImage(
+                      imageUrl: image,
+                      fit: BoxFit.cover,
+                      errorWidget: (_, _, _) => const SizedBox.shrink(),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         Padding(
