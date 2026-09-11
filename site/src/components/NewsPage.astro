@@ -1,0 +1,24 @@
+---
+// One page of the news feed: its articles, separated by rules, in a
+// wrapper the feed script can drop or put back as a unit.
+import NewsArticle from './NewsArticle.astro';
+import type { Post } from '../lib/sanity';
+
+interface Props {
+  number: number;
+  posts: Post[];
+}
+
+const { number, posts } = Astro.props;
+---
+
+<div data-news-page={number}>
+  {
+    posts.map((post, i) => (
+      <>
+        <NewsArticle post={post} linkTitle eager={number === 1 && i === 0} />
+        <hr class="max-w-3xl mx-auto my-12 border-line" />
+      </>
+    ))
+  }
+</div>

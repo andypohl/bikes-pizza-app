@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -13,22 +14,28 @@ import 'package:bikes_pizza/data/post_repository.dart';
 import 'package:bikes_pizza/main.dart';
 import 'package:bikes_pizza/models/post.dart';
 import 'package:bikes_pizza/models/post_feed.dart';
+import 'package:bikes_pizza/screens/news_screen.dart';
 import 'package:bikes_pizza/screens/post_detail_screen.dart';
 import 'package:bikes_pizza/store/cart.dart';
 import 'package:bikes_pizza/store/product.dart';
 import 'package:bikes_pizza/store/store_repository.dart';
 import 'package:bikes_pizza/submissions/photo_picker.dart';
 import 'package:bikes_pizza/submissions/submission_service.dart';
+import 'package:bikes_pizza/widgets/post_article.dart';
 import 'package:bikes_pizza/widgets/post_tile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// In-memory repository so widget tests never touch the network.
 class FakePostRepository implements PostRepository {
-  FakePostRepository(this.byFeed);
+  FakePostRepository(this.byFeed, {this.newsPages});
 
   final Map<PostFeed, List<Post>> byFeed;
+
+  /// When set, the news feed is served page by page from this list.
+  final List<List<Post>>? newsPages;
   final requestedFeeds = <PostFeed>[];
   final requestedAuthors = <String>[];
+  final requestedNewsPages = <int>[];
 
   @override
   Future<PostPage> fetchPosts(
@@ -38,6 +45,14 @@ class FakePostRepository implements PostRepository {
   }) async {
     requestedFeeds.add(feed);
     if (author != null) requestedAuthors.add(author);
+    final pages = newsPages;
+    if (feed == PostFeed.news && pages != null && author == null) {
+      requestedNewsPages.add(page);
+      return PostPage(
+        posts: page <= pages.length ? pages[page - 1] : [],
+        hasMore: page < pages.length,
+      );
+    }
     final posts = author == null
         ? byFeed[feed] ?? []
         : [
@@ -549,12 +564,13 @@ void main() {
   Future<FakePostRepository> pumpApp(
     WidgetTester tester, {
     List<Post>? news,
+    List<List<Post>>? newsPages,
     Size size = const Size(800, 1200),
   }) async {
     useSize(tester, size);
     auth = FakeAuthService();
     passkeys?.auth = auth;
-    final repo = FakePostRepository({
+    final repo = FakePostRepository(newsPages: newsPages, {
       PostFeed.all: [
         _post('Newest post', DateTime(2025, 4, 12), author: _ada),
         _post('Older post', DateTime(2025, 3, 3)),
@@ -647,9 +663,7 @@ void main() {
     expect(find.byType(PostTile), findsNothing);
   });
 
-  testWidgets('News shows the newest article and steps through older ones', (
-    tester,
-  ) async {
+  testWidgets('News lists the articles in full, newest first', (tester) async {
     await pumpApp(
       tester,
       size: phone,
@@ -659,29 +673,72 @@ void main() {
       ],
     );
 
-    final older = find.byKey(const Key('news-older'));
-    final newer = find.byKey(const Key('news-newer'));
     expect(find.text('Store opens'), findsOneWidget);
-    expect(find.text('Hello world'), findsNothing);
-    expect(newer, findsNothing);
-    expect(
-      tester.widget<FloatingActionButton>(older).tooltip,
-      'Older: Aug 1, 2026 · Hello world',
-    );
-
-    await tester.tap(older);
-    await tester.pumpAndSettle();
     expect(find.text('Hello world'), findsOneWidget);
-    expect(find.text('Store opens'), findsNothing);
-    expect(older, findsNothing);
+    expect(find.byType(PostArticle), findsNWidgets(2));
     expect(
-      tester.widget<FloatingActionButton>(newer).tooltip,
-      'Newer: Sep 1, 2026 · Store opens',
+      tester.getTopLeft(find.text('Store opens')).dy,
+      lessThan(tester.getTopLeft(find.text('Hello world')).dy),
     );
+    expect(find.byType(PostTile), findsNothing);
+  });
 
-    await tester.tap(newer);
-    await tester.pumpAndSettle();
-    expect(find.text('Store opens'), findsOneWidget);
+  testWidgets('News keeps a window of pages while scrolling', (tester) async {
+    // Twelve one-article pages, each tall enough to need scrolling, read
+    // through a window of three pages. The feed's "more" spinner never
+    // settles, so the test pumps fixed durations instead of settling.
+    Post article(int n) => Post(
+      id: 'a$n',
+      title: 'Article $n',
+      url: '',
+      publishedAt: DateTime(2026, 1, 13 - n),
+      html: '<p>${List.filled(120, 'word').join(' ')}</p>',
+      featureImage: 'https://example.com/$n.jpg',
+    );
+    final pages = [
+      for (var n = 1; n <= 12; n++) [article(n)],
+    ];
+    final repo = await pumpApp(tester, size: phone, newsPages: pages);
+    await tester.pumpWidget(
+      MaterialApp(home: NewsScreen(repository: repo, maxPages: 3)),
+    );
+    await tester.pump(const Duration(seconds: 1));
+    final list = find.byType(Scrollable).first;
+    Future<void> settle() async {
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 300));
+      }
+    }
+
+    Future<void> scrollTo(String title, double delta) async {
+      await tester.scrollUntilVisible(
+        find.text(title),
+        delta,
+        scrollable: list,
+        maxScrolls: 80,
+      );
+      await settle();
+    }
+
+    expect(find.text('Article 1'), findsOneWidget);
+
+    // Going down loads page after page; once the window is full the
+    // earliest page is dropped each time. (The list only builds what is
+    // near the screen, so the window is checked through the requests:
+    // a dropped page has to be fetched again on the way back up.)
+    await scrollTo('Article 4', 600);
+    expect(repo.requestedNewsPages, containsAll([1, 2, 3, 4]));
+    final deepest = repo.requestedNewsPages.reduce(max);
+    expect(find.text('Article $deepest'), findsOneWidget);
+
+    repo.requestedNewsPages.clear();
+    await scrollTo('Article ${deepest - 2}', -600);
+    // A short drag, not past the top: that would be a pull to refresh.
+    await tester.drag(list, const Offset(0, 300));
+    await settle();
+    expect(repo.requestedNewsPages, contains(deepest - 3));
+    await scrollTo('Article ${deepest - 3}', -600);
+    expect(find.text('Article ${deepest - 3}'), findsOneWidget);
   });
 
   testWidgets('landscape tablets open a post beside the list', (tester) async {

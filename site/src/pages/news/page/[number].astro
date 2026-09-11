@@ -1,0 +1,20 @@
+---
+// A page of the news feed as an HTML fragment (no layout), fetched by the
+// feed on /news/ as the reader scrolls. Page 1 exists too, for when the
+// reader scrolls back up to it after it was dropped.
+import NewsPage from '../../../components/NewsPage.astro';
+
+export const partial = true;
+
+export async function getStaticPaths() {
+  const { getNewsPosts, newsPages } = await import('../../../lib/sanity');
+  return newsPages(await getNewsPosts()).map((posts, i) => ({
+    params: { number: String(i + 1) },
+    props: { number: i + 1, posts },
+  }));
+}
+
+const { number, posts } = Astro.props;
+---
+
+<NewsPage number={number} posts={posts} />
