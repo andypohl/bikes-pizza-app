@@ -2097,15 +2097,16 @@ void main() {
 
   testWidgets('Settings tab switches theme mode', (tester) async {
     await pumpApp(tester);
+    MaterialApp app() => tester.widget<MaterialApp>(find.byType(MaterialApp));
+    // Light on every platform until the member picks otherwise.
+    expect(app().themeMode, ThemeMode.light);
 
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Dark'));
     await tester.pumpAndSettle();
-
-    final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
-    expect(app.themeMode, ThemeMode.dark);
+    expect(app().themeMode, ThemeMode.dark);
   });
 
   testWidgets('Settings links to the privacy policy', (tester) async {
