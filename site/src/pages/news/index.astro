@@ -1,24 +1,150 @@
 ---
-// The news: the newest article in full, with the category filter above it
-// so the gallery is a click away. Every article also has its own page
-// under /news/<slug>/, which is the canonical one.
+// The news feed: the articles in full, newest first, one after another.
+// The page is built with the first page of articles; the script below
+// fetches further pages (/news/page/N/) as the reader scrolls down and
+// keeps a window of MAX_PAGES of them, dropping the earliest when going
+// further and fetching it again on the way back up. Every article also
+// has its own page under /news/<slug>/.
 import Layout from '../../layouts/Layout.astro';
 import CategoryFilters from '../../components/CategoryFilters.astro';
-import NewsArticle from '../../components/NewsArticle.astro';
-import { CATEGORIES, getNewsPosts, postPath, summaryOf } from '../../lib/sanity';
+import NewsPage from '../../components/NewsPage.astro';
+import { CATEGORIES, getNewsPosts, newsPages, summaryOf } from '../../lib/sanity';
 
 const news = await getNewsPosts();
-const post = news[0] ?? null;
-const older = news[1] ?? null;
+const pages = newsPages(news);
+const first = pages[0] ?? [];
 ---
 
-<Layout
-  title="News | bikes.pizza"
-  description={post ? summaryOf(post) : 'News from bikes.pizza.'}
-  canonical={post ? postPath(post) : undefined}
->
-  <main class="container mx-auto px-6 pt-10 pb-24">
+<Layout title="News | bikes.pizza" description={first[0] ? summaryOf(first[0]) : 'News from bikes.pizza.'}>
+  <main class="container mx-auto px-6 pt-10 pb-16">
     <CategoryFilters categories={CATEGORIES} active="news" newsHref="/news/" />
-    {post ? <NewsArticle post={post} older={older} newer={null} /> : <p class="text-lg font-light text-muted">No news yet. Check back soon.</p>}
+    {
+      first.length === 0 ? (
+        <p class="text-lg font-light text-muted">No news yet. Check back soon.</p>
+      ) : (
+        <div id="news-feed" data-pages={pages.length} class="news-feed">
+          <div id="news-top" aria-hidden="true"></div>
+          <NewsPage number={1} posts={first} />
+          <div id="news-bottom" aria-hidden="true"></div>
+        </div>
+      )
+    }
   </main>
 </Layout>
+
+<style>
+  /* The script adjusts the scroll position itself when it adds or drops
+     pages above the viewport; the browser must not also try to. */
+  .news-feed {
+    overflow-anchor: none;
+  }
+</style>
+
+<script>
+  // The feed keeps at most this many pages in the document.
+  const MAX_PAGES = 10;
+  // Fetch the next page this far (in pixels) before the reader reaches an end.
+  const MARGIN = '1500px';
+
+  function setupNewsFeed() {
+    const feed = document.getElementById('news-feed');
+    const top = document.getElementById('news-top');
+    const bottom = document.getElementById('news-bottom');
+    if (!feed || !top || !bottom || feed.dataset.ready) return;
+    feed.dataset.ready = 'true';
+
+    const total = Number(feed.dataset.pages);
+    let first = 1;
+    let last = 1;
+    let busy = false;
+    // Which way the reader last scrolled: pages are only added in that
+    // direction, so a short feed cannot flip between its two ends.
+    let goingUp = false;
+    let lastY = window.scrollY;
+    window.addEventListener(
+      'scroll',
+      () => {
+        goingUp = window.scrollY < lastY;
+        lastY = window.scrollY;
+      },
+      { passive: true },
+    );
+
+    const pageElement = (n: number) => feed.querySelector<HTMLElement>(`[data-news-page="${n}"]`);
+
+    async function fetchPage(n: number): Promise<string> {
+      const response = await fetch(`/news/page/${n}/`);
+      if (!response.ok) throw new Error(`news page ${n}: HTTP ${response.status}`);
+      return response.text();
+    }
+
+    async function appendNext() {
+      if (busy || last >= total) return;
+      busy = true;
+      try {
+        const html = await fetchPage(last + 1);
+        bottom.insertAdjacentHTML('beforebegin', html);
+        last += 1;
+        if (last - first + 1 > MAX_PAGES) {
+          const dropped = pageElement(first);
+          if (dropped) {
+            const height = dropped.offsetHeight;
+            dropped.remove();
+            window.scrollBy(0, -height);
+          }
+          first += 1;
+        }
+      } catch (error) {
+        console.warn(error);
+      } finally {
+        busy = false;
+      }
+      observe();
+    }
+
+    async function prependPrevious() {
+      if (busy || first <= 1) return;
+      busy = true;
+      try {
+        const html = await fetchPage(first - 1);
+        const before = document.documentElement.scrollHeight;
+        top.insertAdjacentHTML('afterend', html);
+        first -= 1;
+        window.scrollBy(0, document.documentElement.scrollHeight - before);
+        if (last - first + 1 > MAX_PAGES) {
+          pageElement(last)?.remove();
+          last -= 1;
+        }
+      } catch (error) {
+        console.warn(error);
+      } finally {
+        busy = false;
+      }
+      observe();
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          if (entry.target === bottom && !goingUp) appendNext();
+          else if (entry.target === top && goingUp) prependPrevious();
+        }
+      },
+      { rootMargin: MARGIN },
+    );
+
+    // Re-observing after a change makes the observer report the sentinels
+    // again if they are still in range, so short pages keep loading.
+    function observe() {
+      observer.unobserve(top);
+      observer.unobserve(bottom);
+      if (first > 1) observer.observe(top);
+      if (last < total) observer.observe(bottom);
+    }
+
+    observe();
+  }
+
+  document.addEventListener('astro:page-load', setupNewsFeed);
+</script>

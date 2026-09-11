@@ -118,6 +118,16 @@ export async function getNewsPosts(): Promise<Post[]> {
   return (await getPosts()).filter(isNews);
 }
 
+/** Articles per page of the news feed; the feed fetches a page at a time as the reader scrolls. */
+export const NEWS_PAGE_SIZE = 5;
+
+/** The news split into pages of NEWS_PAGE_SIZE, page 1 first. */
+export function newsPages(news: Post[]): Post[][] {
+  const pages: Post[][] = [];
+  for (let i = 0; i < news.length; i += NEWS_PAGE_SIZE) pages.push(news.slice(i, i + NEWS_PAGE_SIZE));
+  return pages;
+}
+
 export function categoryOf(post: Post): string {
   return FEED_LABELS[post.feed] ?? post.feed;
 }
