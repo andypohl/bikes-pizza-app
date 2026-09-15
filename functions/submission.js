@@ -3,16 +3,13 @@
 // happens later, on approval; see post.js.
 
 import { ValidationError } from "./account.js";
+import { IMAGE_MAX_UPLOAD_BYTES, IMAGE_TYPES, SUBMISSION_FEEDS } from "./contract.js";
 
-/** Feeds that accept submissions, keyed by the app's PostFeed name. */
-export const FEEDS = {
-  pizza: { noun: "pizza" },
-  bikes: { noun: "bike" },
-};
+/** Feeds that accept submissions, each with the noun for messages. */
+export const FEEDS = SUBMISSION_FEEDS;
 
-
-export const IMAGE_TYPES = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
-export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+export { IMAGE_TYPES };
+export const MAX_IMAGE_BYTES = IMAGE_MAX_UPLOAD_BYTES;
 const MAX_TITLE = 255;
 const MAX_FROM = 100;
 const MAX_DESCRIPTION = 10_000;

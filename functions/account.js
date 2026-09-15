@@ -2,13 +2,10 @@
 // profile the account page and the app show, and validating the changes
 // they send back.
 
+import { USERNAME_PATTERN, USERNAME_RULE } from "./contract.js";
 import { ValidationError } from "./errors.js";
 
-export { ValidationError };
-
-/** Usernames: 3–24 letters, digits or underscores. */
-export const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,24}$/;
-export const USERNAME_RULE = "3 to 24 letters, digits or underscores";
+export { USERNAME_PATTERN, USERNAME_RULE, ValidationError };
 
 /**
  * The key a username is reserved under: usernames differ only by case are

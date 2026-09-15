@@ -1,0 +1,39 @@
+{
+  "timeZone": "America/Chicago",
+  "feeds": [
+    {
+      "value": "bikes",
+      "label": "Bikes",
+      "noun": "bike",
+      "layout": "gallery",
+      "submissions": true,
+      "postingHours": [
+        8,
+        12,
+        16,
+        20
+      ]
+    },
+    {
+      "value": "pizza",
+      "label": "Pizza",
+      "noun": "pizza",
+      "layout": "gallery",
+      "submissions": true,
+      "postingHours": [
+        9,
+        13,
+        17,
+        21
+      ]
+    },
+    {
+      "value": "news",
+      "label": "News",
+      "noun": "news post",
+      "layout": "article",
+      "submissions": false,
+      "postingHours": []
+    }
+  ]
+}

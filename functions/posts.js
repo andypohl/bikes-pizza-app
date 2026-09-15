@@ -14,7 +14,7 @@
 import { ValidationError } from "./account.js";
 import { AppError } from "./errors.js";
 import { postUrl, textToBlocks } from "./post.js";
-import { BIKE_COLORS, BIKE_TYPES, BIKE_YEARS, PIZZA_STYLES } from "./post_options.js";
+import { BIKE_COLORS_VALUES, BIKE_TYPES_VALUES, BIKE_YEARS_VALUES, PIZZA_STYLES_VALUES } from "./contract.js";
 import { IMAGE_TYPES, MAX_IMAGE_BYTES } from "./submission.js";
 
 const MAX_TITLE = 255;
@@ -162,16 +162,16 @@ export function validateEdit(data, feed) {
     if (typeof bike !== "object" || Array.isArray(bike)) throw new ValidationError("Bike details must be an object.");
     edit.bike = {
       brand: text(bike.brand ?? "", "Brand", { max: MAX_BRAND, required: false }),
-      year: choice(bike.year, "year", BIKE_YEARS),
-      color: choice(bike.color, "color", BIKE_COLORS),
-      type: choice(bike.type, "bike type", BIKE_TYPES),
+      year: choice(bike.year, "year", BIKE_YEARS_VALUES),
+      color: choice(bike.color, "color", BIKE_COLORS_VALUES),
+      type: choice(bike.type, "bike type", BIKE_TYPES_VALUES),
     };
   }
   if ("pizza" in data) {
     if (feed !== "pizza") throw new ValidationError("Only pizza posts have pizza details.");
     const pizza = data.pizza ?? {};
     if (typeof pizza !== "object" || Array.isArray(pizza)) throw new ValidationError("Pizza details must be an object.");
-    edit.pizza = { style: choice(pizza.style, "pizza style", PIZZA_STYLES) };
+    edit.pizza = { style: choice(pizza.style, "pizza style", PIZZA_STYLES_VALUES) };
   }
   if (Object.keys(edit).length === 0) throw new ValidationError("Nothing to change.");
   return edit;

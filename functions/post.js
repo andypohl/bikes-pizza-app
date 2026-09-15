@@ -3,6 +3,8 @@
 
 import { randomUUID } from "node:crypto";
 
+import { postPath } from "./contract.js";
+
 /** URL-safe slug from a title; empty if nothing usable remains. */
 export function slugify(text) {
   return String(text)
@@ -60,10 +62,9 @@ export function buildPost(submission, { imageAssetId, now = new Date(), authorId
   };
 }
 
-/** Where the website shows a post: news posts under /news/, the rest under /post/. */
+/** Where the website shows a post (the path shape comes from the contract). */
 export function postUrl(siteUrl, feed, slug) {
-  const base = siteUrl.replace(/\/$/, "");
-  return `${base}/${feed === "news" ? "news" : "post"}/${slug}/`;
+  return `${siteUrl.replace(/\/$/, "")}${postPath(feed, slug)}`;
 }
 
 /**

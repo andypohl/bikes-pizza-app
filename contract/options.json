@@ -1,0 +1,310 @@
+{
+  "bike": {
+    "years": [
+      {
+        "value": "pre-1960",
+        "title": "Before 1960"
+      },
+      {
+        "value": "1960s",
+        "title": "1960s"
+      },
+      {
+        "value": "1970s",
+        "title": "1970s"
+      },
+      {
+        "value": "1980s",
+        "title": "1980s"
+      },
+      {
+        "value": "1990s",
+        "title": "1990s"
+      },
+      {
+        "value": "2000s",
+        "title": "2000s"
+      },
+      {
+        "value": "2010s",
+        "title": "2010s"
+      },
+      {
+        "value": "2020s",
+        "title": "2020s"
+      }
+    ],
+    "colors": [
+      {
+        "value": "black",
+        "title": "Black"
+      },
+      {
+        "value": "white",
+        "title": "White"
+      },
+      {
+        "value": "silver",
+        "title": "Silver / gray"
+      },
+      {
+        "value": "chrome",
+        "title": "Chrome"
+      },
+      {
+        "value": "red",
+        "title": "Red"
+      },
+      {
+        "value": "orange",
+        "title": "Orange"
+      },
+      {
+        "value": "yellow",
+        "title": "Yellow"
+      },
+      {
+        "value": "green",
+        "title": "Green"
+      },
+      {
+        "value": "blue",
+        "title": "Blue"
+      },
+      {
+        "value": "purple",
+        "title": "Purple"
+      },
+      {
+        "value": "pink",
+        "title": "Pink"
+      },
+      {
+        "value": "brown",
+        "title": "Brown / tan"
+      },
+      {
+        "value": "multi",
+        "title": "Multicolor"
+      }
+    ],
+    "types": [
+      {
+        "value": "mtb",
+        "title": "Mountain"
+      },
+      {
+        "value": "fat-mtb",
+        "title": "Fat MTB"
+      },
+      {
+        "value": "road",
+        "title": "Road"
+      },
+      {
+        "value": "bmx",
+        "title": "BMX"
+      },
+      {
+        "value": "gravel",
+        "title": "Gravel"
+      },
+      {
+        "value": "cyclocross",
+        "title": "Cyclocross"
+      },
+      {
+        "value": "touring",
+        "title": "Touring"
+      },
+      {
+        "value": "track",
+        "title": "Track / fixed"
+      },
+      {
+        "value": "cruiser",
+        "title": "Cruiser"
+      },
+      {
+        "value": "hybrid",
+        "title": "Hybrid / city"
+      },
+      {
+        "value": "folding",
+        "title": "Folding"
+      },
+      {
+        "value": "cargo",
+        "title": "Cargo"
+      },
+      {
+        "value": "ebike",
+        "title": "E-bike"
+      },
+      {
+        "value": "kids",
+        "title": "Kids"
+      },
+      {
+        "value": "other",
+        "title": "Other"
+      }
+    ]
+  },
+  "pizza": {
+    "styles": [
+      {
+        "value": "altoona",
+        "title": "Altoona style"
+      },
+      {
+        "value": "brier-hill",
+        "title": "Brier Hill"
+      },
+      {
+        "value": "california",
+        "title": "California"
+      },
+      {
+        "value": "calzone",
+        "title": "Calzone"
+      },
+      {
+        "value": "chicago-deep-dish",
+        "title": "Chicago deep-dish"
+      },
+      {
+        "value": "chicago-stuffed",
+        "title": "Chicago stuffed"
+      },
+      {
+        "value": "chicago-tavern",
+        "title": "Chicago tavern"
+      },
+      {
+        "value": "colorado-mountain-pie",
+        "title": "Colorado mountain pie"
+      },
+      {
+        "value": "detroit",
+        "title": "Detroit"
+      },
+      {
+        "value": "fugazzeta",
+        "title": "Fugazzeta"
+      },
+      {
+        "value": "grandma",
+        "title": "Grandma style"
+      },
+      {
+        "value": "greek",
+        "title": "Greek"
+      },
+      {
+        "value": "madison",
+        "title": "Madison pizza"
+      },
+      {
+        "value": "milwaukee",
+        "title": "Milwaukee pizza"
+      },
+      {
+        "value": "neapolitan",
+        "title": "Neapolitan"
+      },
+      {
+        "value": "new-haven",
+        "title": "New Haven (apizza)"
+      },
+      {
+        "value": "new-jersey-bar-pie",
+        "title": "New Jersey bar pie"
+      },
+      {
+        "value": "new-york-coal-oven",
+        "title": "New York coal-oven"
+      },
+      {
+        "value": "new-york-other",
+        "title": "New York (other)"
+      },
+      {
+        "value": "new-york-sicilian",
+        "title": "New York Sicilian"
+      },
+      {
+        "value": "new-york-street-slice",
+        "title": "New York street slice"
+      },
+      {
+        "value": "ohio-valley",
+        "title": "Ohio Valley"
+      },
+      {
+        "value": "old-forge",
+        "title": "Old Forge"
+      },
+      {
+        "value": "pinsa-romana",
+        "title": "Pinsa Romana"
+      },
+      {
+        "value": "pissaladiere",
+        "title": "Pissaladière"
+      },
+      {
+        "value": "pizza-al-taglio",
+        "title": "Pizza al taglio"
+      },
+      {
+        "value": "pizza-fritta",
+        "title": "Pizza fritta"
+      },
+      {
+        "value": "pizza-tonda-romana",
+        "title": "Pizza tonda Romana"
+      },
+      {
+        "value": "quad-cities",
+        "title": "Quad Cities"
+      },
+      {
+        "value": "regina",
+        "title": "Regina style"
+      },
+      {
+        "value": "rhode-island-bakery",
+        "title": "Rhode Island bakery"
+      },
+      {
+        "value": "sicilian",
+        "title": "Sicilian"
+      },
+      {
+        "value": "st-louis",
+        "title": "St. Louis"
+      },
+      {
+        "value": "stromboli",
+        "title": "Stromboli"
+      },
+      {
+        "value": "thick-crust",
+        "title": "Thick-crust"
+      },
+      {
+        "value": "thin-crust",
+        "title": "Thin-crust"
+      },
+      {
+        "value": "trenton-tomato-pie",
+        "title": "Trenton tomato pie"
+      },
+      {
+        "value": "other",
+        "title": "Other"
+      }
+    ]
+  }
+}
