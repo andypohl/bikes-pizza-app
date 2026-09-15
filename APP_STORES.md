@@ -102,6 +102,24 @@ Each release:
    ```
 
    The result is `build/app/outputs/bundle/release/app-release.aab`.
+
+   Or let GitHub Actions build it: the "Build Android release" workflow
+   (`.github/workflows/build-android.yml`) runs when a release is
+   published and attaches `bikes_pizza-<version>.aab` to the release,
+   built with the upload key kept as secrets on the `production`
+   environment (`ANDROID_UPLOAD_KEYSTORE`, the keystore base64-encoded;
+   `ANDROID_UPLOAD_STORE_PASSWORD`; `ANDROID_UPLOAD_KEY_PASSWORD`) and
+   the store settings the website build already uses. Set the secrets
+   once from the machine that holds the key:
+
+   ```sh
+   base64 -i ~/keys/bikes-pizza-upload.jks | gh secret set ANDROID_UPLOAD_KEYSTORE --env production
+   gh secret set ANDROID_UPLOAD_STORE_PASSWORD --env production   # prompts for the value
+   gh secret set ANDROID_UPLOAD_KEY_PASSWORD --env production
+   ```
+
+   The workflow can also be run by hand from the Actions tab; the bundle
+   is then a run artifact.
 2. In Play Console, the app, Testing, Internal testing, Create new
    release. Upload the bundle, add release notes, review and roll out.
    Testers on the internal list get it within minutes; use it to check

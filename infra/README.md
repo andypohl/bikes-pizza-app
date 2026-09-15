@@ -74,6 +74,10 @@ each environment (`gh secret set NAME --env development`, likewise
 - `SHOPIFY_STOREFRONT_TOKEN`: the Shopify store's Storefront API access
   token, which the website build reads its products with (see the Store
   section of the repository README for where to get it).
+- `ANDROID_UPLOAD_KEYSTORE`, `ANDROID_UPLOAD_STORE_PASSWORD`,
+  `ANDROID_UPLOAD_KEY_PASSWORD`: the Google Play upload key (the keystore
+  base64-encoded) and its passwords, production only; the "Build Android
+  release" workflow signs the app bundle with it (see APP_STORES.md).
 
 One Shopify store serves both environments, so the same token is set on
 both.
