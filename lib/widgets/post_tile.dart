@@ -37,7 +37,7 @@ class PostTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             PostThumbnail(
-              imageUrl: post.featureImage,
+              imageUrl: post.image?.url(400),
               width: thumbWidth,
               height: thumbHeight,
             ),

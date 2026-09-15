@@ -1,17 +1,103 @@
 import '../contract.dart';
-import '../data/portable_text_html.dart';
 
-/// The member who submitted a post: their Sanity `member` document id
-/// (stable, used to list their posts), account id and current username.
-class PostAuthor {
-  const PostAuthor({required this.id, required this.username, this.uid});
+/// A post's photo: where its renditions live and which sizes exist. The
+/// functions make them when a post is published (functions/renditions.js);
+/// `base` is the URL prefix a rendition's file name is appended to.
+class PostImage {
+  const PostImage({
+    required this.base,
+    required this.width,
+    required this.height,
+    required this.sizes,
+    this.blur,
+    this.focusX = 0.5,
+    this.focusY = 0.5,
+  });
 
-  final String id;
+  final String base;
+
+  /// Of the original, after rotation.
+  final int width;
+  final int height;
+
+  /// Widths of the renditions, smallest first.
+  final List<int> sizes;
+
+  /// A tiny data: URL of the photo, for a placeholder.
+  final String? blur;
+
+  /// Where the subject is, 0..1 from the top left.
+  final double focusX;
+  final double focusY;
+
+  /// Width over height; lets the photo be laid out before it arrives.
+  double get aspectRatio => width > 0 && height > 0 ? width / height : 16 / 9;
+
+  /// The rendition that fits a slot [maxWidth] pixels wide: the widest no
+  /// wider than that, else the smallest there is.
+  String url(int maxWidth, {String format = 'webp'}) {
+    var chosen = sizes.first;
+    for (final size in sizes) {
+      if (size <= maxWidth) chosen = size;
+    }
+    return _rendition('$chosen.$format');
+  }
+
+  /// The widest rendition.
+  String get largestUrl => _rendition('${sizes.last}.webp');
+
+  String _rendition(String name) =>
+      '$base${Uri.encodeComponent(name)}?alt=media';
+
+  /// Null unless [json] describes a photo with at least one rendition.
+  static PostImage? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final base = json['base'];
+    final rawSizes = json['sizes'];
+    final sizes = rawSizes is List
+        ? rawSizes.whereType<num>().map((n) => n.toInt()).toList()
+        : const <int>[];
+    if (base is! String || base.isEmpty || sizes.isEmpty) return null;
+    final focus = json['focus'];
+    return PostImage(
+      base: base,
+      width: (json['width'] as num?)?.toInt() ?? 0,
+      height: (json['height'] as num?)?.toInt() ?? 0,
+      sizes: sizes,
+      blur: json['blur'] as String?,
+      focusX: focus is Map ? (focus['x'] as num?)?.toDouble() ?? 0.5 : 0.5,
+      focusY: focus is Map ? (focus['y'] as num?)?.toDouble() ?? 0.5 : 0.5,
+    );
+  }
+}
+
+/// The member a post is credited to, as recorded on the post when it was
+/// published: their account id, their username (empty until they choose
+/// one) and the name they typed with the submission.
+class PostCredit {
+  const PostCredit({required this.uid, this.username = '', this.name = ''});
+
+  final String uid;
   final String username;
+  final String name;
 
-  /// The member's Firebase account id, which says whether the signed-in
-  /// user is this member (and so may edit the post).
-  final String? uid;
+  /// What to show: the username when there is one, else the typed name.
+  String? get label {
+    if (username.isNotEmpty) return username;
+    final typed = name.trim();
+    return typed.isEmpty ? null : typed;
+  }
+
+  static PostCredit? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final uid = json['uid'];
+    if (uid is! String || uid.isEmpty) return null;
+    return PostCredit(
+      uid: uid,
+      username: json['username'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+    );
+  }
 }
 
 /// One labelled bike detail ready to display, e.g. `Type: Mountain`.
@@ -98,30 +184,29 @@ class BikeDetails implements PostDetails {
   );
 }
 
-/// A single post as loaded from Sanity.
+/// A published post, as the `posts` collection holds it (the document
+/// shape is described in functions/post.js).
 class Post {
   const Post({
     required this.id,
-    this.documentId = '',
+    required this.feed,
     required this.title,
     required this.url,
     required this.publishedAt,
-    this.excerpt = '',
+    this.summary = '',
     this.html = '',
-    this.featureImage,
-    this.imageAspectRatio,
-    this.tags = const [],
-    this.submittedBy,
-    this.author,
+    this.image,
+    this.credit,
     this.bike,
     this.pizza,
   });
 
+  /// The slug: the document id, the edit endpoints' id and the last part
+  /// of the post's URL.
   final String id;
 
-  /// The Sanity document id, which editing goes by. Empty for a post that
-  /// did not come from Sanity (tests).
-  final String documentId;
+  /// `bikes`, `pizza` or `news`.
+  final String feed;
 
   final String title;
 
@@ -129,27 +214,17 @@ class Post {
   final String url;
   final DateTime publishedAt;
 
-  /// Plain-text summary, safe to show in a list.
-  final String excerpt;
+  /// One line of plain text, safe to show in a list.
+  final String summary;
 
-  /// Full post body as HTML.
+  /// The body as HTML, rendered when the post was written.
   final String html;
 
-  /// Thumbnail / hero image URL, if the post has one.
-  final String? featureImage;
+  /// The photo, if the post has one (every bike and pizza does).
+  final PostImage? image;
 
-  /// Width over height of [featureImage], when Sanity knows it; lets the
-  /// hero be laid out at its final size before the image arrives.
-  final double? imageAspectRatio;
-
-  /// Feed values the post belongs to, e.g. `pizza`, `bikes`.
-  final List<String> tags;
-
-  /// The credit typed when the post was submitted, if any.
-  final String? submittedBy;
-
-  /// The submitting member, when the post carries a member reference.
-  final PostAuthor? author;
+  /// The member the post is credited to, when it came from a submission.
+  final PostCredit? credit;
 
   /// Structured details of a bike post, when some have been filled in.
   final BikeDetails? bike;
@@ -160,105 +235,64 @@ class Post {
   /// Whichever structured details the post has, for display.
   PostDetails? get details => bike ?? pizza;
 
-  /// Who to credit: the member's current username when known, else the
-  /// text typed at submission. Null for posts written in the Studio.
-  String? get credit {
-    final username = author?.username;
-    if (username != null && username.isNotEmpty) return username;
-    final typed = submittedBy?.trim();
-    return typed == null || typed.isEmpty ? null : typed;
-  }
-
-  bool hasTag(String slug) => tags.contains(slug);
+  /// Who to credit, for display. Null for posts written by the editors.
+  String? get creditLabel => credit?.label;
 
   /// Whether the account with [uid] is the member this post is credited to.
-  bool isBy(String? uid) =>
-      uid != null && author?.uid != null && author!.uid == uid;
+  bool isBy(String? uid) => uid != null && credit?.uid == uid;
 
   /// This post with some fields replaced, for showing an edit before the
   /// post is fetched again.
   Post copyWith({
     String? title,
-    String? excerpt,
+    String? summary,
     String? html,
-    String? featureImage,
-    double? imageAspectRatio,
+    PostImage? image,
     BikeDetails? bike,
     PizzaDetails? pizza,
     bool clearBike = false,
     bool clearPizza = false,
   }) => Post(
     id: id,
-    documentId: documentId,
+    feed: feed,
     title: title ?? this.title,
     url: url,
     publishedAt: publishedAt,
-    excerpt: excerpt ?? this.excerpt,
+    summary: summary ?? this.summary,
     html: html ?? this.html,
-    featureImage: featureImage ?? this.featureImage,
-    imageAspectRatio: imageAspectRatio ?? this.imageAspectRatio,
-    tags: tags,
-    submittedBy: submittedBy,
-    author: author,
+    image: image ?? this.image,
+    credit: credit,
     bike: clearBike ? null : bike ?? this.bike,
     pizza: clearPizza ? null : pizza ?? this.pizza,
   );
 
-  /// Image transformation parameters for Sanity's image CDN.
-  static const imageParams = 'w=1200&auto=format&q=80';
-
-  /// Builds a post from the projection `SanityPostRepository` requests.
-  factory Post.fromSanityJson(
-    Map<String, dynamic> json, {
-    required String siteUrl,
-  }) {
-    final slug = json['slug'] as String? ?? '';
-    final feed = json['feed'] as String?;
-    final rawBody = json['body'];
-    final body = rawBody is List ? rawBody : const <dynamic>[];
-    final image = json['image'] as String?;
-    final size = json['imageSize'];
-    final width = size is Map ? (size['width'] as num?)?.toDouble() : null;
-    final height = size is Map ? (size['height'] as num?)?.toDouble() : null;
-    final custom = (json['excerpt'] as String?)?.trim() ?? '';
-    final rawAuthor = json['author'];
-    final authorId = rawAuthor is Map ? rawAuthor['id'] as String? : null;
-    final rawBike = json['bike'];
-    final bike = rawBike is Map && feed == 'bikes'
-        ? BikeDetails.fromJson(rawBike)
+  /// Builds a post from a `posts` document (decoded from Firestore) or
+  /// from the REST API's copy of one, which carries the same fields plus
+  /// `url`. Without a `url` it is derived from [siteUrl].
+  factory Post.fromJson(Map<String, dynamic> json, {required String siteUrl}) {
+    final slug = json['slug'] as String? ?? json['id'] as String? ?? '';
+    final feed = json['feed'] as String? ?? '';
+    final details = json['details'];
+    final bike = details is Map && feed == 'bikes'
+        ? BikeDetails.fromJson(details)
         : null;
-    final rawPizza = json['pizza'];
-    final pizza = rawPizza is Map && feed == 'pizza'
-        ? PizzaDetails.fromJson(rawPizza)
+    final pizza = details is Map && feed == 'pizza'
+        ? PizzaDetails.fromJson(details)
         : null;
-
     return Post(
-      id: slug.isNotEmpty ? slug : json['_id'] as String? ?? '',
-      documentId: json['docId'] as String? ?? json['_id'] as String? ?? '',
+      id: slug,
+      feed: feed,
       title: json['title'] as String? ?? '(untitled)',
-      url: slug.isEmpty ? '' : '$siteUrl${postPath(feed ?? '', slug)}',
+      url:
+          json['url'] as String? ??
+          (slug.isEmpty ? '' : '$siteUrl${postPath(feed, slug)}'),
       publishedAt:
           DateTime.tryParse(json['publishedAt'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
-      excerpt: custom.isNotEmpty
-          ? custom
-          : summarize(json['plain'] as String? ?? ''),
-      html: portableTextToHtml(body),
-      featureImage: image == null || image.isEmpty
-          ? null
-          : '$image?$imageParams',
-      imageAspectRatio: width != null && height != null && height > 0
-          ? width / height
-          : null,
-      tags: feed == null || feed.isEmpty ? const [] : [feed],
-      submittedBy: json['submittedBy'] as String?,
-      author: authorId == null
-          ? null
-          : PostAuthor(
-              id: authorId,
-              username: (rawAuthor as Map)['username'] as String? ?? '',
-              uid: rawAuthor['uid'] as String?,
-            ),
+      summary: json['summary'] as String? ?? '',
+      html: json['html'] as String? ?? '',
+      image: PostImage.fromJson(json['image']),
+      credit: PostCredit.fromJson(json['credit']),
       bike: bike == null || bike.isEmpty ? null : bike,
       pizza: pizza == null || pizza.isEmpty ? null : pizza,
     );

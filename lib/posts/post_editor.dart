@@ -12,10 +12,10 @@ class PostSummary {
     required this.feed,
     required this.url,
     required this.publishedAt,
-    this.imageUrl,
+    this.image,
   });
 
-  /// The Sanity document id, which the edit endpoints take.
+  /// The slug, which the edit endpoints take.
   final String id;
   final String title;
 
@@ -24,11 +24,10 @@ class PostSummary {
   final String? url;
   final DateTime publishedAt;
 
-  /// The main photo's URL (no size parameters), if the post has one.
-  final String? imageUrl;
+  /// The main photo, if the post has one.
+  final PostImage? image;
 
   factory PostSummary.fromJson(Map<String, dynamic> json) {
-    final image = json['image'];
     return PostSummary(
       id: json['id'] as String? ?? '',
       title: json['title'] as String? ?? '(untitled)',
@@ -37,7 +36,7 @@ class PostSummary {
       publishedAt:
           DateTime.tryParse(json['publishedAt'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
-      imageUrl: image is Map ? image['url'] as String? : null,
+      image: PostImage.fromJson(json['image']),
     );
   }
 }
@@ -50,8 +49,7 @@ class EditablePost {
     required this.feed,
     required this.url,
     required this.publishedAt,
-    this.imageUrl,
-    this.imageAspectRatio,
+    this.image,
     this.story = '',
     this.storyHasFormatting = false,
     this.bike,
@@ -64,8 +62,7 @@ class EditablePost {
   final String feed;
   final String? url;
   final DateTime publishedAt;
-  final String? imageUrl;
-  final double? imageAspectRatio;
+  final PostImage? image;
 
   /// The body as plain text, one paragraph per blank line.
   final String story;
@@ -86,9 +83,6 @@ class EditablePost {
 
   factory EditablePost.fromJson(Map<String, dynamic> json) {
     final summary = PostSummary.fromJson(json);
-    final image = json['image'];
-    final width = image is Map ? (image['width'] as num?)?.toDouble() : null;
-    final height = image is Map ? (image['height'] as num?)?.toDouble() : null;
     final bike = json['bike'];
     final pizza = json['pizza'];
     return EditablePost(
@@ -97,10 +91,7 @@ class EditablePost {
       feed: summary.feed,
       url: summary.url,
       publishedAt: summary.publishedAt,
-      imageUrl: summary.imageUrl,
-      imageAspectRatio: width != null && height != null && height > 0
-          ? width / height
-          : null,
+      image: summary.image,
       story: json['story'] as String? ?? '',
       storyHasFormatting: json['storyHasFormatting'] == true,
       bike: bike is Map ? BikeDetails.fromJson(bike) : null,

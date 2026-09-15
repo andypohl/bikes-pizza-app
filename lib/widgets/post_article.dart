@@ -33,7 +33,7 @@ class PostArticle extends StatelessWidget {
     return launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
-  void _openAuthor(BuildContext context, PostAuthor author) {
+  void _openMember(BuildContext context, PostCredit credit) {
     final repository = this.repository;
     if (repository == null) return;
     Navigator.of(context).push(
@@ -41,7 +41,7 @@ class PostArticle extends StatelessWidget {
         builder: (_) => PostListScreen(
           feed: PostFeed.all,
           repository: repository,
-          author: author,
+          credit: credit,
         ),
       ),
     );
@@ -49,11 +49,11 @@ class PostArticle extends StatelessWidget {
 
   /// "Submitted by …", with the username tappable when it can be listed.
   Widget? _credit(BuildContext context, ThemeData theme) {
+    final label = post.creditLabel;
+    if (label == null) return null;
     final credit = post.credit;
-    if (credit == null) return null;
-    final author = post.author;
     final linkable =
-        author != null && author.username.isNotEmpty && repository != null;
+        credit != null && credit.username.isNotEmpty && repository != null;
     final style = theme.textTheme.bodyMedium?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
@@ -65,12 +65,12 @@ class PostArticle extends StatelessWidget {
           if (linkable)
             InkWell(
               key: const Key('credit-link'),
-              onTap: () => _openAuthor(context, author),
+              onTap: () => _openMember(context, credit),
               borderRadius: BorderRadius.circular(4),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2),
                 child: Text(
-                  credit,
+                  label,
                   style: style?.copyWith(
                     color: theme.colorScheme.primary,
                     decoration: TextDecoration.underline,
@@ -79,7 +79,7 @@ class PostArticle extends StatelessWidget {
               ),
             )
           else
-            Text(credit, style: style),
+            Text(label, style: style),
         ],
       ),
     );
@@ -123,7 +123,7 @@ class PostArticle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final image = post.featureImage;
+    final image = post.image;
     final credit = _credit(context, theme);
     final details = _details(theme);
 
@@ -132,18 +132,18 @@ class PostArticle extends StatelessWidget {
       children: [
         // The photo at its own proportions, as wide as the text at most
         // and never taller than [imageMaxHeight], centered.
-        if (image != null && image.isNotEmpty)
+        if (image != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: imageMaxHeight),
                 child: AspectRatio(
-                  aspectRatio: post.imageAspectRatio ?? 16 / 9,
+                  aspectRatio: image.aspectRatio,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(10),
                     child: CachedNetworkImage(
-                      imageUrl: image,
+                      imageUrl: image.url(1200),
                       fit: BoxFit.cover,
                       errorWidget: (_, _, _) => const SizedBox.shrink(),
                     ),
@@ -173,8 +173,8 @@ class PostArticle extends StatelessWidget {
                   textStyle: theme.textTheme.bodyLarge,
                   onTapUrl: open,
                 )
-              else if (post.excerpt.isNotEmpty)
-                Text(post.excerpt, style: theme.textTheme.bodyLarge),
+              else if (post.summary.isNotEmpty)
+                Text(post.summary, style: theme.textTheme.bodyLarge),
               ?credit,
             ],
           ),

@@ -124,9 +124,7 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
                 child: Row(
                   children: [
                     PostThumbnail(
-                      imageUrl: post.imageUrl == null
-                          ? null
-                          : '${post.imageUrl}?w=336&h=240&fit=crop&auto=format',
+                      imageUrl: post.image?.url(400),
                       width: PostTile.thumbWidth,
                       height: PostTile.thumbHeight,
                     ),

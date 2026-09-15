@@ -55,16 +55,19 @@ see Store below).
 
 ## Data sources
 
-Posts live in Sanity (see the Sanity section below). The app reads the public
-dataset directly through Sanity's API CDN with a GROQ query
-(`lib/data/sanity_post_repository.dart`): newest first, paged, and filtered
-by the `feed` field for the Pizza and Bikes tabs (the Blog tab is every
-post). Post bodies are Portable Text and are converted to HTML on the device
-(`lib/data/portable_text_html.dart`) for the existing HTML renderer; images
-come from Sanity's image CDN with size and format parameters. The project
-and dataset identifiers are in `lib/config.dart` and can be overridden with
-`--dart-define=SANITY_PROJECT_ID=...` / `SANITY_DATASET=...`. No key is
-needed because the dataset is public.
+Posts live in the `posts` collection of the Firebase project the build
+signs in to (production for release builds, development for the rest; see
+`main.dart`), the same documents the website is built from. The app reads
+them over Firestore's REST API without credentials
+(`lib/data/firestore_post_repository.dart`; the security rules make
+published posts readable by anyone): newest first, paged, filtered by the
+`feed` field for the Pizza and Bikes tabs, and by `credit.uid` for the
+list of one member's posts. Post bodies come as HTML rendered when the post
+was written; photos come from Cloud Storage as the renditions made on
+publish (`PostImage.url` picks the width that fits). The store's products
+still come from Sanity until the shop moves to the Storefront API
+(`lib/config.dart`, `--dart-define=SANITY_PROJECT_ID=...` /
+`SANITY_DATASET=...`).
 
 ## Website and Studio
 

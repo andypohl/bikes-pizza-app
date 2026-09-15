@@ -40,31 +40,31 @@ class FakePostRepository implements PostRepository {
   /// When set, the news feed is served page by page from this list.
   final List<List<Post>>? newsPages;
   final requestedFeeds = <PostFeed>[];
-  final requestedAuthors = <String>[];
+  final requestedUids = <String>[];
   final requestedNewsPages = <int>[];
 
   @override
   Future<PostPage> fetchPosts(
     PostFeed feed, {
     int page = 1,
-    String? author,
+    String? uid,
   }) async {
     requestedFeeds.add(feed);
-    if (author != null) requestedAuthors.add(author);
+    if (uid != null) requestedUids.add(uid);
     final pages = newsPages;
-    if (feed == PostFeed.news && pages != null && author == null) {
+    if (feed == PostFeed.news && pages != null && uid == null) {
       requestedNewsPages.add(page);
       return PostPage(
         posts: page <= pages.length ? pages[page - 1] : [],
         hasMore: page < pages.length,
       );
     }
-    final posts = author == null
+    final posts = uid == null
         ? byFeed[feed] ?? []
         : [
             for (final list in byFeed.values)
               for (final p in list)
-                if (p.author?.id == author) p,
+                if (p.isBy(uid)) p,
           ];
     return PostPage(posts: page == 1 ? posts : [], hasMore: false);
   }
@@ -749,23 +749,32 @@ class FakeStoreRepository implements StoreRepository {
 Post _post(
   String title,
   DateTime date, {
-  PostAuthor? author,
+  PostCredit? credit,
   BikeDetails? bike,
   PizzaDetails? pizza,
 }) => Post(
   id: title,
-  documentId: 'doc-$title',
+  feed: bike != null
+      ? 'bikes'
+      : pizza != null
+      ? 'pizza'
+      : 'news',
   title: title,
   url: 'https://example.com/$title/',
   publishedAt: date,
   html: '<p>$title body</p>',
-  author: author,
+  credit: credit,
   bike: bike,
   pizza: pizza,
 );
 
 // The Google sign-in of the fake auth service is this member.
-const _ada = PostAuthor(id: 'm1', username: 'ada_bikes', uid: 'g1');
+const _ada = PostCredit(uid: 'g1', username: 'ada_bikes');
+
+/// A 16:9 photo with renditions at [base], as the functions would record
+/// it. (The news feed test's scroll distances assume this height.)
+PostImage _image(String base) =>
+    PostImage(base: base, width: 1600, height: 900, sizes: const [400, 800]);
 
 EditablePost _editable(
   String id, {
@@ -817,9 +826,9 @@ void main() {
     photos = FakePhotoPicker();
     admin = FakeAdminService();
     editor = FakePostEditor()
-      ..posts['doc-Newest post'] = _editable('doc-Newest post')
-      ..posts['doc-Older post'] = _editable(
-        'doc-Older post',
+      ..posts['Newest post'] = _editable('Newest post')
+      ..posts['Older post'] = _editable(
+        'Older post',
         title: 'Older post',
         story: 'Older post body',
       );
@@ -855,7 +864,7 @@ void main() {
     passkeys?.auth = auth;
     final repo = FakePostRepository(newsPages: newsPages, {
       PostFeed.all: [
-        _post('Newest post', DateTime(2025, 4, 12), author: _ada),
+        _post('Newest post', DateTime(2025, 4, 12), credit: _ada),
         _post('Older post', DateTime(2025, 3, 3)),
       ],
       PostFeed.news: news ?? [_post('Older post', DateTime(2025, 3, 3))],
@@ -974,11 +983,12 @@ void main() {
     // settles, so the test pumps fixed durations instead of settling.
     Post article(int n) => Post(
       id: 'a$n',
+      feed: 'news',
       title: 'Article $n',
       url: '',
       publishedAt: DateTime(2026, 1, 13 - n),
       html: '<p>${List.filled(120, 'word').join(' ')}</p>',
-      featureImage: 'https://example.com/$n.jpg',
+      image: _image('https://example.com/o/posts%2Fa$n%2Fv%2F'),
     );
     final pages = [
       for (var n = 1; n <= 12; n++) [article(n)],
@@ -1103,7 +1113,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.widgetWithText(AppBar, 'Posts by ada_bikes'), findsOneWidget);
-    expect(repo.requestedAuthors, ['m1']);
+    expect(repo.requestedUids, ['g1']);
     expect(find.text('Newest post'), findsOneWidget);
     expect(find.text('Older post'), findsNothing);
   });
@@ -2454,7 +2464,7 @@ void main() {
 
       editor.mine = [
         PostSummary(
-          id: 'doc-Newest post',
+          id: 'Newest post',
           title: 'Newest post',
           feed: 'bikes',
           url: 'https://example.com/newest/',
@@ -2473,7 +2483,7 @@ void main() {
       expect(find.text('Newest post'), findsOneWidget);
       expect(find.textContaining('Bike · '), findsOneWidget);
 
-      await tester.tap(find.byKey(const Key('my-post-doc-Newest post')));
+      await tester.tap(find.byKey(const Key('my-post-Newest post')));
       await tester.pumpAndSettle();
       expect(find.text('Edit post'), findsOneWidget);
       expect(
@@ -2562,7 +2572,7 @@ void main() {
 
     expect(editor.saved.length, 1);
     final (id, edit) = editor.saved.single;
-    expect(id, 'doc-Newest post');
+    expect(id, 'Newest post');
     expect(edit.title, 'Newest post, restored');
     expect(edit.story, isNull);
     expect(edit.bike, isNull);
@@ -2654,8 +2664,8 @@ void main() {
   testWidgets('the editor warns about formatted stories and pending edits', (
     tester,
   ) async {
-    editor.posts['doc-Newest post'] = _editable(
-      'doc-Newest post',
+    editor.posts['Newest post'] = _editable(
+      'Newest post',
       formatted: true,
       pendingEditId: 's1',
     );

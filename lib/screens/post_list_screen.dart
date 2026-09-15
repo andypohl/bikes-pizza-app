@@ -36,7 +36,7 @@ class PostListScreen extends StatefulWidget {
     this.photos,
     this.members,
     this.editor,
-    this.author,
+    this.credit,
   });
 
   final PostFeed feed;
@@ -51,7 +51,7 @@ class PostListScreen extends StatefulWidget {
 
   /// When set, only this member's posts are listed (reached from the
   /// credit on a post) and the submit bar is left out.
-  final PostAuthor? author;
+  final PostCredit? credit;
 
   @override
   State<PostListScreen> createState() => _PostListScreenState();
@@ -92,7 +92,7 @@ class _PostListScreenState extends State<PostListScreen> {
       final page = await widget.repository.fetchPosts(
         widget.feed,
         page: 1,
-        author: widget.author?.id,
+        uid: widget.credit?.uid,
       );
       if (!mounted) return;
       setState(() {
@@ -127,7 +127,7 @@ class _PostListScreenState extends State<PostListScreen> {
       final page = await widget.repository.fetchPosts(
         widget.feed,
         page: next,
-        author: widget.author?.id,
+        uid: widget.credit?.uid,
       );
       if (!mounted) return;
       setState(() {
@@ -206,7 +206,7 @@ class _PostListScreenState extends State<PostListScreen> {
     // over the posts. The post detail is a pushed route, so it is not
     // shown there.
     final submitBar =
-        widget.author == null &&
+        widget.credit == null &&
             auth != null &&
             submissions != null &&
             photos != null &&
@@ -224,8 +224,8 @@ class _PostListScreenState extends State<PostListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.author != null
-              ? 'Posts by ${widget.author!.username}'
+          widget.credit != null
+              ? 'Posts by ${widget.credit!.username}'
               : widget.feed == PostFeed.all
               ? 'bikes.pizza'
               : widget.feed.label,

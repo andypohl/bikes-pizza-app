@@ -489,7 +489,7 @@ class _PrivacyTile extends StatelessWidget {
   const _PrivacyTile();
 
   Future<bool> _open() {
-    final uri = Uri.parse('${SanityConfig.siteUrl}/privacy');
+    final uri = Uri.parse('${SiteConfig.siteUrl}/privacy');
     return launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
