@@ -9,8 +9,8 @@ String feedNounLabel(String feed) {
 
 /// The content tabs of the bottom navigation bar: "All" shows the gallery
 /// (bikes and pizza together, as the website's front page does), the others
-/// one feed each. News is written in the Studio and read as full articles,
-/// so it is kept out of "All" and has no submissions.
+/// one feed each. News is written by the editors and read as full
+/// articles, so it is kept out of "All" and has no submissions.
 enum PostFeed {
   all(label: 'All', feeds: ['bikes', 'pizza']),
   news(label: 'News', feeds: ['news']),

@@ -1,35 +1,13 @@
 import 'package:flutter/foundation.dart';
 
-/// Where posts come from: the public Sanity dataset behind bikes.pizza.
-///
-/// The dataset is public, so reads need no token. Release builds read the
-/// `production` dataset that bikes.pizza is built from; debug and profile
-/// builds read `development`, the copy behind bikes-pizza.dev, matching the
-/// Firebase project they use (see main.dart). The identifiers are not
-/// secrets; they can still be overridden at build time with
-/// `--dart-define=SANITY_PROJECT_ID=...` / `SANITY_DATASET=...` to point a
-/// build at another project or dataset.
-class SanityConfig {
-  SanityConfig._();
+/// The website that shows the same posts as the app. Posts themselves are
+/// read from the Firebase project the build signs in to (see main.dart:
+/// release builds use the production project, the rest the development
+/// one), so they need no setting of their own.
+class SiteConfig {
+  SiteConfig._();
 
-  static const String projectId = String.fromEnvironment(
-    'SANITY_PROJECT_ID',
-    defaultValue: 'nva9b0ia',
-  );
-
-  static const String _definedDataset = String.fromEnvironment(
-    'SANITY_DATASET',
-  );
-
-  static String get dataset => _definedDataset.isNotEmpty
-      ? _definedDataset
-      : (kReleaseMode ? 'production' : 'development');
-
-  /// Sanity API version (a date), see
-  /// https://www.sanity.io/docs/api-versioning
-  static const String apiVersion = '2025-02-19';
-
-  /// Canonical origin of the website that renders the same posts.
+  /// Canonical origin of the website.
   static String get siteUrl =>
       kReleaseMode ? 'https://bikes.pizza' : 'https://bikes-pizza.dev';
 
@@ -55,8 +33,33 @@ class ApiConfig {
             : 'https://submissions.bikes-pizza.dev');
 }
 
-/// Shopify settings. The catalogue itself comes from Sanity (see
-/// `store/store_repository.dart`); Shopify is only where checkout happens.
+/// The Sanity dataset the store's products are still read from (see
+/// `store/store_repository.dart`), until the shop moves to the Storefront
+/// API. Release builds read `production`, the rest `development`;
+/// `--dart-define=SANITY_PROJECT_ID=...` / `SANITY_DATASET=...` override.
+class SanityConfig {
+  SanityConfig._();
+
+  static const String projectId = String.fromEnvironment(
+    'SANITY_PROJECT_ID',
+    defaultValue: 'nva9b0ia',
+  );
+
+  static const String _definedDataset = String.fromEnvironment(
+    'SANITY_DATASET',
+  );
+
+  static String get dataset => _definedDataset.isNotEmpty
+      ? _definedDataset
+      : (kReleaseMode ? 'production' : 'development');
+
+  /// Sanity API version (a date), see
+  /// https://www.sanity.io/docs/api-versioning
+  static const String apiVersion = '2025-02-19';
+}
+
+/// Shopify settings. The catalogue still comes from Sanity (see
+/// `store/store_repository.dart`); Shopify is where checkout happens.
 ///
 /// The store domain and Storefront access token come from the Shopify admin
 /// (a Headless channel or a custom app with Storefront API access) and are

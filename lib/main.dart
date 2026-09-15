@@ -11,6 +11,7 @@ import 'auth/auth_service.dart';
 import 'auth/passkey_service.dart';
 import 'firebase_options.dart';
 import 'firebase_options_dev.dart';
+import 'data/firestore_post_repository.dart';
 import 'data/post_repository.dart';
 import 'models/post_feed.dart';
 import 'posts/post_editor.dart';
@@ -47,7 +48,11 @@ Future<Widget> _loadApp() async {
   final api = ApiClient(baseUrl: ApiConfig.baseUrl, token: auth.idToken);
   return BikesPizzaApp(
     settings: settings,
-    repository: PostRepository.forConfig(),
+    repository: FirestorePostRepository(
+      projectId: Firebase.app().options.projectId,
+      siteUrl: SiteConfig.siteUrl,
+      pageSize: SiteConfig.pageSize,
+    ),
     store: StoreRepository.forConfig(),
     cart: cart,
     auth: auth,

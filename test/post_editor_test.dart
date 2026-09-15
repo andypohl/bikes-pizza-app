@@ -17,9 +17,14 @@ const _editable = {
   'url': 'https://example.com/post/1992-gt-outpost-abc123/',
   'publishedAt': '2026-09-01T12:00:00.000Z',
   'image': {
-    'url': 'https://cdn.sanity.io/images/x/y/a.jpg',
+    'base': 'https://files.example.com/o/posts%2Fa%2Fv1%2F',
+    'version': 'v1',
     'width': 2000,
     'height': 1500,
+    'sizes': [400, 800, 1200, 2000],
+    'formats': ['webp', 'jpg'],
+    'focus': {'x': 0.5, 'y': 0.5},
+    'url': 'https://files.example.com/o/posts%2Fa%2Fv1%2F2000.jpg?alt=media',
   },
   'story': 'First.\n\nSecond.',
   'storyHasFormatting': false,
@@ -49,7 +54,10 @@ void main() {
                 'feed': 'pizza',
                 'url': 'https://example.com/post/a/',
                 'publishedAt': '2026-09-01T12:00:00.000Z',
-                'image': {'url': 'https://cdn/a.jpg'},
+                'image': {
+                  'base': 'https://files.example.com/o/posts%2Fa%2Fv1%2F',
+                  'sizes': [400, 800],
+                },
               },
               {
                 'id': 'p2',
@@ -67,9 +75,12 @@ void main() {
     );
     final posts = await e.myPosts();
     expect(posts.map((p) => p.id), ['p1', 'p2']);
-    expect(posts[0].imageUrl, 'https://cdn/a.jpg');
+    expect(
+      posts[0].image?.url(400),
+      'https://files.example.com/o/posts%2Fa%2Fv1%2F400.webp?alt=media',
+    );
     expect(posts[0].publishedAt, DateTime.utc(2026, 9, 1, 12));
-    expect(posts[1].imageUrl, isNull);
+    expect(posts[1].image, isNull);
   });
 
   test('load reads the editable post', () async {
@@ -84,7 +95,7 @@ void main() {
     expect(seen.url.path, '/api/posts/p1');
     expect(post.title, '1992 GT Outpost');
     expect(post.story, 'First.\n\nSecond.');
-    expect(post.imageAspectRatio, closeTo(4 / 3, 0.001));
+    expect(post.image?.aspectRatio, closeTo(4 / 3, 0.001));
     expect(post.bike?.brand, 'GT');
     expect(post.bike?.year, '1990s');
     expect(post.pizza, isNull);

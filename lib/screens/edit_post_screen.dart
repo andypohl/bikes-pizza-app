@@ -23,7 +23,7 @@ class EditPostScreen extends StatefulWidget {
     required this.auth,
   });
 
-  /// The Sanity document id (`Post.documentId`).
+  /// The post's slug (`Post.id`).
   final String postId;
   final PostEditor editor;
   final PhotoPicker photos;
@@ -229,7 +229,7 @@ class _EditPostScreenState extends State<EditPostScreen> {
     final theme = Theme.of(context);
     final busy = _saving || _locked;
     final photo = _photo;
-    final imageUrl = post.imageUrl;
+    final image = post.image;
     final dirty = !_edit().isEmpty;
 
     return Form(
@@ -254,7 +254,7 @@ class _EditPostScreenState extends State<EditPostScreen> {
             ),
           Text('Main photo', style: theme.textTheme.titleSmall),
           const SizedBox(height: 8),
-          if (photo != null || (imageUrl != null && imageUrl.isNotEmpty))
+          if (photo != null || image != null)
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: SizedBox(
@@ -268,7 +268,7 @@ class _EditPostScreenState extends State<EditPostScreen> {
                       )
                     : CachedNetworkImage(
                         key: const Key('current-photo'),
-                        imageUrl: '$imageUrl?w=1200&auto=format&q=80',
+                        imageUrl: image!.url(1200),
                         fit: BoxFit.cover,
                         errorWidget: (_, _, _) => const SizedBox.shrink(),
                       ),

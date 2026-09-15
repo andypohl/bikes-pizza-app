@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../auth/auth_service.dart';
-import '../data/portable_text_html.dart';
 import '../models/post.dart';
+import '../posts/plain_text_html.dart';
 import '../posts/post_editor.dart';
 import '../screens/edit_post_screen.dart';
 import '../submissions/photo_picker.dart';
@@ -53,7 +53,7 @@ class _EditPostButtonState extends State<EditPostButton> {
     final saved = await Navigator.of(context).push<EditablePost>(
       MaterialPageRoute(
         builder: (_) => EditPostScreen(
-          postId: widget.post.documentId,
+          postId: widget.post.id,
           editor: widget.editor,
           photos: widget.photos,
           auth: widget.auth,
@@ -79,7 +79,7 @@ class _EditPostButtonState extends State<EditPostButton> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.post.documentId.isEmpty) return const SizedBox.shrink();
+    if (widget.post.id.isEmpty) return const SizedBox.shrink();
     return StreamBuilder<AppUser?>(
       stream: widget.auth.userChanges,
       initialData: widget.auth.currentUser,
@@ -100,19 +100,13 @@ class _EditPostButtonState extends State<EditPostButton> {
 /// [post] as it reads after [saved] was applied: the title, story, photo
 /// and details from the server, everything else as before. A story that
 /// still has formatting was not changed, so its HTML is kept.
-Post postAfterEdit(Post post, EditablePost saved) {
-  final image = saved.imageUrl;
-  return post.copyWith(
-    title: saved.title,
-    excerpt: Post.summarize(saved.story),
-    html: saved.storyHasFormatting ? null : plainTextToHtml(saved.story),
-    featureImage: image == null || image.isEmpty
-        ? null
-        : '$image?${Post.imageParams}',
-    imageAspectRatio: saved.imageAspectRatio,
-    bike: saved.bike,
-    pizza: saved.pizza,
-    clearBike: saved.bike?.isEmpty ?? false,
-    clearPizza: saved.pizza?.isEmpty ?? false,
-  );
-}
+Post postAfterEdit(Post post, EditablePost saved) => post.copyWith(
+  title: saved.title,
+  summary: Post.summarize(saved.story),
+  html: saved.storyHasFormatting ? null : plainTextToHtml(saved.story),
+  image: saved.image,
+  bike: saved.bike,
+  pizza: saved.pizza,
+  clearBike: saved.bike?.isEmpty ?? false,
+  clearPizza: saved.pizza?.isEmpty ?? false,
+);
