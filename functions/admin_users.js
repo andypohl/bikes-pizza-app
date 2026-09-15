@@ -1,20 +1,16 @@
 // User administration behind the admin page (admin.bikes.pizza): the
 // members with their newsletter choice and what they have posted, plus
-// edits, password resets are done client-side, and deletion. Pure: the
-// Firebase Auth admin API, the member store and Sanity are injected.
+// edits (password resets are done client-side) and deletion. Pure: the
+// Firebase Auth admin API, the member store and the post store are injected.
 
 import { validateUpdate, validateUsername } from "./account.js";
-import { syncMemberUsername } from "./authors.js";
-import { postUrl } from "./post.js";
 import { AppError, ValidationError } from "./errors.js";
+import { postUrl } from "./post.js";
 
 export const DEFAULT_PAGE_SIZE = 25;
 export const MAX_PAGE_SIZE = 100;
 
 const PROVIDER_LABELS = { password: "Email", "google.com": "Google", "apple.com": "Apple" };
-
-const POSTS_QUERY = `*[_type == "post" && defined(author) && !(_id in path("drafts.**"))]
-  | order(publishedAt desc) { "uid": author->uid, title, feed, publishedAt, "slug": slug.current }`;
 
 /**
  * @typedef {object} AuthAdmin
@@ -36,15 +32,13 @@ async function allAuthUsers(auth) {
   return users;
 }
 
-/** Published posts grouped by the submitting member's uid, newest first. */
-async function postsByUid(sanity, siteUrl) {
-  const rows = (await sanity.query(POSTS_QUERY)) ?? [];
+/** Published posts grouped by the credited member's uid, newest first. */
+async function postsByUid(posts, siteUrl) {
   const map = new Map();
-  for (const row of rows) {
-    if (!row.uid) continue;
-    const list = map.get(row.uid) ?? [];
-    list.push({ title: row.title, publishedAt: row.publishedAt, slug: row.slug, url: postUrl(siteUrl, row.feed, row.slug) });
-    map.set(row.uid, list);
+  for (const doc of await posts.listCredited()) {
+    const list = map.get(doc.credit.uid) ?? [];
+    list.push({ title: doc.title, publishedAt: doc.publishedAt, slug: doc.slug, url: postUrl(siteUrl, doc.feed, doc.slug) });
+    map.set(doc.credit.uid, list);
   }
   return map;
 }
@@ -80,11 +74,11 @@ function parsePaging(query = {}) {
  * a post) by sign-up date, newest first.
  *
  * @param {{page?: string|number, pageSize?: string|number}} query
- * @param {{auth: AuthAdmin, members: import('./members.js').MemberStore, sanity: {query: Function}, newsletters: {id: string}[], siteUrl: string}} deps
+ * @param {{auth: AuthAdmin, members: import('./members.js').MemberStore, posts: object, newsletters: {id: string}[], siteUrl: string}} deps
  */
-export async function listUsers(query, { auth, members, sanity, newsletters, siteUrl }) {
+export async function listUsers(query, { auth, members, posts: postStore, newsletters, siteUrl }) {
   const { page, pageSize } = parsePaging(query);
-  const [users, records, posts] = await Promise.all([allAuthUsers(auth), members.list(), postsByUid(sanity, siteUrl)]);
+  const [users, records, posts] = await Promise.all([allAuthUsers(auth), members.list(), postsByUid(postStore, siteUrl)]);
   const rows = users.map((user) => summarise(user, records.get(user.uid), posts.get(user.uid) ?? [], newsletters));
   rows.sort((a, b) => {
     const ap = a.latestPost?.publishedAt ?? "";
@@ -98,7 +92,7 @@ export async function listUsers(query, { auth, members, sanity, newsletters, sit
 }
 
 /** Everything the detail panel shows for one user. */
-export async function getUser(uid, { auth, members, sanity, newsletters, siteUrl }) {
+export async function getUser(uid, { auth, members, posts: postStore, newsletters, siteUrl }) {
   let user;
   try {
     user = await auth.getUser(uid);
@@ -106,7 +100,7 @@ export async function getUser(uid, { auth, members, sanity, newsletters, siteUrl
     if (error?.code === "auth/user-not-found") throw new AppError("not-found", "No such user.");
     throw error;
   }
-  const [member, posts] = await Promise.all([members.get(uid), postsByUid(sanity, siteUrl)]);
+  const [member, posts] = await Promise.all([members.get(uid), postsByUid(postStore, siteUrl)]);
   const mine = posts.get(uid) ?? [];
   const subscribedTo = new Set(member?.newsletters ?? []);
   return {
@@ -121,11 +115,11 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /**
  * Applies the admin's edits: `username`, `email` and `newsletters` (the
  * full list of IDs). The email changes on the Auth user and the member
- * record; a username change is mirrored to Sanity. Returns the fresh
- * detail plus `renamed` so the caller can rebuild the website.
+ * record; a username change is written onto the member's posts. Returns
+ * the fresh detail plus `renamed` so the caller can rebuild the website.
  */
 export async function updateUser(uid, data, deps) {
-  const { auth, members, sanity, newsletters, log = () => {} } = deps;
+  const { auth, members, posts, newsletters, log = () => {} } = deps;
   if (!data || typeof data !== "object" || Array.isArray(data)) throw new ValidationError("Nothing to update.");
   const patch = {};
   if ("email" in data) {
@@ -158,9 +152,9 @@ export async function updateUser(uid, data, deps) {
     await members.setUsername(uid, memberPatch.username);
     renamed = true;
     try {
-      await syncMemberUsername(sanity, { uid, username: memberPatch.username });
+      await posts.setUsername(uid, memberPatch.username);
     } catch (error) {
-      log("member username not synced to Sanity", { uid, message: error.message });
+      log("member username not written to their posts", { uid, message: error.message });
     }
   }
   if (memberPatch.newsletters !== undefined) await members.set(uid, { newsletters: memberPatch.newsletters });
@@ -169,8 +163,7 @@ export async function updateUser(uid, data, deps) {
 
 /**
  * Deletes the Auth user and their member record (releasing the username).
- * Their posts, and the Sanity member document those reference, stay: the
- * posts remain credited as they were.
+ * Their posts stay, credited as they were.
  *
  * `notify`, when given, is called afterwards with the deleted user's email
  * so the owner can be told; the deletion has already happened by then, so

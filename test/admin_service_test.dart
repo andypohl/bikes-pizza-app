@@ -137,11 +137,6 @@ void main() {
       }).message,
       'Published: https://x/p/',
     );
-    expect(
-      ReviewResult.fromJson({'status': 'approved', 'postStatus': 'draft'})
-          .message,
-      'Saved as a draft in Sanity.',
-    );
     expect(ReviewResult.fromJson({'status': 'rejected'}).message, 'Rejected.');
   });
 

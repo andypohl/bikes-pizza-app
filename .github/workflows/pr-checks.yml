@@ -33,6 +33,7 @@ jobs:
       studio: ${{ steps.filter.outputs.studio == 'true' || github.event_name == 'workflow_dispatch' }}
       post-details: ${{ steps.filter.outputs.post-details == 'true' || github.event_name == 'workflow_dispatch' }}
       config: ${{ steps.filter.outputs.config == 'true' || github.event_name == 'workflow_dispatch' }}
+      contract: ${{ steps.filter.outputs.contract == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
       - uses: dorny/paths-filter@v3
         id: filter
@@ -48,6 +49,7 @@ jobs:
               - .github/workflows/pr-checks.yml
             app:
               - *workflow
+              - contract/**
               - lib/**
               - test/**
               - assets/**
@@ -56,6 +58,7 @@ jobs:
               - analysis_options.yaml
             functions:
               - *workflow
+              - contract/**
               - functions/**
             infra:
               - *workflow
@@ -72,6 +75,15 @@ jobs:
               - *workflow
               - apps/post-details/**
               - studio/schemaTypes/**
+            contract:
+              - *workflow
+              - contract/**
+              - tool/contract/**
+              - functions/contract.js
+              - lib/contract.dart
+              - site/src/lib/contract.ts
+              - studio/schemaTypes/bikeOptions.ts
+              - studio/schemaTypes/pizzaOptions.ts
             config:
               - *workflow
               - web/**
@@ -182,6 +194,23 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  contract:
+    name: Contract is generated
+    needs: changes
+    if: ${{ needs.changes.outputs.contract == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # The generated copies of contract/*.json must be committed with it.
+      - name: Check the generated files are current
+        run: node tool/contract/generate.mjs --check
 
   config:
     name: Web pages and Firebase config

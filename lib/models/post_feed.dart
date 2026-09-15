@@ -1,3 +1,12 @@
+import '../contract.dart';
+
+/// "Bike", "Pizza", "News post": the feed's noun with a capital, for
+/// labels that name one post.
+String feedNounLabel(String feed) {
+  final noun = feedNouns[feed] ?? feed;
+  return noun.isEmpty ? noun : '${noun[0].toUpperCase()}${noun.substring(1)}';
+}
+
 /// The content tabs of the bottom navigation bar: "All" shows the gallery
 /// (bikes and pizza together, as the website's front page does), the others
 /// one feed each. News is written in the Studio and read as full articles,

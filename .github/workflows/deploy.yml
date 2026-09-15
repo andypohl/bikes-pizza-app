@@ -91,8 +91,7 @@ jobs:
         # Submission emails are a production concern: the development
         # project gets no Mailgun domain, which makes the functions skip them.
         run: |
-          echo "SANITY_PROJECT_ID=${{ vars.SANITY_PROJECT_ID }}" > .env
-          echo "SANITY_DATASET=${{ vars.SANITY_DATASET }}" >> .env
+          echo "SITE_ENVIRONMENT=${{ inputs.environment }}" > .env
           echo "SITE_URL=${{ vars.SITE_URL }}" >> .env
           echo "MAILGUN_DOMAIN=${{ inputs.environment == 'production' && vars.MAILGUN_DOMAIN || '' }}" >> .env
           echo "MAILGUN_API_BASE=${{ vars.MAILGUN_API_BASE || 'https://api.mailgun.net' }}" >> .env

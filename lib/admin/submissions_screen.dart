@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../api/api_client.dart';
 import '../auth/auth_service.dart';
 import '../auth/session_expiry.dart';
+import '../models/post_feed.dart';
 import '../widgets/layout.dart';
 import '../widgets/post_article.dart';
 import '../widgets/post_tile.dart';
@@ -266,11 +267,7 @@ class _SubmissionsScreenState extends State<SubmissionsScreen> {
         separatorBuilder: (_, _) => const Divider(height: 1, indent: 16),
         itemBuilder: (context, index) {
           final s = items[index];
-          final thumb =
-              s.thumbUrl ??
-              (s.post?.imageUrl == null
-                  ? null
-                  : '${s.post!.imageUrl}?w=336&h=240&fit=crop&auto=format');
+          final thumb = s.thumbUrl ?? s.post?.imageUrl;
           return InkWell(
             key: Key('submission-${s.id}'),
             onTap: () => _open(s),
@@ -330,7 +327,7 @@ class _SubmissionsScreenState extends State<SubmissionsScreen> {
             child: Text(
               [
                 for (final q in _queues)
-                  '${AdminSubmission.feedLabels[q.feed] ?? q.feed} queue: '
+                  '${feedNounLabel(q.feed)} queue: '
                       '${q.length} waiting · next post in ${q.countdown}',
               ].join('\n'),
               key: const Key('queues'),
@@ -377,8 +374,7 @@ class _SubmissionsScreenState extends State<SubmissionsScreen> {
 }
 
 /// One submission in full with the review actions: Queue to post (Apply
-/// edit for an edit), Save as draft (not for edits), Reject after a
-/// confirmation, and for a queued one Remove from queue. [onDone] gets a
+/// edit for an edit), Reject after a confirmation, and for a queued one Remove from queue. [onDone] gets a
 /// message once an action has gone through.
 class SubmissionDetail extends StatefulWidget {
   const SubmissionDetail({
@@ -530,10 +526,7 @@ class _SubmissionDetailState extends State<SubmissionDetail> {
           Text(
             [
               '${s.statusLabel} by ${review.byEmail ?? ''} on ${when(review.at)}',
-              if (review.postUrl != null)
-                review.postStatus == 'draft'
-                    ? 'draft ${review.postId}'
-                    : review.postUrl!,
+              if (review.postUrl != null) review.postUrl!,
               if (review.note.isNotEmpty) 'Note: ${review.note}',
             ].join(' · '),
             style: muted,
@@ -572,12 +565,6 @@ class _SubmissionDetailState extends State<SubmissionDetail> {
                 onPressed: _busy ? null : () => _review('publish'),
                 child: Text(s.isEdit ? 'Apply edit' : 'Queue to post'),
               ),
-              if (!s.isEdit)
-                OutlinedButton(
-                  key: const Key('review-draft'),
-                  onPressed: _busy ? null : () => _review('draft'),
-                  child: const Text('Save as draft'),
-                ),
               OutlinedButton(
                 key: const Key('review-reject'),
                 style: OutlinedButton.styleFrom(

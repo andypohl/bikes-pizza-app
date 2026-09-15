@@ -22,6 +22,18 @@ Signed-in members (verified email) see a "Submit Pizza" / "Submit Bike"
 button under the Pizza and Bikes lists, between the list and the tab bar.
 It is not shown on a post. See "Member submissions" below.
 
+## Shared facts (the contract)
+
+Facts that the app, the Cloud Functions, the website and the Studio must
+agree on live once, as JSON in `contract/`: the feeds (labels, nouns,
+whether they take submissions, posting hours), the option lists for a
+post's bike and pizza details, the username rule, the shape of a post's
+URL and the image limits. `node tool/contract/generate.mjs` writes the
+language-specific copies (`functions/contract.js`, `lib/contract.dart`,
+`site/src/lib/contract.ts`, `studio/schemaTypes/*Options.ts`), which are
+committed; a pull-request check fails when they are out of date. Change
+the JSON, run the generator, commit both.
+
 ## Build-time configuration
 
 Values that identify external services are passed at build time rather

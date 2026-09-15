@@ -3,22 +3,26 @@ import { createImageUrlBuilder } from '@sanity/image-url';
 import type { SanityImageSource } from '@sanity/image-url';
 import { defineQuery } from 'groq';
 import type { PortableTextBlock } from '@portabletext/types';
-import { BIKE_COLORS, BIKE_TYPES, BIKE_YEARS, type Option } from '../../../studio/schemaTypes/bikeOptions';
-import { PIZZA_STYLES } from '../../../studio/schemaTypes/pizzaOptions';
+import {
+  ARTICLE_FEEDS,
+  BIKE_COLORS,
+  BIKE_TYPES,
+  BIKE_YEARS,
+  FEED_LABELS,
+  GALLERY_FEEDS,
+  PIZZA_STYLES,
+  postPath as contractPostPath,
+  type Option,
+} from './contract';
 
-/** Human labels for the `feed` field; these double as the gallery categories. */
-export const FEED_LABELS: Record<string, string> = {
-  bikes: 'Bikes',
-  pizza: 'Pizza',
-  news: 'News',
-};
+export { FEED_LABELS };
 
 /**
  * The feed written in the Studio and read as full articles at /news/.
  * News stays out of the gallery (the front page, the category pages and
  * the member pages) and may go without a photo.
  */
-export const NEWS_FEED = 'news';
+export const NEWS_FEED = ARTICLE_FEEDS[0];
 
 export interface PostImage {
   asset: { _ref: string };
@@ -135,7 +139,7 @@ export function categoryOf(post: Post): string {
 
 /** Path of a post's own page: news articles live under /news/, the gallery under /post/. */
 export function postPath(post: Post): string {
-  return `${isNews(post) ? '/news/' : '/post/'}${post.id}/`;
+  return contractPostPath(post.feed, post.id);
 }
 
 /** Path of a member's page: their username lowercased, as usernames differ only by case are one name. */
@@ -208,11 +212,11 @@ export function membersOf(posts: GalleryPost[]): { author: Author; posts: Galler
  * feed has one, whether or not it has posts yet. The filter also links to
  * the news, which has its own page rather than a category.
  */
-export const CATEGORY_FEEDS = ['bikes', 'pizza'];
+export const CATEGORY_FEEDS = GALLERY_FEEDS;
 export const CATEGORIES = CATEGORY_FEEDS.map((feed) => FEED_LABELS[feed]);
 
 /** Feeds whose newest post is featured on the front page, in row order. */
-export const FEATURED_FEEDS = ['bikes', 'pizza'];
+export const FEATURED_FEEDS = GALLERY_FEEDS;
 
 /**
  * Splits `posts` (newest first) into the newest post of each of `feeds`,
