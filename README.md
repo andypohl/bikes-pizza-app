@@ -84,10 +84,11 @@ and for linking a post to a member by username; see its README.
 
 `site/` is the public website at https://bikes.pizza/, an Astro site that
 renders the posts as a photo gallery (the Astro Frame Shift theme by Ema
-Suriano, adapted). It is statically built from the public dataset (no
-token) and served by the `home` Hosting target; the "Deploy website"
-workflow rebuilds it when Sanity content changes (setup in
-`docs/firebase.md`). Its header has a "Submit a bike or pizza" button that
+Suriano, adapted). It is statically built from the `posts` collection in
+Firestore, read over REST without credentials, with photos served from
+Cloud Storage; the functions ask the "Deploy website" workflow to rebuild
+it whenever a post is published or changed. It is served by the `home`
+Hosting target. Its header has a "Submit a bike or pizza" button that
 opens the same submission flow as the app (`/submit/`, posting to the REST
 API; signed-out visitors are sent to sign in first). The button and the form
 can be switched off from the review page's "Website submit button" checkbox

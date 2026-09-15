@@ -2,16 +2,16 @@
 // One post in a gallery: the photo, with title and category revealed on
 // hover. With `titleAbove` the title sits above the photo all the time and
 // only the category and date appear on hover (the featured row). Shared by
-// the featured row and the grid; `widths` and `sizes` describe how wide
-// the tile can be so the browser picks a fitting image.
-import { detailLine, categoryOf, postPath, responsive, TILE_RATIO, type GalleryPost } from '../lib/sanity';
+// the featured row and the grid; `sizes` says how wide the tile can be so
+// the browser picks a fitting rendition. The photo is cropped to 4:3 by
+// CSS, placed around its focus point.
+import { detailLine, categoryOf, focusPosition, postPath, responsive, TILE_RATIO, type GalleryPost } from '../lib/posts';
 import { formatDate } from '../utils/format';
 
 interface Props {
   post: GalleryPost;
   eager?: boolean;
   titleAbove?: boolean;
-  widths?: number[];
   sizes?: string;
 }
 
@@ -19,10 +19,9 @@ const {
   post,
   eager = false,
   titleAbove = false,
-  widths = [400, 800, 1200],
   sizes = '(min-width: 1024px) 25vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw',
 } = Astro.props;
-const { src, srcset } = responsive(post.image, widths, 80, TILE_RATIO);
+const { src, srcset } = responsive(post.image);
 const width = post.image.width;
 const height = Math.round(width / TILE_RATIO);
 const details = detailLine(post);
@@ -45,12 +44,12 @@ const details = detailLine(post);
       src={src}
       srcset={srcset}
       sizes={sizes}
-      alt={post.image.alt}
+      alt={post.title}
       width={width}
       height={height}
       loading={eager ? 'eager' : 'lazy'}
       decoding="async"
-      style={post.image.lqip ? `background: url(${post.image.lqip}) center / cover` : undefined}
+      style={`object-position: ${focusPosition(post.image)}${post.image.blur ? `; background: url(${post.image.blur}) center / cover` : ''}`}
       class="w-full h-auto aspect-[4/3] object-cover transition-transform duration-500 group-hover:scale-102"
     />
     <div class="absolute inset-0 bg-ink opacity-0 group-hover:opacity-60 transition-opacity duration-300 flex items-center justify-center pointer-events-none">

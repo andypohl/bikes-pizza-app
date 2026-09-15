@@ -4,11 +4,11 @@ import CategoryFilters from '../../components/CategoryFilters.astro';
 import PostGrid from '../../components/PostGrid.astro';
 import FeaturedRow from '../../components/FeaturedRow.astro';
 import WavyDivider from '../../components/WavyDivider.astro';
-import { splitFeatured } from '../../lib/sanity';
+import { splitFeatured } from '../../lib/posts';
 import { slugify } from '../../utils/slug';
 
 export async function getStaticPaths() {
-  const { CATEGORIES, categoryOf, getGalleryPosts } = await import('../../lib/sanity');
+  const { CATEGORIES, categoryOf, getGalleryPosts } = await import('../../lib/posts');
   const posts = await getGalleryPosts();
   const categories = CATEGORIES;
   return categories.map((category) => ({
