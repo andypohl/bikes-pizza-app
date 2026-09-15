@@ -10,19 +10,19 @@ function notFound() {
   return Object.assign(new Error("no user"), { code: "auth/user-not-found" });
 }
 
-function fakes({ users, members = {}, posts = [], sanityMembers = [] } = {}) {
+function fakes({ users, members = {}, posts = [] } = {}) {
   const authUsers = new Map(users.map((u) => [u.uid, { providerData: [], metadata: {}, ...u }]));
   const records = new Map(Object.entries(members));
   const reservations = new Map();
   for (const [uid, m] of records) if (m.username) reservations.set(m.username.toLowerCase(), uid);
   const log = [];
-  const docs = new Map(sanityMembers.map((m) => [m._id, { ...m }]));
+  const published = posts.map((p) => ({ ...p, feed: p.feed ?? "bikes", status: "published", credit: { uid: p.uid, username: "" } }));
   return {
     log,
     authUsers,
     records,
     reservations,
-    docs,
+    published,
     deps: {
       newsletters: NEWSLETTERS,
       siteUrl: "https://example.com/",
@@ -72,16 +72,14 @@ function fakes({ users, members = {}, posts = [], sanityMembers = [] } = {}) {
           records.delete(uid);
         },
       },
-      sanity: {
-        async query(groq, params = {}) {
-          if (groq.includes('_type == "member"')) {
-            const found = [...docs.values()].find((m) => m.uid === params.uid);
-            return found ? { _id: found._id, username: found.username } : null;
-          }
-          return posts;
+      posts: {
+        async listCredited() {
+          return published.filter((p) => p.credit?.uid);
         },
-        async patchDocument(id, set) {
-          Object.assign(docs.get(id), set);
+        async setUsername(uid, username) {
+          let n = 0;
+          for (const p of published) if (p.credit?.uid === uid) (p.credit.username = username), (n += 1);
+          return n;
         },
       },
     },
@@ -141,8 +139,8 @@ test("getUser adds the newsletters and posts, and reports a missing user", async
   await assert.rejects(getUser("zz", deps), (e) => e instanceof AppError && e.code === "not-found");
 });
 
-test("updateUser changes email, username and newsletters, and mirrors the username to Sanity", async () => {
-  const f = fakes({ users: USERS, members: MEMBERS, posts: POSTS, sanityMembers: [{ _id: "m1", uid: "u1", username: "ada" }] });
+test("updateUser changes email, username and newsletters, and renames the member on their posts", async () => {
+  const f = fakes({ users: USERS, members: MEMBERS, posts: POSTS });
   const out = await updateUser("u1", { email: " ada2@x.y ", username: "Ada_L", newsletters: [] }, f.deps);
   assert.equal(out.email, "ada2@x.y");
   assert.equal(out.username, "Ada_L");
@@ -151,7 +149,7 @@ test("updateUser changes email, username and newsletters, and mirrors the userna
   assert.equal(f.authUsers.get("u1").email, "ada2@x.y");
   assert.equal(f.records.get("u1").email, "ada2@x.y");
   assert.deepEqual([...f.reservations].sort(), [["ada_l", "u1"], ["bob", "u2"]]);
-  assert.equal(f.docs.get("m1").username, "Ada_L");
+  assert.deepEqual(f.published.filter((p) => p.credit.uid === "u1").map((p) => p.credit.username), ["Ada_L", "Ada_L"]);
 
   const same = await updateUser("u1", { newsletters: ["news"] }, f.deps);
   assert.equal(same.renamed, false);

@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import sharp from "sharp";
+
 import { ValidationError } from "./account.js";
 import { AppError } from "./errors.js";
+import { memoryPostStore } from "./fakes.js";
 import { SAFE_SEARCH_MESSAGE } from "./vision.js";
 import {
   createSubmission,
@@ -93,7 +96,9 @@ export function memoryStore(seed = []) {
   };
 }
 
-const png = Buffer.from("89504e470d0a1a0a", "hex").toString("base64");
+// A real (tiny) image: publishing makes renditions of it.
+const pngBytes = await sharp({ create: { width: 640, height: 480, channels: 3, background: "#cc4422" } }).png().toBuffer();
+const png = pngBytes.toString("base64");
 const body = {
   feed: "bikes",
   title: "Trek 970",
@@ -104,7 +109,7 @@ const body = {
 const user = { uid: "u1", email: "ada@example.com" };
 const admin = { uid: "a1", email: "admin@example.com" };
 const processImage = async () => ({
-  full: { bytes: Buffer.from("full"), width: 20, height: 10 },
+  full: { bytes: pngBytes, width: 640, height: 480 },
   thumb: { bytes: Buffer.from("thumb"), width: 4, height: 2 },
 });
 const CLEAN = { adult: "VERY_UNLIKELY", spoof: "UNLIKELY", medical: "VERY_UNLIKELY", violence: "VERY_UNLIKELY", racy: "UNLIKELY" };
@@ -136,7 +141,7 @@ test("createSubmission stores the photos, the record and a download token", asyn
   const doc = store.docs.get("s1");
   assert.equal(doc.status, "pending");
   assert.equal(doc.image.token, "tok1");
-  assert.equal(doc.image.width, 20);
+  assert.equal(doc.image.width, 640);
   assert.equal(store.files.get("submissions/s1/photo.jpg").metadata.firebaseStorageDownloadTokens, "tok1");
   assert.equal(store.files.get("submissions/s1/thumb.jpg").bytes.toString(), "thumb");
   assert.deepEqual(notified, [["Trek 970", "u1"]]);
@@ -148,10 +153,10 @@ test("createSubmission inspects the processed photo and records the result", asy
   await createSubmission(body, user, {
     store,
     processImage,
-    safeSearch: async (bytes) => inspected.push(bytes.toString()) && { ok: true, likelihoods: CLEAN, people: NOBODY },
+    safeSearch: async (bytes) => inspected.push(bytes.length) && { ok: true, likelihoods: CLEAN, people: NOBODY },
     notify: async () => true,
   });
-  assert.deepEqual(inspected, ["full"]);
+  assert.deepEqual(inspected, [pngBytes.length]);
   assert.deepEqual(store.docs.get("s1").safeSearch, CLEAN);
   assert.deepEqual(store.docs.get("s1").people, NOBODY);
   const item = (await listSubmissions({ status: "", limit: 5, afterId: "" }, { store })).items[0];
@@ -199,10 +204,11 @@ test("parseReview validates id, action and trims the note", () => {
   assert.throws(() => parseReview(null), ValidationError);
 });
 
-test("reviewSubmission rejects without touching Sanity", async () => {
+test("reviewSubmission rejects without touching the posts", async () => {
   const store = await seeded();
-  const sanity = { uploadImage: () => assert.fail("uploaded") };
-  const result = await reviewSubmission({ id: "s1", action: "reject", note: "no" }, admin, { store, sanity });
+  const posts = memoryPostStore();
+  const result = await reviewSubmission({ id: "s1", action: "reject", note: "no" }, admin, { store, posts });
+  assert.equal(posts.docs.size, 0);
   assert.deepEqual(result, { status: "rejected" });
   const doc = store.docs.get("s1");
   assert.equal(doc.status, "rejected");
@@ -210,36 +216,21 @@ test("reviewSubmission rejects without touching Sanity", async () => {
   assert.equal(doc.review.note, "no");
 });
 
-test("reviewSubmission drafts to Sanity and records the post", async () => {
-  const store = await seeded();
-  const calls = [];
-  const sanity = {
-    uploadImage: async ({ bytes, filename }) => calls.push(["upload", bytes.toString(), filename]) && "image-x",
-    createDocument: async (doc, { draft }) => calls.push(["create", draft, doc.title, doc.mainImage.asset._ref]) && "drafts.p1",
-  };
-  const result = await reviewSubmission({ id: "s2", action: "draft", note: "" }, admin, {
-    store,
-    sanity,
-    siteUrl: "https://example.com",
-  });
-  assert.deepEqual(result, { status: "approved", postId: "drafts.p1", postUrl: null, postStatus: "draft" });
-  assert.deepEqual(calls, [
-    ["upload", "full", "pizza-submission.jpg"],
-    ["create", true, "Slice", "image-x"],
-  ]);
-  assert.equal(store.docs.get("s2").review.postId, "drafts.p1");
+test("draft is no longer a review action", async () => {
+  assert.throws(() => parseReview({ id: "s2", action: "draft" }), ValidationError);
 });
 
 const NOW = new Date("2026-09-04T15:30:00Z"); // 10:30 CDT
 
 test("reviewSubmission publish queues instead of posting, and refuses re-review", async () => {
   const store = await seeded();
-  const sanity = { uploadImage: () => assert.fail("posted immediately") };
+  const posts = memoryPostStore();
   await assert.rejects(
-    reviewSubmission({ id: "nope", action: "reject", note: "" }, admin, { store, sanity }),
+    reviewSubmission({ id: "nope", action: "reject", note: "" }, admin, { store, posts }),
     (e) => e instanceof AppError && e.code === "not-found",
   );
-  const result = await reviewSubmission({ id: "s1", action: "publish", note: "nice" }, admin, { store, sanity, now: NOW });
+  const result = await reviewSubmission({ id: "s1", action: "publish", note: "nice" }, admin, { store, posts, now: NOW });
+  assert.equal(posts.docs.size, 0, "queued, not posted");
   assert.equal(result.status, "queued");
   assert.equal(result.position, 1);
   assert.equal(result.length, 1);
@@ -249,7 +240,7 @@ test("reviewSubmission publish queues instead of posting, and refuses re-review"
   assert.equal(doc.queue.byEmail, "admin@example.com");
   assert.equal(doc.queue.note, "nice");
   await assert.rejects(
-    reviewSubmission({ id: "s1", action: "reject", note: "" }, admin, { store, sanity }),
+    reviewSubmission({ id: "s1", action: "reject", note: "" }, admin, { store, posts }),
     (e) => e.code === "failed-precondition" && /already queued/.test(e.message),
   );
 });
@@ -287,25 +278,32 @@ test("queueInfo describes the queue", async () => {
   await assert.rejects(queueInfo("news", { store }), ValidationError);
 });
 
-test("submitNext posts the oldest entry and leaves the rest queued", async () => {
+test("submitNext posts the oldest entry as a Firestore post with renditions, and leaves the rest queued", async () => {
   const store = await seeded();
   await createSubmission({ ...body, title: "Third" }, user, { store, processImage, safeSearch, notify: async () => true });
   await enqueue({ feed: "bikes", id: "s1", note: "first" }, admin, { store, now: NOW });
   await enqueue({ feed: "bikes", id: "s3", note: "" }, admin, { store, now: NOW });
-  const posts = [];
-  const sanity = {
-    uploadImage: async () => "image-x",
-    createDocument: async (doc, { draft }) => posts.push([draft, doc.title, doc.slug.current]) && "p1",
-  };
-  const deps = { store, sanity, siteUrl: "https://example.com", now: NOW };
+  const posts = memoryPostStore();
+  const members = { get: async (uid) => ({ email: "x@y.z", username: uid === user.uid ? "ada_bikes" : "" }) };
+  const deps = { store, posts, members, siteUrl: "https://example.com", now: NOW };
   const empty = await submitNext("pizza", deps);
   assert.equal(empty.posted, null);
   assert.equal(empty.length, 0);
 
   const result = await submitNext("bikes", deps);
-  assert.deepEqual(posts, [[false, "Trek 970", "trek-970-s1"]]);
+  const doc = await posts.get("trek-970-s1");
+  assert.equal(doc.title, "Trek 970");
+  assert.equal(doc.feed, "bikes");
+  assert.equal(doc.status, "published");
+  assert.equal(doc.publishedAt, NOW.toISOString());
+  assert.equal(doc.html, "<p>Story</p>");
+  assert.deepEqual(doc.credit, { uid: "u1", username: "ada_bikes", name: "Ada" });
+  assert.deepEqual(doc.source, { system: "submission", id: "s1" });
+  assert.deepEqual(doc.image.sizes, [400, 640]);
+  assert.equal([...posts.files.keys()].filter((k) => k.startsWith("posts/trek-970-s1/")).length, 6);
   assert.equal(result.posted.id, "s1");
   assert.equal(result.posted.status, "approved");
+  assert.equal(result.posted.review.postId, "trek-970-s1");
   assert.equal(result.posted.review.postUrl, "https://example.com/post/trek-970-s1/");
   assert.equal(result.posted.review.note, "first");
   assert.equal(result.posted.review.byEmail, "admin@example.com");
@@ -314,46 +312,35 @@ test("submitNext posts the oldest entry and leaves the rest queued", async () =>
   assert.equal((await store.queueHead("bikes")).id, "s3");
 });
 
-test("submitNext references the submitter's member document, creating it with their username", async () => {
-  const store = await seeded();
-  await enqueue({ feed: "bikes", id: "s1", note: "" }, admin, { store, now: NOW });
-  const created = [];
-  const sanity = {
-    uploadImage: async () => "image-x",
-    query: async () => null,
-    createDocument: async (doc) => created.push(doc) && (doc._type === "member" ? "m1" : "p1"),
-  };
-  const members = { get: async (uid) => ({ email: "x@y.z", username: uid === user.uid ? "ada_bikes" : "" }) };
-  await submitNext("bikes", { store, sanity, members, siteUrl: "https://example.com", now: NOW });
-  const [member, post] = created;
-  assert.deepEqual(member, { _type: "member", uid: user.uid, username: "ada_bikes" });
-  assert.deepEqual(post.author, { _type: "reference", _ref: "m1" });
-});
-
-test("submitNext still posts when the member document cannot be made", async () => {
+test("submitNext still posts, with the typed name, when the member lookup fails", async () => {
   const store = await seeded();
   await enqueue({ feed: "bikes", id: "s1", note: "" }, admin, { store, now: NOW });
   const logs = [];
-  const sanity = {
-    uploadImage: async () => "image-x",
-    query: async () => { throw new Error("query down"); },
-    createDocument: async (doc) => (assert.equal(doc._type, "post"), "p1"),
-  };
-  const members = { get: async () => ({ username: "ada" }) };
-  const result = await submitNext("bikes", { store, sanity, members, siteUrl: "https://example.com", now: NOW, log: (m, d) => logs.push([m, d]) });
+  const posts = memoryPostStore();
+  const members = { get: async () => { throw new Error("members down"); } };
+  const result = await submitNext("bikes", { store, posts, members, siteUrl: "https://example.com", now: NOW, log: (m, d) => logs.push([m, d]) });
   assert.equal(result.posted.status, "approved");
-  assert.ok(logs.some(([m]) => /member document failed/.test(m)));
+  assert.deepEqual((await posts.get("trek-970-s1")).credit, { uid: "u1", username: "", name: "Ada" });
+  assert.ok(logs.some(([m]) => /member lookup failed/.test(m)));
 });
 
-test("submitNext puts the entry back in the queue when Sanity fails", async () => {
+test("submitNext puts the entry back in the queue when publishing fails, and does not post twice", async () => {
   const store = await seeded();
   await enqueue({ feed: "bikes", id: "s1", note: "" }, admin, { store, now: NOW });
-  const sanity = { uploadImage: async () => { throw new Error("sanity down"); } };
-  await assert.rejects(submitNext("bikes", { store, sanity, siteUrl: "https://example.com", now: NOW }), /sanity down/);
+  const posts = memoryPostStore();
+  posts.putRendition = async () => { throw new Error("storage down"); };
+  await assert.rejects(submitNext("bikes", { store, posts, siteUrl: "https://example.com", now: NOW }), /storage down/);
   const doc = store.docs.get("s1");
   assert.equal(doc.status, "queued");
-  assert.equal(doc.queue.lastError, "sanity down");
+  assert.equal(doc.queue.lastError, "storage down");
   assert.equal(await store.queueLength("bikes"), 1);
+
+  // A post that already exists (a retry after the record failed to update) is kept.
+  const again = memoryPostStore();
+  await again.create("trek-970-s1", { title: "Trek 970", feed: "bikes", status: "published", publishedAt: "x" });
+  const result = await submitNext("bikes", { store, posts: again, siteUrl: "https://example.com", now: NOW });
+  assert.equal(result.posted.review.postId, "trek-970-s1");
+  assert.equal(again.docs.size, 1);
 });
 
 test("parseListQuery applies defaults and limits", () => {
@@ -416,13 +403,13 @@ test("getSubmission mints a token for photos stored without one", async () => {
 
 // ---- edits of existing posts (posts.js) ------------------------------------
 
-/** A pending edit as posts.js stores one, plus the Sanity post it is for. */
+/** A pending edit as posts.js stores one, plus the post it is for. */
 async function seededEdit({ withPhoto = true } = {}) {
   const store = memoryStore();
-  if (withPhoto) await store.putImage("submissions/e1/photo.jpg", Buffer.from("new photo"), { contentType: "image/jpeg", metadata: {} });
+  if (withPhoto) await store.putImage("submissions/e1/photo.jpg", pngBytes, { contentType: "image/jpeg", metadata: {} });
   await store.create("e1", {
     kind: "edit",
-    post: { id: "p1", slug: "trek-970-abc123", title: "Trek 970", feed: "bikes", url: "https://example.com/post/trek-970-abc123/", imageUrl: null },
+    post: { id: "trek-970-abc123", slug: "trek-970-abc123", title: "Trek 970", feed: "bikes", url: "https://example.com/post/trek-970-abc123/", imageUrl: null },
     feed: "bikes",
     title: "Trek 970 (restored)",
     from: "Ada",
@@ -431,52 +418,53 @@ async function seededEdit({ withPhoto = true } = {}) {
     uid: "u1",
     email: "ada@example.com",
     status: "pending",
-    image: withPhoto ? { path: "submissions/e1/photo.jpg", thumbPath: "submissions/e1/thumb.jpg", contentType: "image/jpeg", width: 20, height: 10, token: "t" } : null,
+    image: withPhoto ? { path: "submissions/e1/photo.jpg", thumbPath: "submissions/e1/thumb.jpg", contentType: "image/jpeg", width: 640, height: 480, token: "t" } : null,
     review: null,
   });
-  const post = { _id: "p1", title: "Trek 970", feed: "bikes", slug: "trek-970-abc123", body: [], authorUid: "u1" };
-  const calls = [];
-  const sanity = {
-    calls,
-    query: async () => post,
-    uploadImage: async (image) => calls.push(["upload", image.filename]) && "image-new",
-    patchDocument: async (id, set, options) => {
-      calls.push(["patch", id, set, options]);
-      Object.assign(post, set);
-    },
-  };
-  return { store, sanity };
+  const posts = memoryPostStore();
+  await posts.create("trek-970-abc123", {
+    title: "Trek 970",
+    feed: "bikes",
+    status: "published",
+    publishedAt: "2026-09-01T00:00:00.000Z",
+    body: "Story",
+    bodyFormat: "text",
+    html: "<p>Story</p>",
+    image: null,
+    credit: { uid: "u1", username: "ada", name: "Ada" },
+  });
+  return { store, posts };
 }
 
 test("reviewing an edit with publish applies it to the post at once", async () => {
-  const { store, sanity } = await seededEdit();
-  const result = await reviewSubmission({ id: "e1", action: "publish", note: "" }, admin, { store, sanity, siteUrl: "https://example.com" });
-  assert.deepEqual(result, { status: "approved", postId: "p1", postUrl: "https://example.com/post/trek-970-abc123/", postStatus: "published" });
-  assert.deepEqual(sanity.calls[0], ["upload", "bikes-photo.jpg"]);
-  assert.equal(sanity.calls[1][2].title, "Trek 970 (restored)");
-  assert.equal(sanity.calls[1][2].mainImage.asset._ref, "image-new");
+  const { store, posts } = await seededEdit();
+  const result = await reviewSubmission({ id: "e1", action: "publish", note: "" }, admin, { store, posts, siteUrl: "https://example.com" });
+  assert.deepEqual(result, { status: "approved", postId: "trek-970-abc123", postUrl: "https://example.com/post/trek-970-abc123/", postStatus: "published" });
+  const post = await posts.get("trek-970-abc123");
+  assert.equal(post.title, "Trek 970 (restored)");
+  assert.deepEqual(post.image.sizes, [400, 640]);
+  assert.equal([...posts.files.keys()].some((k) => k.startsWith("posts/trek-970-abc123/")), true);
   const doc = store.docs.get("e1");
   assert.equal(doc.status, "approved");
-  assert.equal(doc.review.postId, "p1");
+  assert.equal(doc.review.postId, "trek-970-abc123");
   assert.equal(doc.review.action, "publish");
-  await assert.rejects(reviewSubmission({ id: "e1", action: "publish", note: "" }, admin, { store, sanity }), /already posted/);
+  await assert.rejects(reviewSubmission({ id: "e1", action: "publish", note: "" }, admin, { store, posts }), /already posted/);
 });
 
-test("an edit can be rejected but neither drafted nor queued", async () => {
-  const { store, sanity } = await seededEdit({ withPhoto: false });
-  await assert.rejects(reviewSubmission({ id: "e1", action: "draft", note: "" }, admin, { store, sanity }), /applied or rejected/);
+test("an edit can be rejected but not queued", async () => {
+  const { store, posts } = await seededEdit({ withPhoto: false });
   await assert.rejects(enqueue({ feed: "bikes", id: "e1" }, admin, { store }), /applied on review/);
   assert.equal(store.docs.get("e1").status, "pending");
-  const result = await reviewSubmission({ id: "e1", action: "reject", note: "no" }, admin, { store, sanity });
+  const result = await reviewSubmission({ id: "e1", action: "reject", note: "no" }, admin, { store, posts });
   assert.deepEqual(result, { status: "rejected" });
-  assert.equal(sanity.calls.length, 0);
+  assert.equal((await posts.get("trek-970-abc123")).title, "Trek 970");
 });
 
 test("edits are serialised with their kind, post and changes", async () => {
   const { store } = await seededEdit({ withPhoto: false });
   const item = await getSubmission("e1", { store });
   assert.equal(item.kind, "edit");
-  assert.equal(item.post.id, "p1");
+  assert.equal(item.post.id, "trek-970-abc123");
   assert.deepEqual(item.changes, { title: "Trek 970 (restored)", image: false });
   assert.equal(item.image.photoUrl, null);
   const plain = (await listSubmissions(parseListQuery({}), { store: await seeded() })).items[0];

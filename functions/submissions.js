@@ -3,17 +3,16 @@
 // `store` (see submission_store.js) so this module has no Firebase imports.
 
 import { ValidationError } from "./account.js";
-import { ensureMember } from "./authors.js";
 import { AppError } from "./errors.js";
-import { buildPost, createPost } from "./post.js";
-import { applyEditSubmission } from "./posts.js";
+import { postDocument, postUrl, slugFor } from "./post.js";
+import { applyEditSubmission, publishImage } from "./posts.js";
 import { countdown } from "./schedule.js";
 import { FEEDS, submissionRecord, validateSubmission } from "./submission.js";
 
 // pending -> queued (approved for posting) -> posting -> approved (on the
-// site), or pending -> rejected; drafts go pending -> approved directly.
+// site), or pending -> rejected; an edit goes pending -> approved directly.
 export const STATUSES = ["pending", "queued", "posting", "approved", "rejected"];
-export const REVIEW_ACTIONS = ["publish", "draft", "reject"];
+export const REVIEW_ACTIONS = ["publish", "reject"];
 export const DEFAULT_PAGE = 20;
 export const MAX_PAGE = 50;
 
@@ -66,11 +65,10 @@ export function parseReview(data) {
 }
 
 /**
- * Reviews a pending submission: `reject` records the decision, `draft`
- * creates a Sanity draft right away, and `publish` puts it in its feed's
- * queue to be posted at the next scheduled time. An edit of an existing
- * post (kind `edit`, see posts.js) is applied to the post at once on
- * `publish`; it cannot be drafted or queued.
+ * Reviews a pending submission: `reject` records the decision and
+ * `publish` puts it in its feed's queue to be posted at the next scheduled
+ * time. An edit of an existing post (kind `edit`, see posts.js) is applied
+ * to the post at once on `publish`; it cannot be queued.
  */
 export async function reviewSubmission({ id, action, note }, admin, deps) {
   const { store, log = () => {} } = deps;
@@ -79,28 +77,18 @@ export async function reviewSubmission({ id, action, note }, admin, deps) {
   if (data.status !== "pending") throw new AppError("failed-precondition", notPending(data.status));
 
   const reviewedBy = { by: admin.uid, byEmail: admin.email, note, action };
-  if (data.kind === "edit") {
-    if (action === "draft") throw new ValidationError("An edit can be applied or rejected, not drafted.");
-    if (action === "publish") {
-      const result = await applyEditSubmission(data, deps);
-      await store.setReview(id, { status: "approved", review: { ...reviewedBy, ...result } });
-      log("post edit applied", { id, by: admin.uid, ...result });
-      return { status: "approved", ...result };
-    }
-  }
-
-  if (action === "publish") return enqueue({ feed: data.feed, id, note }, admin, deps);
-
   if (action === "reject") {
     await store.setReview(id, { status: "rejected", review: reviewedBy });
     log("submission rejected", { id, by: admin.uid });
     return { status: "rejected" };
   }
-
-  const result = await publishSubmission(data, deps, "draft");
-  await store.setReview(id, { status: "approved", review: { ...reviewedBy, ...result } });
-  log("submission drafted", { id, by: admin.uid, ...result });
-  return { status: "approved", ...result };
+  if (data.kind === "edit") {
+    const result = await applyEditSubmission(data, deps);
+    await store.setReview(id, { status: "approved", review: { ...reviewedBy, ...result } });
+    log("post edit applied", { id, by: admin.uid, ...result });
+    return { status: "approved", ...result };
+  }
+  return enqueue({ feed: data.feed, id, note }, admin, deps);
 }
 
 function notPending(status) {
@@ -113,30 +101,42 @@ function notPending(status) {
 }
 
 /**
- * Uploads the photo and creates the Sanity post; `status` is published or
- * draft. With a `members` store the post also references the submitter's
- * member document (created on first publish, carrying their username). A
- * failure there is logged and the post goes out without the reference:
- * the credit text still names them.
+ * Makes the post: the photo's renditions go to Storage and the document
+ * to Firestore, credited to the submitter with the username they have
+ * now (their typed name is kept as `credit.name`). The slug comes from the
+ * title and the submission id, so a retry after a failure lands on the
+ * same post rather than a second one.
  */
-async function publishSubmission(data, { store, sanity, members, siteUrl, now, log = () => {} }, status) {
+async function publishSubmission(data, { store, posts, members, siteUrl, now, log = () => {} }) {
+  const slug = slugFor(data.title, data.feed, data.id);
+  const done = { postId: slug, postUrl: postUrl(siteUrl, data.feed, slug), postStatus: "published" };
+  if (await posts.exists(slug)) {
+    log("post already published; keeping it", { id: data.id, slug });
+    return done;
+  }
   const bytes = await store.readImage(data.image.path);
-  const imageAssetId = await sanity.uploadImage({
-    bytes,
-    contentType: data.image.contentType ?? "image/jpeg",
-    filename: `${data.feed}-submission.jpg`,
-  });
-  let authorId;
+  const image = await publishImage(posts, slug, bytes);
+  const credit = { uid: data.uid ?? null, username: "", name: data.from ?? "" };
   if (data.uid && members) {
     try {
-      const member = await members.get(data.uid);
-      authorId = await ensureMember(sanity, { uid: data.uid, username: member?.username ?? "" });
+      credit.username = (await members.get(data.uid))?.username ?? "";
     } catch (error) {
-      log("member document failed; posting without it", { id: data.id, uid: data.uid, message: error.message });
+      log("member lookup failed; posting with the typed name", { id: data.id, uid: data.uid, message: error.message });
     }
   }
-  const doc = buildPost(data, { imageAssetId, now: now instanceof Date ? now : new Date(), authorId });
-  return createPost(sanity, doc, { status, siteUrl });
+  const doc = postDocument({
+    slug,
+    feed: data.feed,
+    title: data.title,
+    publishedAt: now instanceof Date ? now : new Date(),
+    body: data.description ?? "",
+    bodyFormat: "text",
+    image,
+    credit,
+    source: { system: "submission", id: data.id },
+  });
+  await posts.create(slug, doc);
+  return done;
 }
 
 // ---- queues ----------------------------------------------------------------
@@ -208,7 +208,7 @@ export async function submitNext(feed, deps) {
   });
   let result;
   try {
-    result = await publishSubmission(head, deps, "published");
+    result = await publishSubmission(head, deps);
   } catch (error) {
     await store.transition(head.id, {
       from: ["posting"],

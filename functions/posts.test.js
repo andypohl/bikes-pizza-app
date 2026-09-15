@@ -1,141 +1,109 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import sharp from "sharp";
+
 import { ValidationError } from "./account.js";
 import { AppError } from "./errors.js";
-import {
-  applyEditSubmission,
-  blocksToText,
-  editable,
-  getPost,
-  isPlainText,
-  listMyPosts,
-  patchFor,
-  updatePost,
-  validateEdit,
-} from "./posts.js";
+import { memoryPostStore } from "./fakes.js";
+import { postDocument } from "./post.js";
+import { applyEditSubmission, editable, getPost, largestImageUrl, listMyPosts, patchFor, publishImage, updatePost, validateEdit } from "./posts.js";
 import { memoryStore } from "./submissions.test.js";
 
-const span = (text, marks = []) => ({ _type: "span", _key: "s", text, marks });
-const block = (text, extra = {}) => ({ _type: "block", _key: "b", style: "normal", markDefs: [], children: [span(text)], ...extra });
+const image = { base: "https://files.test/o/posts%2Fp1%2Fv1%2F", version: "v1", width: 2000, height: 1500, sizes: [400, 800, 1200], formats: ["webp", "jpg"], blur: "data:x", focus: { x: 0.5, y: 0.5 } };
 
-const bikePost = {
-  _id: "p1",
-  title: "1992 GT Outpost",
-  feed: "bikes",
-  publishedAt: "2026-09-01T12:00:00.000Z",
+const bikePost = postDocument({
   slug: "1992-gt-outpost-abc123",
-  submittedBy: "Ada",
-  authorUid: "u1",
-  image: { url: "https://cdn.sanity.io/images/x/y/a-2000x1500.jpg", width: 2000, height: 1500 },
-  body: [block("First."), block("Second.")],
-  bike: { brand: "GT", year: "1990s" },
-  pizza: null,
-};
+  feed: "bikes",
+  title: "1992 GT Outpost",
+  publishedAt: "2026-09-01T12:00:00.000Z",
+  body: "First.\n\nSecond.",
+  image,
+  details: { brand: "GT", year: "1990s" },
+  credit: { uid: "u1", username: "ada_bikes", name: "Ada" },
+  source: { system: "submission", id: "s0" },
+});
 
-const newsPost = {
-  _id: "n1",
-  title: "Welcome",
-  feed: "news",
-  publishedAt: "2026-09-02T12:00:00.000Z",
+const newsPost = postDocument({
   slug: "welcome",
-  authorUid: null,
-  image: null,
-  body: [block("Hello", { style: "h2" }), block("World")],
-};
+  feed: "news",
+  title: "Welcome",
+  publishedAt: "2026-09-02T12:00:00.000Z",
+  body: "## Hello\n\nWorld",
+  bodyFormat: "markdown",
+});
 
-/** A Sanity stand-in holding a few posts; records patches and uploads. */
-function fakeSanity(seed = [bikePost, newsPost]) {
-  const posts = structuredClone(seed); // patches must not leak between tests
-  const calls = [];
-  return {
-    calls,
-    posts,
-    async query(groq, params) {
-      calls.push(["query", params]);
-      if (groq.includes("author->uid == $uid")) return posts.filter((p) => p.authorUid === params.uid);
-      return posts.find((p) => p._id === params.id) ?? null;
-    },
-    async uploadImage(image) {
-      calls.push(["upload", image.contentType, image.filename]);
-      return "image-new-10x10-jpg";
-    },
-    async patchDocument(id, set, options) {
-      calls.push(["patch", id, set, options]);
-      const post = posts.find((p) => p._id === id);
-      Object.assign(post, set);
-      for (const key of options?.unset ?? []) delete post[key];
-    },
-  };
+async function seededPosts() {
+  const posts = memoryPostStore();
+  await posts.create(bikePost.slug, bikePost);
+  await posts.create(newsPost.slug, newsPost);
+  return posts;
 }
 
 const member = { uid: "u1", email: "ada@example.com", admin: false };
 const other = { uid: "u2", email: "bob@example.com", admin: false };
 const admin = { uid: "a1", email: "admin@example.com", admin: true };
 const siteUrl = "https://example.com";
-const png = { contentType: "image/png", data: Buffer.from("png").toString("base64") };
+const pngBytes = sharp({ create: { width: 900, height: 600, channels: 3, background: "#336699" } }).png().toBuffer();
+const png = async () => ({ contentType: "image/png", data: (await pngBytes).toString("base64") });
 
-const deps = (sanity, extra = {}) => ({
-  sanity,
+const deps = async (extra = {}) => ({
+  posts: await seededPosts(),
   siteUrl,
   store: memoryStore(),
   members: { get: async (uid) => (uid === "u1" ? { username: "ada_bikes" } : null) },
-  processImage: async (bytes) => ({ full: { bytes: Buffer.from(`full:${bytes}`), width: 10, height: 10 }, thumb: { bytes: Buffer.from("thumb") } }),
+  processImage: async (bytes) => ({ full: { bytes, width: 900, height: 600 }, thumb: { bytes: Buffer.from("thumb") } }),
   safeSearch: async () => ({ ok: true }),
   notify: async () => true,
   ...extra,
 });
 
-test("blocksToText joins paragraphs with blank lines; isPlainText spots formatting", () => {
-  assert.equal(blocksToText(bikePost.body), "First.\n\nSecond.");
-  assert.equal(blocksToText(undefined), "");
-  assert.equal(isPlainText(bikePost.body), true);
-  assert.equal(isPlainText(newsPost.body), false);
-  assert.equal(isPlainText([block("x", { listItem: "bullet" })]), false);
-  assert.equal(isPlainText([{ ...block("x"), children: [span("x", ["strong"])] }]), false);
-  assert.equal(isPlainText([{ _type: "image", asset: {} }]), false);
-});
-
-test("editable carries the story, the details for its feed and the site URL", () => {
+test("editable carries the story, the details for its feed, the image and the site URL", () => {
   const out = editable(bikePost, siteUrl);
-  assert.equal(out.id, "p1");
+  assert.equal(out.id, "1992-gt-outpost-abc123");
   assert.equal(out.url, "https://example.com/post/1992-gt-outpost-abc123/");
   assert.equal(out.story, "First.\n\nSecond.");
+  assert.equal(out.storyFormat, "text");
   assert.equal(out.storyHasFormatting, false);
   assert.deepEqual(out.bike, { brand: "GT", year: "1990s", color: "", type: "" });
   assert.equal(out.pizza, null);
   assert.equal(out.pendingEdit, null);
-  assert.deepEqual(out.image, { url: bikePost.image.url, width: 2000, height: 1500 });
+  assert.equal(out.image.url, "https://files.test/o/posts%2Fp1%2Fv1%2F1200.jpg?alt=media");
+  assert.equal(out.image.sizes.length, 3);
+  assert.equal("body" in out, false);
   const news = editable(newsPost, siteUrl, { pendingEdit: { id: "s1", createdAt: new Date("2026-09-03T00:00:00Z") } });
   assert.equal(news.url, "https://example.com/news/welcome/");
   assert.equal(news.storyHasFormatting, true);
   assert.equal(news.bike, null);
   assert.equal(news.image, null);
   assert.deepEqual(news.pendingEdit, { id: "s1", createdAt: "2026-09-03T00:00:00.000Z" });
+  assert.equal(largestImageUrl(null), null);
 });
 
-test("listMyPosts returns the caller's posts as summaries", async () => {
-  const out = await listMyPosts(member, deps(fakeSanity()));
+test("listMyPosts returns the caller's posts", async () => {
+  const d = await deps();
+  const out = await listMyPosts(member, d);
   assert.equal(out.posts.length, 1);
-  assert.equal(out.posts[0].id, "p1");
+  assert.equal(out.posts[0].id, "1992-gt-outpost-abc123");
+  assert.equal(out.posts[0].image.url, "https://files.test/o/posts%2Fp1%2Fv1%2F1200.jpg?alt=media");
   assert.equal("story" in out.posts[0], false);
-  assert.deepEqual(await listMyPosts(other, deps(fakeSanity())), { posts: [] });
+  assert.deepEqual(await listMyPosts(other, d), { posts: [] });
 });
 
 test("getPost is for the credited member or an admin; others see not-found", async () => {
-  const sanity = fakeSanity();
-  assert.equal((await getPost("p1", member, deps(sanity))).title, "1992 GT Outpost");
-  assert.equal((await getPost("p1", admin, deps(sanity))).title, "1992 GT Outpost");
-  assert.equal((await getPost("n1", admin, deps(sanity))).title, "Welcome");
-  await assert.rejects(getPost("p1", other, deps(sanity)), (e) => e instanceof AppError && e.code === "not-found");
-  await assert.rejects(getPost("n1", member, deps(sanity)), (e) => e instanceof AppError && e.code === "not-found");
-  await assert.rejects(getPost("missing", admin, deps(sanity)), (e) => e instanceof AppError && e.code === "not-found");
-  await assert.rejects(getPost("bad id!", admin, deps(sanity)), ValidationError);
+  const d = await deps();
+  assert.equal((await getPost("1992-gt-outpost-abc123", member, d)).title, "1992 GT Outpost");
+  assert.equal((await getPost("1992-gt-outpost-abc123", admin, d)).title, "1992 GT Outpost");
+  assert.equal((await getPost("welcome", admin, d)).title, "Welcome");
+  await assert.rejects(getPost("1992-gt-outpost-abc123", other, d), (e) => e instanceof AppError && e.code === "not-found");
+  await assert.rejects(getPost("welcome", member, d), (e) => e instanceof AppError && e.code === "not-found");
+  await assert.rejects(getPost("missing", admin, d), (e) => e instanceof AppError && e.code === "not-found");
+  await assert.rejects(getPost("Bad Id!", admin, d), ValidationError);
 });
 
-test("validateEdit checks each field and refuses details for the wrong feed", () => {
+test("validateEdit checks each field and refuses details for the wrong feed", async () => {
   assert.deepEqual(validateEdit({ title: "  New  " }, "bikes"), { title: "New" });
-  assert.deepEqual(validateEdit({ story: "" }, "bikes"), { story: "" });
+  assert.deepEqual(validateEdit({ story: "", storyFormat: "markdown" }, "bikes"), { story: "", storyFormat: "markdown" });
   assert.deepEqual(validateEdit({ bike: { brand: "Trek", year: "1980s", color: "", type: null } }, "bikes"), {
     bike: { brand: "Trek", year: "1980s", color: "", type: "" },
   });
@@ -143,96 +111,113 @@ test("validateEdit checks each field and refuses details for the wrong feed", ()
   assert.throws(() => validateEdit({}, "bikes"), /Nothing to change/);
   assert.throws(() => validateEdit({ title: "" }, "bikes"), /Title is required/);
   assert.throws(() => validateEdit({ title: "x".repeat(256) }, "bikes"), /255/);
+  assert.throws(() => validateEdit({ storyFormat: "html" }, "bikes"), /Unknown story format/);
   assert.throws(() => validateEdit({ bike: { year: "1850s" } }, "bikes"), /Unknown year/);
   assert.throws(() => validateEdit({ bike: {} }, "pizza"), /Only bike posts/);
   assert.throws(() => validateEdit({ pizza: {} }, "bikes"), /Only pizza posts/);
   assert.throws(() => validateEdit({ image: { contentType: "image/gif", data: "AAAA" } }, "bikes"), /JPEG, PNG or WebP/);
   assert.throws(() => validateEdit({ image: { contentType: "image/png", data: "" } }, "bikes"), /Photo data/);
-  assert.equal(validateEdit({ image: png }, "bikes").image.bytes.toString(), "png");
+  assert.equal(validateEdit({ image: await png() }, "bikes").image.bytes.length > 0, true);
 });
 
-test("patchFor sets changed fields, clears emptied details and keeps alt in step", () => {
-  const { set, unset } = patchFor({ title: "T", story: "One.\n\nTwo.", bike: { brand: "", year: "", color: "", type: "" } }, { title: "Old" });
-  assert.equal(set.title, "T");
-  assert.equal(set.body.length, 2);
-  assert.deepEqual(unset, ["bike"]);
-  assert.equal("mainImage" in set, false);
-  const withImage = patchFor({ pizza: { style: "detroit" } }, { title: "Old", imageAssetId: "image-1" });
-  assert.deepEqual(withImage.set.pizza, { style: "detroit" });
-  assert.deepEqual(withImage.set.mainImage, { _type: "image", asset: { _type: "reference", _ref: "image-1" }, alt: "Old" });
-  assert.deepEqual(withImage.unset, []);
+test("patchFor renders a new story, replaces the details and keeps the rest", () => {
+  const patch = patchFor({ title: "T", story: "One.\n\nTwo.", bike: { brand: "", year: "", color: "", type: "" } }, bikePost);
+  assert.equal(patch.title, "T");
+  assert.equal(patch.html, "<p>One.</p><p>Two.</p>");
+  assert.equal(patch.bodyFormat, "text");
+  assert.equal(patch.summary, "One. Two.");
+  assert.equal(patch.details, null);
+  assert.equal("image" in patch, false);
+  const md = patchFor({ story: "## Hi", storyFormat: "markdown" }, newsPost, { image });
+  assert.equal(md.html, "<h2>Hi</h2>");
+  assert.equal(md.image, image);
+  assert.equal("details" in md, false); // news has no details
+  assert.deepEqual(patchFor({ pizza: { style: "detroit" } }, { ...bikePost, feed: "pizza" }).details, { style: "detroit" });
+});
+
+test("publishImage stores every rendition and describes the image", async () => {
+  const posts = memoryPostStore();
+  const field = await publishImage(posts, "p1", await pngBytes);
+  assert.deepEqual(field.sizes, [400, 800, 900]);
+  assert.equal(field.width, 900);
+  assert.equal(field.base, `https://files.test/o/posts%2Fp1%2F${field.version}%2F`);
+  const names = [...posts.files.keys()].map((k) => k.split("/").pop()).sort();
+  assert.deepEqual(names, ["400.jpg", "400.webp", "800.jpg", "800.webp", "900.jpg", "900.webp", "tile.jpg", "tile.webp"]);
 });
 
 test("an administrator's edit is applied at once and comes back as the post now reads", async () => {
-  const sanity = fakeSanity();
+  const d = await deps();
   const logs = [];
   const out = await updatePost(
-    "p1",
+    "1992-gt-outpost-abc123",
     { title: "Renamed", bike: { brand: "GT", year: "1990s", color: "orange", type: "mtb" } },
     admin,
-    deps(sanity, { log: (m, d) => logs.push([m, d]) }),
+    { ...d, log: (m, x) => logs.push([m, x]) },
   );
   assert.equal(out.status, "applied");
   assert.equal(out.post.title, "Renamed");
   assert.deepEqual(out.post.bike, { brand: "GT", year: "1990s", color: "orange", type: "mtb" });
-  const patch = sanity.calls.find((c) => c[0] === "patch");
-  assert.deepEqual(patch.slice(1, 3), ["p1", { title: "Renamed", bike: { brand: "GT", year: "1990s", color: "orange", type: "mtb" } }]);
-  assert.deepEqual(logs[0], ["post edited", { id: "p1", by: "a1", fields: ["title", "bike"] }]);
+  const stored = await d.posts.get("1992-gt-outpost-abc123");
+  assert.equal(stored.title, "Renamed");
+  assert.equal(stored.html, "<p>First.</p><p>Second.</p>", "the story was not touched");
+  assert.deepEqual(logs[0], ["post edited", { slug: "1992-gt-outpost-abc123", by: "a1", fields: ["title", "bike"] }]);
 });
 
-test("an administrator's new photo is normalised and uploaded, with no Vision check", async () => {
+test("an administrator's new photo is normalised and stored as renditions, with no Vision check", async () => {
   let checks = 0;
-  const sanity = fakeSanity();
-  await updatePost("p1", { image: png }, admin, deps(sanity, { safeSearch: async () => checks++ }));
+  const d = await deps({ safeSearch: async () => checks++ });
+  const out = await updatePost("1992-gt-outpost-abc123", { image: await png() }, admin, d);
   assert.equal(checks, 0);
-  assert.deepEqual(sanity.calls.find((c) => c[0] === "upload"), ["upload", "image/jpeg", "bikes-photo.jpg"]);
-  assert.deepEqual(sanity.calls.find((c) => c[0] === "patch")[2].mainImage, {
-    _type: "image",
-    asset: { _type: "reference", _ref: "image-new-10x10-jpg" },
-    alt: "1992 GT Outpost",
-  });
+  assert.notEqual(out.post.image.version, "v1");
+  assert.deepEqual(out.post.image.sizes, [400, 800, 900]);
+  assert.equal([...d.posts.files.keys()].some((k) => k.includes("/tile.webp")), true);
+});
+
+test("an administrator may write Markdown; a member may not", async () => {
+  const d = await deps();
+  const out = await updatePost("welcome", { story: "# Big\n\nText", storyFormat: "markdown" }, admin, d);
+  assert.equal(out.post.storyHasFormatting, true);
+  assert.equal((await d.posts.get("welcome")).html, "<h2>Big</h2>\n<p>Text</p>");
+  await assert.rejects(updatePost("1992-gt-outpost-abc123", { story: "x", storyFormat: "markdown" }, member, d), /Only administrators/);
 });
 
 test("a member's edit is stored for review and announced; the post is untouched", async () => {
-  const sanity = fakeSanity();
-  const store = memoryStore();
+  const d = await deps();
   const notified = [];
   const out = await updatePost(
-    "p1",
-    { title: "Renamed", story: "New story.", image: png },
+    "1992-gt-outpost-abc123",
+    { title: "Renamed", story: "New story.", image: await png() },
     member,
-    deps(sanity, { store, notify: async (s, u) => notified.push([s.kind, s.title, u.uid]) && true }),
+    { ...d, notify: async (s, u) => notified.push([s.kind, s.title, u.uid]) && true },
   );
   assert.deepEqual(out, { status: "pending", submissionId: "s1", notified: true });
-  assert.equal(sanity.calls.some((c) => c[0] === "patch" || c[0] === "upload"), false);
+  assert.equal((await d.posts.get("1992-gt-outpost-abc123")).title, "1992 GT Outpost");
 
-  const doc = store.docs.get("s1");
+  const doc = d.store.docs.get("s1");
   assert.equal(doc.kind, "edit");
   assert.equal(doc.status, "pending");
   assert.deepEqual(doc.post, {
-    id: "p1",
+    id: "1992-gt-outpost-abc123",
     slug: "1992-gt-outpost-abc123",
     title: "1992 GT Outpost",
     feed: "bikes",
     url: "https://example.com/post/1992-gt-outpost-abc123/",
-    imageUrl: bikePost.image.url,
+    imageUrl: "https://files.test/o/posts%2Fp1%2Fv1%2F800.jpg?alt=media",
   });
   assert.equal(doc.title, "Renamed");
   assert.equal(doc.from, "ada_bikes");
   assert.equal(doc.description, "New story.");
-  assert.equal(doc.uid, "u1");
   assert.deepEqual(doc.changes, { title: "Renamed", story: "New story.", image: true });
   assert.equal(doc.image.path, "submissions/s1/photo.jpg");
-  assert.equal(store.files.get("submissions/s1/photo.jpg").bytes.toString(), "full:png");
-  assert.equal(store.files.get("submissions/s1/thumb.jpg").bytes.toString(), "thumb");
+  assert.equal(d.store.files.get("submissions/s1/thumb.jpg").bytes.toString(), "thumb");
   assert.deepEqual(notified, [["edit", "Renamed", "u1"]]);
 });
 
 test("a member's edit without a new photo keeps the current title and story on the record", async () => {
-  const store = memoryStore();
-  const out = await updatePost("p1", { bike: { brand: "GT", year: "1980s", color: "", type: "" } }, member, deps(fakeSanity(), { store }));
+  const d = await deps();
+  const out = await updatePost("1992-gt-outpost-abc123", { bike: { brand: "GT", year: "1980s", color: "", type: "" } }, member, d);
   assert.equal(out.status, "pending");
-  const doc = store.docs.get("s1");
+  const doc = d.store.docs.get("s1");
   assert.equal(doc.title, "1992 GT Outpost");
   assert.equal(doc.description, "First.\n\nSecond.");
   assert.equal(doc.image, null);
@@ -240,66 +225,42 @@ test("a member's edit without a new photo keeps the current title and story on t
 });
 
 test("a member's photo that fails the Vision check is refused before anything is stored", async () => {
-  const store = memoryStore();
-  const refused = deps(fakeSanity(), {
-    store,
+  const d = await deps({
     safeSearch: async () => {
       throw new AppError("invalid-argument", "Your photo failed Google SafeSearch inspection.");
     },
   });
-  await assert.rejects(updatePost("p1", { image: png }, member, refused), /SafeSearch/);
-  assert.equal(store.docs.size, 0);
-  assert.equal(store.files.size, 0);
+  await assert.rejects(updatePost("1992-gt-outpost-abc123", { image: await png() }, member, d), /SafeSearch/);
+  assert.equal(d.store.docs.size, 0);
+  assert.equal(d.store.files.size, 0);
 });
 
 test("one pending edit per post: a second is refused and getPost reports the first", async () => {
-  const store = memoryStore();
-  const d = deps(fakeSanity(), { store });
-  await updatePost("p1", { title: "One" }, member, d);
-  await assert.rejects(updatePost("p1", { title: "Two" }, member, d), (e) => e.code === "failed-precondition" && /already waiting/.test(e.message));
-  const post = await getPost("p1", member, d);
-  assert.equal(post.pendingEdit.id, "s1");
-  // An admin's direct edit is not blocked by it.
-  assert.equal((await updatePost("p1", { title: "Two" }, admin, d)).status, "applied");
+  const d = await deps();
+  await updatePost("1992-gt-outpost-abc123", { title: "One" }, member, d);
+  await assert.rejects(updatePost("1992-gt-outpost-abc123", { title: "Two" }, member, d), (e) => e.code === "failed-precondition" && /already waiting/.test(e.message));
+  assert.equal((await getPost("1992-gt-outpost-abc123", member, d)).pendingEdit.id, "s1");
+  assert.equal((await updatePost("1992-gt-outpost-abc123", { title: "Two" }, admin, d)).status, "applied");
 });
 
 test("updatePost refuses other members and bad input before touching anything", async () => {
-  const sanity = fakeSanity();
-  const store = memoryStore();
-  const d = deps(sanity, { store });
-  await assert.rejects(updatePost("p1", { title: "x" }, other, d), (e) => e.code === "not-found");
-  await assert.rejects(updatePost("p1", { title: "" }, member, d), ValidationError);
-  await assert.rejects(updatePost("p1", { pizza: { style: "detroit" } }, member, d), /Only pizza posts/);
-  assert.equal(sanity.calls.some((c) => c[0] === "patch"), false);
-  assert.equal(store.docs.size, 0);
+  const d = await deps();
+  await assert.rejects(updatePost("1992-gt-outpost-abc123", { title: "x" }, other, d), (e) => e.code === "not-found");
+  await assert.rejects(updatePost("1992-gt-outpost-abc123", { title: "" }, member, d), ValidationError);
+  await assert.rejects(updatePost("1992-gt-outpost-abc123", { pizza: { style: "detroit" } }, member, d), /Only pizza posts/);
+  assert.equal((await d.posts.get("1992-gt-outpost-abc123")).title, "1992 GT Outpost");
+  assert.equal(d.store.docs.size, 0);
 });
 
 test("applyEditSubmission writes a reviewed edit, photo included, to the post", async () => {
-  const sanity = fakeSanity();
-  const store = memoryStore();
-  await updatePost("p1", { title: "Renamed", image: png, bike: { brand: "", year: "", color: "", type: "" } }, member, deps(sanity, { store }));
-  const result = await applyEditSubmission(store.docs.get("s1"), { store, sanity, siteUrl });
-  assert.deepEqual(result, { postId: "p1", postUrl: "https://example.com/post/1992-gt-outpost-abc123/", postStatus: "published" });
-  assert.deepEqual(sanity.calls.find((c) => c[0] === "upload"), ["upload", "image/jpeg", "bikes-photo.jpg"]);
-  const patch = sanity.calls.find((c) => c[0] === "patch");
-  assert.equal(patch[2].title, "Renamed");
-  assert.equal(patch[2].mainImage.asset._ref, "image-new-10x10-jpg");
-  assert.equal(patch[2].mainImage.alt, "Renamed");
-  assert.deepEqual(patch[3], { unset: ["bike"] });
-  assert.equal(sanity.posts[0].title, "Renamed");
-  assert.equal("bike" in sanity.posts[0], false);
-
-  await assert.rejects(
-    applyEditSubmission({ ...store.docs.get("s1"), post: { id: "gone" } }, { store, sanity, siteUrl }),
-    (e) => e.code === "not-found",
-  );
-});
-
-test("admins may flatten a formatted story; the reply says it was formatted", async () => {
-  const sanity = fakeSanity();
-  const d = deps(sanity);
-  assert.equal((await getPost("n1", admin, d)).storyHasFormatting, true);
-  const out = await updatePost("n1", { story: "Plain now." }, admin, d);
-  assert.equal(out.post.story, "Plain now.");
-  assert.equal(out.post.storyHasFormatting, false);
+  const d = await deps();
+  await updatePost("1992-gt-outpost-abc123", { title: "Renamed", image: await png(), bike: { brand: "", year: "", color: "", type: "" } }, member, d);
+  const result = await applyEditSubmission(d.store.docs.get("s1"), d);
+  assert.deepEqual(result, { postId: "1992-gt-outpost-abc123", postUrl: "https://example.com/post/1992-gt-outpost-abc123/", postStatus: "published" });
+  const stored = await d.posts.get("1992-gt-outpost-abc123");
+  assert.equal(stored.title, "Renamed");
+  assert.equal(stored.details, null);
+  assert.notEqual(stored.image.version, "v1");
+  assert.equal(stored.html, "<p>First.</p><p>Second.</p>");
+  await assert.rejects(applyEditSubmission({ ...d.store.docs.get("s1"), post: { id: "gone" } }, d), (e) => e.code === "not-found");
 });

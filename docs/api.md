@@ -59,13 +59,11 @@ One `Submission`.
 
 ### `POST /api/submissions/{id}/review` (admin)
 
-Body: `{ "action": "publish" | "draft" | "reject", "note": "optional, ≤1000 chars" }`.
+Body: `{ "action": "publish" | "reject", "note": "optional, ≤1000 chars" }`.
 
 - `publish` puts the submission at the back of its feed's queue (see
   Queues) and returns `{ "status": "queued", "id", "position", "feed",
   "length", "nextPostAt", "seconds", "countdown", "clock" }`.
-- `draft` creates a Sanity draft right away and
-  returns `{ "status": "approved", "postId", "postUrl", "postStatus" }`.
 - `reject` returns `{ "status": "rejected" }`.
 
 Only pending submissions can be reviewed; anything else answers `409`.
@@ -158,9 +156,9 @@ Body `{ "id" }`. Takes a queued submission back to pending. Returns
     "postedAt": "…" | null, "lastError": "…" | null
   },
   "review": null | {
-    "action": "publish" | "draft" | "reject",
+    "action": "publish" | "reject",
     "at": "…", "by": "<uid>", "byEmail": "…", "note": "…",
-    "postId": "…" | null, "postUrl": "…" | null, "postStatus": "published" | "draft" | null
+    "postId": "…" | null, "postUrl": "…" | null, "postStatus": "published" | null
   }
 }
 ```
@@ -171,7 +169,7 @@ new values (`image: true` means a new photo, held at `photoUrl`), and
 `title` and `description` read as the post would after the edit. On review,
 `publish` applies the edit to the post right away (no queue; the reply is
 the `"status": "approved"` shape with the post's id and URL), `reject`
-drops it, and `draft` and the queue endpoints refuse it. Its `image` URLs
+drops it, and the queue endpoints refuse it. Its `image` URLs
 are null when the photo is not changing.
 
 `photoUrl` and `thumbUrl` are Cloud Storage download links carrying a
@@ -201,9 +199,12 @@ The caller's published posts, newest first:
 { "posts": [Post summary, ...] }
 ```
 
-Each summary is `{ "id", "title", "feed", "slug", "url", "publishedAt",
-"image": { "url", "width", "height" } | null }`, where `id` is the Sanity
-document id and `url` the post's page on the website.
+Each summary is `{ "id", "slug", "feed", "title", "publishedAt", "url",
+"summary", "image", "details", "credit", "gallery" }`: `id` is the slug
+(the Firestore document id), `url` the post's page on the website and
+`image` the post's photo as stored on the post (`base`, `sizes`,
+`formats`, `width`, `height`, `blur`, `focus`; see Posts in Firestore
+below) plus `url`, the largest JPEG, for clients that want one picture.
 
 ### `GET /api/posts/{id}`
 
@@ -212,6 +213,7 @@ The post as its editor sees it: the summary fields plus
 ```json
 {
   "story": "First paragraph.\n\nSecond paragraph.",
+  "storyFormat": "text",
   "storyHasFormatting": false,
   "bike": { "brand": "GT", "year": "1990s", "color": "", "type": "mtb" } | null,
   "pizza": { "style": "detroit" } | null,
@@ -219,11 +221,10 @@ The post as its editor sees it: the summary fields plus
 }
 ```
 
-`story` is the body as plain text, one paragraph per blank line.
-`storyHasFormatting` is true when the body holds more than plain
-paragraphs (headings, lists, links, bold text, images, as a post written
-in the Studio might); saving a new story then replaces all of it with
-plain paragraphs. `bike` is present on bike posts and `pizza` on pizza
+`story` is the body as written and `storyFormat` how: `text` (what members
+write: paragraphs separated by blank lines) or `markdown` (what
+administrators may write). `storyHasFormatting` is true for Markdown;
+a member saving a new story over it turns it back into plain text. `bike` is present on bike posts and `pizza` on pizza
 posts, each with every field, empty when not set; the values are the ones
 in `studio/schemaTypes/bikeOptions.ts` and `pizzaOptions.ts`.
 `pendingEdit` names the edit of this post that is waiting for review, if
@@ -237,13 +238,15 @@ Asks for changes to the fields given, leaving the rest alone:
 {
   "title": "…",
   "story": "…",
+  "storyFormat": "text" | "markdown",
   "image": { "data": "<base64>", "contentType": "image/jpeg" | "image/png" | "image/webp" },
   "bike": { "brand": "…", "year": "…", "color": "…", "type": "…" },
   "pizza": { "style": "…" }
 }
 ```
 
-`bike` and `pizza` replace the post's details as a whole: send every field,
+`storyFormat` may only be sent by an administrator (a member's story is
+always text). `bike` and `pizza` replace the post's details as a whole: send every field,
 with an empty string to clear one. A new `image` (8 MB max before
 encoding) goes through the same pipeline as a submission's photo
 (rotation fixed, 2048px long edge, JPEG) and, for members, the same
@@ -255,9 +258,36 @@ For a member the reply is `{ "status": "pending", "submissionId",
 second edit while one is pending answers `409`. For an administrator it
 is `{ "status": "applied", "post": … }` with the post as `GET
 /api/posts/{id}` now reads. Unknown fields, details for the wrong feed, an
-unknown option value or an empty title answer `400`. The website rebuilds
-through the Sanity webhook once the post changes, as for any content
-change.
+unknown option value or an empty title answer `400`. The website is rebuilt
+once the post changes.
+
+## Posts in Firestore
+
+Published posts live in Firestore at `posts/{slug}` and are readable by
+anyone through Firestore's REST endpoint (the security rules allow reads
+of documents whose `status` is `published`; a list query must filter on
+it). The website builds from them and the app reads them that way; the
+API above is only for editing.
+
+```
+slug, feed, title, publishedAt (ISO), status: "published",
+summary,                   one line for lists
+body, bodyFormat,          as written: "text" | "markdown"
+html,                      rendered from body when it was written
+image: null | { base, version, width, height, sizes, formats, blur, focus }
+details: null | { brand, year, color, type } | { style }
+credit: null | { uid, username, name }
+source: null | { system: "submission" | "ghost", id, url }
+createdAt, updatedAt
+```
+
+A photo's renditions are in Cloud Storage at
+`posts/{slug}/{version}/{width}.{jpg|webp}` for each width in `sizes`,
+plus `tile.jpg`/`tile.webp` (an 800×600 crop around `focus` for the
+gallery); `base` is the URL prefix to append a file name to, followed by
+`?alt=media`. `blur` is a data URI of a 20-pixel JPEG to show while a
+rendition loads. Rendition paths never change (the version is a hash of the
+photo), so they are cached for a year.
 
 ## Site settings
 
