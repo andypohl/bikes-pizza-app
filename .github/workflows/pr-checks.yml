@@ -32,6 +32,7 @@ jobs:
       site: ${{ steps.filter.outputs.site == 'true' || github.event_name == 'workflow_dispatch' }}
       studio: ${{ steps.filter.outputs.studio == 'true' || github.event_name == 'workflow_dispatch' }}
       post-details: ${{ steps.filter.outputs.post-details == 'true' || github.event_name == 'workflow_dispatch' }}
+      config: ${{ steps.filter.outputs.config == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
       - uses: dorny/paths-filter@v3
         id: filter
@@ -71,6 +72,14 @@ jobs:
               - *workflow
               - apps/post-details/**
               - studio/schemaTypes/**
+            config:
+              - *workflow
+              - web/**
+              - firebase.json
+              - .firebaserc
+              - firestore.rules
+              - firestore.indexes.json
+              - storage.rules
 
   test:
     name: Analyze and test
@@ -168,8 +177,36 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Type-check
+        run: npm run check
+
       - name: Build
         run: npm run build
+
+  config:
+    name: Web pages and Firebase config
+    needs: changes
+    if: ${{ needs.changes.outputs.config == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # The static pages have no build step, so at least make sure they
+      # parse; the Firebase config files must be valid JSON.
+      - name: Check the pages parse
+        run: |
+          for f in web/*/*.js; do node --check "$f"; done
+
+      - name: Check the config files parse
+        run: |
+          for f in firebase.json .firebaserc firestore.indexes.json; do
+            node -e "JSON.parse(require('fs').readFileSync('$f', 'utf8'))" && echo "$f ok"
+          done
 
   studio:
     name: Studio build

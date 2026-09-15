@@ -29,7 +29,7 @@
     if (current.user) {
       link.href = '/account/?mode=account';
       label.textContent = 'Account';
-      link.title = current.user.displayName || current.user.email || 'Account';
+      link.title = current.user.email || 'Account';
     } else {
       link.href = signInHref(location.pathname + location.search);
       label.textContent = 'Sign in';

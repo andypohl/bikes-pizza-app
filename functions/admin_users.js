@@ -5,6 +5,7 @@
 
 import { validateUpdate, validateUsername } from "./account.js";
 import { syncMemberUsername } from "./authors.js";
+import { postUrl } from "./post.js";
 import { AppError, ValidationError } from "./errors.js";
 
 export const DEFAULT_PAGE_SIZE = 25;
@@ -13,7 +14,7 @@ export const MAX_PAGE_SIZE = 100;
 const PROVIDER_LABELS = { password: "Email", "google.com": "Google", "apple.com": "Apple" };
 
 const POSTS_QUERY = `*[_type == "post" && defined(author) && !(_id in path("drafts.**"))]
-  | order(publishedAt desc) { "uid": author->uid, title, publishedAt, "slug": slug.current }`;
+  | order(publishedAt desc) { "uid": author->uid, title, feed, publishedAt, "slug": slug.current }`;
 
 /**
  * @typedef {object} AuthAdmin
@@ -42,7 +43,7 @@ async function postsByUid(sanity, siteUrl) {
   for (const row of rows) {
     if (!row.uid) continue;
     const list = map.get(row.uid) ?? [];
-    list.push({ title: row.title, publishedAt: row.publishedAt, slug: row.slug, url: `${siteUrl.replace(/\/$/, "")}/post/${row.slug}/` });
+    list.push({ title: row.title, publishedAt: row.publishedAt, slug: row.slug, url: postUrl(siteUrl, row.feed, row.slug) });
     map.set(row.uid, list);
   }
   return map;

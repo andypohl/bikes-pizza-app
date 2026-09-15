@@ -46,11 +46,19 @@ const first = pages[0] ?? [];
   // Fetch the next page this far (in pixels) before the reader reaches an end.
   const MARGIN = '1500px';
 
+  // The sentinels are always rendered with the feed; a missing one is a
+  // template mistake, not a page without the feed.
+  function required(id: string): HTMLElement {
+    const element = document.getElementById(id);
+    if (!element) throw new Error(`news feed: missing #${id}`);
+    return element;
+  }
+
   function setupNewsFeed() {
     const feed = document.getElementById('news-feed');
-    const top = document.getElementById('news-top');
-    const bottom = document.getElementById('news-bottom');
-    if (!feed || !top || !bottom || feed.dataset.ready) return;
+    if (!feed || feed.dataset.ready) return;
+    const top = required('news-top');
+    const bottom = required('news-bottom');
     feed.dataset.ready = 'true';
 
     const total = Number(feed.dataset.pages);

@@ -314,11 +314,6 @@ creating it with defaults on first use.
   empty). Needs the `MAILGUN_API_KEY` secret and `MAILGUN_DOMAIN`; without
   them or the recipient the email step is skipped. `SUBMISSION_FROM_EMAIL`
   optionally sets the sender and `MAILGUN_API_BASE` the API region.
-- `reviewSubmission` (admins only, i.e. the `admin` custom claim): queues a
-  pending submission for posting, creates it as a Sanity draft
-  (`functions/post.js`), or rejects it. Records the outcome on the
-  submission document. Runs with 512 MiB and a 2-minute timeout because of
-  the image upload.
 - `api` (HTTPS, not a callable): the REST API in `functions/api.js`, which
   wraps the same submission logic (list, fetch, review, create, queues) for
   the review page and the app. Served through the submissions Hosting

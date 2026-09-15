@@ -13,7 +13,6 @@ import {
   parseListQuery,
   parseReview,
   queueInfo,
-  queueItems,
   reviewSubmission,
   submitNext,
 } from "./submissions.js";
@@ -270,7 +269,7 @@ test("enqueue and dequeue check the feed and the status", async () => {
   assert.equal(store.docs.get("s1").queue, null);
 });
 
-test("queueInfo and queueItems describe the queue in order", async () => {
+test("queueInfo describes the queue", async () => {
   const store = await seeded();
   await createSubmission({ ...body, title: "Third" }, user, { store, processImage, safeSearch, notify: async () => true });
   await enqueue({ feed: "bikes", id: "s3", note: "" }, admin, { store, now: NOW });
@@ -284,9 +283,6 @@ test("queueInfo and queueItems describe the queue in order", async () => {
     countdown: "1h 30m 0s",
     clock: "01:30:00",
   });
-  const q = await queueItems("bikes", { store, now: NOW });
-  assert.deepEqual(q.items.map((i) => [i.position, i.id, i.status]), [[1, "s3", "queued"], [2, "s1", "queued"]]);
-  assert.equal(q.items[0].queue.byEmail, "admin@example.com");
   assert.equal((await queueInfo("pizza", { store, now: NOW })).length, 0);
   await assert.rejects(queueInfo("news", { store }), ValidationError);
 });

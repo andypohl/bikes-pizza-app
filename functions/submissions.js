@@ -190,15 +190,6 @@ export async function queueInfo(feed, { store, now = new Date() }) {
   return { feed, length, ...countdown(feed, now) };
 }
 
-/** The queue in posting order, with positions starting at 1. */
-export async function queueItems(feed, { store, now = new Date() }) {
-  parseFeed(feed);
-  const items = await store.queueList(feed);
-  const out = [];
-  for (const [i, item] of items.entries()) out.push({ position: i + 1, ...(await serialise(item, store)) });
-  return { feed, length: out.length, ...countdown(feed, now), items: out };
-}
-
 /**
  * Posts the oldest queued submission of a feed to the site. Run by the
  * scheduled functions at the feed's posting times, and by the API on

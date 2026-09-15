@@ -22,17 +22,15 @@
 //                    Vision (SafeSearch, and no people or faces), stores it
 //                    (photo + text) in Firestore and Storage and emails the
 //                    reviewer.
-// reviewSubmission:  admin only; queues, drafts (in Sanity) or rejects a
-//                    pending submission.
-//                    Each run that posts something then asks GitHub to
-//                    rebuild the website (rebuild.js).
+// postBikesQueue,    scheduled; post the oldest queued submission of the
+// postPizzaQueue:    feed at its posting times (schedule.js); each run that
+//                    posts something then asks GitHub to rebuild the
+//                    website (rebuild.js).
 // api:               HTTPS; the REST API behind /api/ on the submissions
 //                    Hosting site (list, fetch, review, create, queues,
 //                    site settings such as the website's submit button,
 //                    user administration, and editing published posts:
 //                    posts.js).
-// postBikesQueue,    scheduled; post the oldest queued submission of the
-// postPizzaQueue:    feed at its posting times (schedule.js).
 
 import { GoogleAuth } from "google-auth-library";
 import { initializeApp } from "firebase-admin/app";
@@ -48,7 +46,7 @@ import * as adminUsers from "./admin_users.js";
 import * as webauthn from "@simplewebauthn/server";
 import { createApi } from "./api.js";
 import { syncMemberUsername } from "./authors.js";
-import { AppError, ValidationError, adminFromClaims, userFromClaims } from "./errors.js";
+import { AppError, ValidationError, userFromClaims } from "./errors.js";
 import { processImage } from "./images.js";
 import { NEWSLETTERS, firestoreMemberStore, loadMember, updateMember as applyMemberUpdate } from "./members.js";
 import { isMailConfigured, sendMail } from "./mail.js";
@@ -117,8 +115,6 @@ const passkeyOrigins = defineString("PASSKEY_ORIGINS", { default: "" });
 
 /** The signed-in, verified user behind a callable request, or throws. */
 const verifiedUser = (request) => userFromClaims(request.auth && { uid: request.auth.uid, ...request.auth.token });
-/** A verified user who also carries the `admin` custom claim. */
-const adminUser = (request) => adminFromClaims(request.auth && { uid: request.auth.uid, ...request.auth.token });
 
 function sanityClient() {
   return new SanityClient({
@@ -392,8 +388,6 @@ const service = {
   },
   queue: {
     info: (feed) => subs.queueInfo(feed, { store: store() }),
-    items: (feed) => subs.queueItems(feed, { store: store() }),
-    add: (input, admin) => subs.enqueue(input, admin, { store: store(), log: logger.info }),
     remove: (input, admin) => subs.dequeue(input, admin, { store: store(), log: logger.info }),
     submitNext: (feed) =>
       subs.submitNext(feed, {
@@ -412,12 +406,6 @@ export const submitPost = onCall(
     guarded(request.auth?.uid, "send your submission", () =>
       service.create(request.data, verifiedUser(request)),
     ),
-);
-
-export const reviewSubmission = onCall({ region: "us-central1", secrets: [sanityWriteToken], ...heavy }, (request) =>
-  guarded(request.auth?.uid, "review the submission", () =>
-    service.review(request.data, adminUser(request)),
-  ),
 );
 
 /**

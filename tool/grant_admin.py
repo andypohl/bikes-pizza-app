@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Grant (or revoke) the `admin` custom claim on a Firebase user.
 
-Admins can open the submissions review page and call the reviewSubmission
-function. Uses the Firebase CLI's signed-in credentials (run
+Admins can open the submissions review and admin pages and the admin
+endpoints of the REST API (docs/api.md). Uses the Firebase CLI's signed-in credentials (run
 `firebase login` first) and the default project from .firebaserc.
 
 Usage:

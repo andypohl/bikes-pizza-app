@@ -122,7 +122,7 @@ https://submissions.bikes.pizza/. It works through the REST API at
 `/api/` on the same site (`functions/api.js`, documented in `docs/api.md`),
 which the app can use too.
 Only Firebase users with the `admin` custom claim can open it; grant it
-with `tools/grant_admin.py you@example.com` (revoke with `--revoke`).
+with `tool/grant_admin.py you@example.com` (revoke with `--revoke`).
 Reviewers must also use two-factor authentication: on first sign-in the
 page shows a QR code to scan with an authenticator app and asks for a
 code, and every sign-in afterwards asks for the code; the API refuses admin
@@ -270,7 +270,7 @@ member document (`updateMember` does it and asks for a site rebuild) rather
 than a rewrite of every post. The credit on a post links to everything the
 member has posted: `/member/<username>/` on the website, a "Posts by"
 list in the app. Posts whose member has not chosen a username yet show the
-typed credit instead. `tools/backfill_post_authors.py` adds the reference
+typed credit instead. `tool/backfill_post_authors.py` adds the reference
 to posts published before this existed.
 
 The app's Settings → Account → Manage account screen (`lib/account/`) and
