@@ -41,20 +41,25 @@ class ProductVariant {
   /// Shopify's name for the one variant of a product without options.
   static const defaultTitle = 'Default Title';
 
-  /// Parses a variant from the `productVariant` document Sanity Connect for
-  /// Shopify writes (projected by `SanityStoreRepository`).
-  factory ProductVariant.fromSanityJson(Map<dynamic, dynamic> json) {
-    final numericId = (json['id'] as num?)?.toInt() ?? 0;
+  /// The number at the end of a Shopify GID, or 0 when it is not one.
+  static int numericIdOf(String gid) =>
+      int.tryParse(gid.split('/').last.split('?').first) ?? 0;
+
+  /// Parses a variant node of the Storefront API's `products` query
+  /// (`ShopifyStorefront.productsQuery`).
+  factory ProductVariant.fromStorefrontJson(Map<dynamic, dynamic> json) {
+    final id = json['id'] as String? ?? '';
+    final price = json['price'];
+    final image = json['image'];
     return ProductVariant(
-      id: json['gid'] as String? ?? 'gid://shopify/ProductVariant/$numericId',
-      numericId: numericId,
+      id: id,
+      numericId: numericIdOf(id),
       title: json['title'] as String? ?? defaultTitle,
-      price: Money(
-        amount: (json['price'] as num?)?.toDouble() ?? 0,
-        currencyCode: 'USD',
-      ),
-      availableForSale: json['available'] as bool? ?? false,
-      imageUrl: json['image'] as String?,
+      price: price is Map
+          ? Money.fromJson(price.cast<String, dynamic>())
+          : const Money(amount: 0, currencyCode: 'USD'),
+      availableForSale: json['availableForSale'] as bool? ?? false,
+      imageUrl: image is Map ? image['url'] as String? : null,
     );
   }
 }
@@ -95,26 +100,31 @@ class Product {
       (variants.length == 1 &&
           variants.first.title != ProductVariant.defaultTitle);
 
-  /// Parses a product from the projection `SanityStoreRepository` requests.
-  factory Product.fromSanityJson(Map<String, dynamic> json) {
-    final rawVariants = json['variants'];
+  /// Parses a product node of the Storefront API's `products` query
+  /// (`ShopifyStorefront.productsQuery`).
+  factory Product.fromStorefrontJson(Map<String, dynamic> json) {
+    final rawVariants = (json['variants'] as Map?)?['nodes'];
     final variants = (rawVariants is List ? rawVariants : const [])
         .whereType<Map>()
-        .where((v) => (v['id'] as num?) != null && v['deleted'] != true)
-        .map(ProductVariant.fromSanityJson)
+        .map(ProductVariant.fromStorefrontJson)
+        .where((v) => v.numericId > 0)
         .toList(growable: false);
+    final range = json['priceRange'];
+    final minPrice = range is Map ? range['minVariantPrice'] : null;
+    final image = json['featuredImage'];
     return Product(
       id: json['id'] as String? ?? '',
       title: json['title'] as String? ?? '(untitled)',
       handle: json['handle'] as String? ?? '',
       description: stripHtml(json['descriptionHtml'] as String? ?? ''),
-      category: (json['category'] as String? ?? '').trim(),
-      price: Money(
-        amount: (json['price'] as num?)?.toDouble() ?? 0,
-        currencyCode: 'USD',
-      ),
-      availableForSale: variants.any((v) => v.availableForSale),
-      imageUrl: json['image'] as String?,
+      category: (json['productType'] as String? ?? '').trim(),
+      price: minPrice is Map
+          ? Money.fromJson(minPrice.cast<String, dynamic>())
+          : const Money(amount: 0, currencyCode: 'USD'),
+      availableForSale:
+          json['availableForSale'] == true &&
+          variants.any((v) => v.availableForSale),
+      imageUrl: image is Map ? image['url'] as String? : null,
       variants: variants,
     );
   }

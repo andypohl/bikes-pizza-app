@@ -52,10 +52,12 @@ becomes session-aware when served by Firebase Hosting (locally:
 `firebase emulators:start --only hosting` from the repo root, home site on
 port 5055); under `astro preview` it stays on its neutral label.
 
-`/shop/` is the store, built from the `product` and `productVariant`
-documents that Sanity Connect for Shopify keeps in the dataset
-(`src/lib/shop.ts`; the Studio's read-only `shopify.ts` types describe
-them). It uses the gallery's grid and theme, with the product name and
+`/shop/` is the store, built from the products of the Shopify store, read
+at build time from the Storefront GraphQL API (`src/lib/shop.ts`) with
+`PUBLIC_SHOPIFY_STOREFRONT_TOKEN`, the store's public access token, on
+`PUBLIC_SHOPIFY_STORE_DOMAIN` (default: the host of `PUBLIC_STORE_URL`);
+the deploys set them from the GitHub environment's secret and variable,
+and a build without a token has an empty shop. It uses the gallery's grid and theme, with the product name and
 price under each photo instead of a hover mask, and one filter chip per
 Shopify product type next to "All products". A product page shows the
 photo, price, description, a variant picker when there is a choice, a
@@ -70,9 +72,8 @@ badge with the count and opens a drawer whose quantity controls reflect
 what is in the cart, with a Checkout link that hands the whole cart to
 Shopify as one cart permalink. The header's Store button goes to
 `/shop/` when the build has products and to that domain otherwise. The
-products are still read from Sanity (project and dataset in
-`astro.config.mjs`, overridden with `PUBLIC_SANITY_PROJECT_ID` and
-`PUBLIC_SANITY_DATASET`) until the shop moves to the Storefront API.
+functions ask for a rebuild when a post changes; a product change in
+Shopify shows up at the next build.
 
 `/submit/` is the website's submission form ("Submit a bike or pizza" in the
 header). It needs a signed-in member: signed-out visitors are sent to the

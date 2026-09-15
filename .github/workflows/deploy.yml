@@ -10,10 +10,10 @@
 # Variables, read from the environment (which overrides the repository):
 #   FIREBASE_PROJECT                Firebase project ID to deploy to and to
 #                                   build the website's posts from
-#   SANITY_DATASET                  dataset the shop's products are built from;
-#                                   also picks which Studio and app the sanity
-#                                   job deploys, so it must be set on both
-#                                   environments
+#   SANITY_DATASET                  picks which Studio and app the sanity job
+#                                   deploys, so it must be set on both
+#                                   environments (until Sanity is retired)
+#   SHOPIFY_STORE_DOMAIN            host the website calls the Storefront API on
 #   GCP_WORKLOAD_IDENTITY_PROVIDER  projects/<number>/locations/global/
 #                                   workloadIdentityPools/<pool>/providers/<id>
 #   GCP_DEPLOY_SERVICE_ACCOUNT      deploy service account email
@@ -29,6 +29,8 @@
 #   PASSKEY_ORIGINS                 (optional) app origins allowed to use passkeys (functions/.env.example)
 #
 # Secrets (set by hand on the environment; see infra/README.md):
+#   SHOPIFY_STOREFRONT_TOKEN        the store's Storefront access token, which
+#                                   the website reads its products with
 #   SANITY_STUDIO_DEPLOY_TOKEN      Sanity project token with the Deploy Studio role
 #   SANITY_APP_DEPLOY_TOKEN         Sanity organization token with Manage SDK Apps
 name: Deploy
@@ -110,8 +112,8 @@ jobs:
           PUBLIC_SITE_URL: ${{ vars.SITE_URL }}
           PUBLIC_API_URL: ${{ vars.PUBLIC_API_URL }}
           PUBLIC_FIREBASE_PROJECT: ${{ vars.FIREBASE_PROJECT }}
-          PUBLIC_SANITY_PROJECT_ID: ${{ vars.SANITY_PROJECT_ID }}
-          PUBLIC_SANITY_DATASET: ${{ vars.SANITY_DATASET }}
+          PUBLIC_SHOPIFY_STORE_DOMAIN: ${{ vars.SHOPIFY_STORE_DOMAIN }}
+          PUBLIC_SHOPIFY_STOREFRONT_TOKEN: ${{ secrets.SHOPIFY_STOREFRONT_TOKEN }}
         run: npm ci && npm run build
 
       - name: Authenticate to Google Cloud

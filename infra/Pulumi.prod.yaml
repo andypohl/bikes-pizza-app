@@ -13,6 +13,7 @@ config:
   bikes-pizza:manageDns: "false"
   bikes-pizza:githubEnvironment: production
   bikes-pizza:sanityDataset: production
+  bikes-pizza:shopifyStoreDomain: shop.bikes.pizza
   gcp:project: pizzapredator-a445e
   gcp:userProjectOverride: "true"
   github:owner: andypohl

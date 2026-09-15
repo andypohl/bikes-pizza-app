@@ -65,9 +65,7 @@ published posts readable by anyone): newest first, paged, filtered by the
 list of one member's posts. Post bodies come as HTML rendered when the post
 was written; photos come from Cloud Storage as the renditions made on
 publish (`PostImage.url` picks the width that fits). The store's products
-still come from Sanity until the shop moves to the Storefront API
-(`lib/config.dart`, `--dart-define=SANITY_PROJECT_ID=...` /
-`SANITY_DATASET=...`).
+come from Shopify's Storefront API (see Store below).
 
 ## Website and Studio
 
@@ -205,13 +203,13 @@ domains only deliver to recipients authorized in Mailgun.
 ## Store (Shopify)
 
 Both the website (`/shop/`, see `site/README.md`) and the app's Store tab
-are built from the product documents that the Sanity Connect for Shopify
-app syncs into the dataset, so they show the same catalogue; checkout
-happens on Shopify.
+read the products of the Shopify store through the Storefront GraphQL API
+(the website at build time, the app live), so they show the same
+catalogue; checkout happens on Shopify.
 
 The Store tab (`lib/screens/store_screen.dart`, `lib/store/`) reads the
-products from Sanity the way posts are read, and lays them out like the
-website's shop: a chip per Shopify product type with "All products" first,
+products with the store domain and public access token the build carries
+(see below), and lays them out like the website's shop: a chip per Shopify product type with "All products" first,
 and a grid with the name and price under each photo. A product page has a
 quantity and two buttons: **Add to cart** puts that many in the cart (the
 Store tab's badge goes up by that many; the cart does not open) and **Buy
@@ -225,10 +223,12 @@ Checkout goes through Shopify's Storefront GraphQL API when the build
 carries the store domain and a public access token (which Shopify designs
 to ship inside client apps: it can only read products and create carts).
 That lets the signed-in member's email pre-fill the checkout so the order
-lands on the matching Shopify customer. Without those values, checkout
-uses the store's cart permalink instead (`SHOPIFY_STORE_URL`, default
-`https://shop.bikes.pizza`), which needs no token; the Store tab works
-either way.
+lands on the matching Shopify customer. Without those values the Store tab
+has no products, and checking out a cart uses the store's cart permalink
+instead (`SHOPIFY_STORE_URL`, default `https://shop.bikes.pizza`), which
+needs no token. The website's build reads the same two values from its
+GitHub environment: the `SHOPIFY_STORE_DOMAIN` variable (`infra/`) and the
+`SHOPIFY_STOREFRONT_TOKEN` secret (set by hand, see `infra/README.md`).
 
 To get the two values: in Shopify admin go to **Settings → Apps and sales
 channels → Develop apps**, create an app, grant it the

@@ -7,37 +7,58 @@ import 'package:bikes_pizza/store/cart.dart';
 import 'package:bikes_pizza/store/product.dart';
 import 'package:bikes_pizza/store/store_repository.dart';
 
-/// A product row as `SanityStoreRepository`'s projection returns it.
-Map<String, dynamic> _row(
+/// A product node as the Storefront API's `products` query returns it.
+Map<String, dynamic> _node(
   String id, {
   String category = '',
   bool available = true,
   List<dynamic>? variants,
 }) => {
-  'id': 'shopifyProduct-$id',
+  'id': 'gid://shopify/Product/$id',
   'title': 'Product $id',
   'handle': 'product-$id',
-  'category': category,
+  'productType': category,
   'descriptionHtml': '<p>Desc &amp; more <b>$id</b></p>',
-  'image': 'https://cdn.shopify.com/s/files/1/$id.jpg',
-  'price': 12.5,
-  'variants':
-      variants ??
-      [
-        {
-          'id': int.parse(id),
-          'gid': 'gid://shopify/ProductVariant/$id',
-          'title': 'Default Title',
-          'price': 12.5,
-          'available': available,
-          'image': null,
-          'deleted': false,
-        },
-      ],
+  'availableForSale': available,
+  'featuredImage': {'url': 'https://cdn.shopify.com/s/files/1/$id.jpg'},
+  'priceRange': {
+    'minVariantPrice': {'amount': '12.5', 'currencyCode': 'USD'},
+  },
+  'variants': {
+    'nodes':
+        variants ??
+        [
+          {
+            'id': 'gid://shopify/ProductVariant/$id',
+            'title': 'Default Title',
+            'availableForSale': available,
+            'price': {'amount': '12.5', 'currencyCode': 'USD'},
+            'image': null,
+          },
+        ],
+  },
 };
 
-String _result(List<Map<String, dynamic>> rows) =>
-    jsonEncode({'ms': 3, 'query': '', 'result': rows});
+Map<String, dynamic> _variant(int id, String title, bool available) => {
+  'id': 'gid://shopify/ProductVariant/$id',
+  'title': title,
+  'availableForSale': available,
+  'price': {'amount': '20.0', 'currencyCode': 'USD'},
+  'image': {'url': 'https://cdn.shopify.com/s/files/1/v$id.jpg'},
+};
+
+String _page(
+  List<Map<String, dynamic>> nodes, {
+  bool hasNextPage = false,
+  String? endCursor,
+}) => jsonEncode({
+  'data': {
+    'products': {
+      'pageInfo': {'hasNextPage': hasNextPage, 'endCursor': endCursor},
+      'nodes': nodes,
+    },
+  },
+});
 
 CartItem _item(int id, int quantity) => CartItem(
   variantId: 'gid://shopify/ProductVariant/$id',
@@ -50,78 +71,81 @@ CartItem _item(int id, int quantity) => CartItem(
 );
 
 void main() {
-  SanityStoreRepository repo(
-    MockClient client, {
-    ShopifyStorefront? storefront,
-  }) => SanityStoreRepository(
-    projectId: 'abc123',
-    dataset: 'development',
-    apiVersion: '2025-02-19',
-    storeUrl: 'https://shop.example.com/',
-    storefront: storefront,
+  ShopifyStorefront storefrontOn(MockClient client) => ShopifyStorefront(
+    storeDomain: 'demo.myshopify.com',
+    accessToken: 'public-token',
     client: client,
   );
 
-  test('reads active products from the API CDN', () async {
-    late http.Request captured;
-    final client = MockClient((req) async {
-      captured = req;
-      return http.Response(_result([_row('1')]), 200);
-    });
-    final products = await repo(client).fetchProducts();
+  ShopifyStoreRepository repo(
+    MockClient client, {
+    ShopifyStorefront? storefront,
+  }) => ShopifyStoreRepository(
+    storeUrl: 'https://shop.example.com/',
+    storefront: storefront,
+  );
 
-    expect(captured.url.host, 'abc123.apicdn.sanity.io');
-    expect(captured.url.path, '/v2025-02-19/data/query/development');
+  test('reads products from the Storefront API, page by page', () async {
+    final captured = <http.Request>[];
+    final client = MockClient((req) async {
+      captured.add(req);
+      return captured.length == 1
+          ? http.Response(
+              _page([_node('1')], hasNextPage: true, endCursor: 'c1'),
+              200,
+            )
+          : http.Response(_page([_node('2')]), 200);
+    });
+    final products = await repo(
+      client,
+      storefront: storefrontOn(client),
+    ).fetchProducts();
+
+    expect(products.map((p) => p.title), ['Product 1', 'Product 2']);
+    expect(captured.length, 2);
     expect(
-      captured.url.queryParameters['query'],
-      contains('_type == "product"'),
+      captured.first.url.toString(),
+      'https://demo.myshopify.com/api/2025-07/graphql.json',
     );
     expect(
-      captured.url.queryParameters['query'],
-      contains('store.status == "active"'),
+      captured.first.headers['X-Shopify-Storefront-Access-Token'],
+      'public-token',
     );
-    expect(products.single.title, 'Product 1');
+    final first = jsonDecode(captured.first.body) as Map;
+    expect(first['query'], contains('products(first: \$first, after: \$after'));
+    expect(first['variables'], {'first': 100, 'after': null});
+    expect((jsonDecode(captured.last.body) as Map)['variables'], {
+      'first': 100,
+      'after': 'c1',
+    });
+  });
+
+  test('a build without the store settings has no products', () {
+    final client = MockClient((_) async => http.Response('', 200));
+    expect(repo(client).fetchProducts(), throwsA(isA<StoreException>()));
   });
 
   test(
     'parses products, variants, categories and plain descriptions',
     () async {
-      final rows = [
-        _row('1', category: 'Stickers'),
-        _row(
+      final nodes = [
+        _node('1', category: 'Stickers'),
+        _node(
           '2',
           variants: [
-            {
-              'id': 21,
-              'gid': 'gid://shopify/ProductVariant/21',
-              'title': 'S',
-              'price': 20,
-              'available': false,
-              'deleted': false,
-            },
-            {
-              'id': 22,
-              'gid': 'gid://shopify/ProductVariant/22',
-              'title': 'M',
-              'price': 20,
-              'available': true,
-              'deleted': false,
-            },
-            {
-              'id': 23,
-              'gid': 'gid://shopify/ProductVariant/23',
-              'title': 'L',
-              'price': 20,
-              'available': true,
-              'deleted': true,
-            },
+            _variant(21, 'S', false),
+            _variant(22, 'M', true),
+            {'id': 'gid://shopify/Draft/x', 'title': 'no numeric id'},
             null,
           ],
         ),
-        _row('3', available: false),
+        _node('3', available: false),
       ];
-      final client = MockClient((_) async => http.Response(_result(rows), 200));
-      final products = await repo(client).fetchProducts();
+      final client = MockClient((_) async => http.Response(_page(nodes), 200));
+      final products = await repo(
+        client,
+        storefront: storefrontOn(client),
+      ).fetchProducts();
 
       final one = products[0];
       expect(one.category, 'Stickers');
@@ -131,11 +155,17 @@ void main() {
       expect(one.hasChoices, isFalse);
       expect(one.availableForSale, isTrue);
       expect(one.variants.single.numericId, 1);
+      expect(one.variants.single.id, 'gid://shopify/ProductVariant/1');
 
       final two = products[1];
       expect(two.hasChoices, isTrue);
-      // Deleted and dangling variants are dropped.
+      // Variants without a Shopify id are dropped.
       expect(two.variants.map((v) => v.title), ['S', 'M']);
+      expect(two.variants.map((v) => v.numericId), [21, 22]);
+      expect(
+        two.variants[1].imageUrl,
+        'https://cdn.shopify.com/s/files/1/v22.jpg',
+      );
       expect(two.availableForSale, isTrue);
 
       expect(products[2].availableForSale, isFalse);
@@ -144,7 +174,30 @@ void main() {
 
   test('rejects error responses', () async {
     final client = MockClient((_) async => http.Response('nope', 500));
-    expect(repo(client).fetchProducts(), throwsA(isA<StoreException>()));
+    expect(
+      repo(client, storefront: storefrontOn(client)).fetchProducts(),
+      throwsA(isA<StoreException>()),
+    );
+    final failing = MockClient(
+      (_) async => http.Response(
+        jsonEncode({
+          'errors': [
+            {'message': 'Invalid access token'},
+          ],
+        }),
+        200,
+      ),
+    );
+    expect(
+      repo(failing, storefront: storefrontOn(failing)).fetchProducts(),
+      throwsA(
+        isA<StoreException>().having(
+          (e) => e.message,
+          'message',
+          contains('Invalid access token'),
+        ),
+      ),
+    );
   });
 
   test(
