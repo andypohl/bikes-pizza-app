@@ -13,7 +13,7 @@ Five bottom-bar tabs:
 | Pizza    | Posts tagged `pizza`                                           |
 | Bikes    | Posts tagged `biking` or `off-road-biking`                     |
 | Store    | Product grid from Sanity, a cart, and Shopify checkout       |
-| Settings | Account (sign-in, username, newsletters, password, deletion), Posts (edit what you posted), theme |
+| Settings | Account (sign-in, username, newsletters, password, deletion), Posts (edit what you posted), theme; on tablets, Admin for administrators |
 
 Tapping a post opens it in-app with the hero image and full HTML body. A
 toolbar button opens the post in the browser.
@@ -116,6 +116,20 @@ applies it (one pending edit per post; the screen says so meanwhile). An
 administrator's edit is applied at once. A story written in the Studio
 with headings, lists or links is edited as plain text and, if changed,
 saved as plain paragraphs; the screen warns about that.
+
+**Admin on a tablet.** On an iPad or Android tablet (shortest side 600
+logical pixels or more), Settings shows an Admin section to a signed-in
+administrator with the same two tools as the web pages, on the same REST
+API (`lib/admin/`): **Review submissions** (`submissions_screen.dart`)
+lists the queues, the website submit button switch, the submissions by
+status with paging, and each one in full with Queue to post / Apply edit,
+Save as draft, Reject and Remove from queue; **Manage users**
+(`users_screen.dart`) lists every account by most recent post and opens
+one for editing the username, email and newsletters, sending a password
+reset, or deleting it after an "Are you sure?". In landscape the chosen
+row opens beside the list, as posts do. The API requires the admin to
+have signed in with a second factor (an authenticator code or a passkey);
+without one the screens say so and point at Settings → Manage account.
 
 **Review page**: `web/review/`, its own Hosting site served at
 https://submissions.bikes.pizza/. It works through the REST API at
@@ -381,6 +395,9 @@ lib/
   widgets/edit_post_button.dart Edit button for the poster and admins
   posts/post_editor.dart        PostEditor on the REST API's /api/posts
   api/api_client.dart           REST API client (ID token, JSON, errors)
+  admin/admin_service.dart      AdminService on the review and admin endpoints
+  admin/submissions_screen.dart tablet: review submissions (queues, actions)
+  admin/users_screen.dart       tablet: manage users
   screens/settings_screen.dart
   screens/store_screen.dart     Shopify product grid, or placeholder
   screens/product_detail_screen.dart
