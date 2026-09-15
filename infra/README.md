@@ -71,6 +71,9 @@ reads are not in the program, only its variables are. Set them by hand on
 each environment (`gh secret set NAME --env development`, likewise
 `production`):
 
+- `SHOPIFY_STOREFRONT_TOKEN`: the Shopify store's Storefront API access
+  token, which the website build reads its products with (see the Store
+  section of the repository README for where to get it).
 - `SANITY_STUDIO_DEPLOY_TOKEN`: a Sanity project robot token with the
   Deploy Studio role (Manage → project → API → Tokens, or
   `npx sanity tokens add "GitHub Actions" --role=deploy-studio` in `studio/`).
@@ -113,7 +116,8 @@ Set with `pulumi config set <key> <value>` on the selected stack.
 | `manageDns`          | manage the Cloudflare records (default true) |
 | `repository`         | GitHub `owner/name` (default `andypohl/bikes-pizza-app`) |
 | `githubEnvironment`  | GitHub environment the deploy workflow targets |
-| `sanityDataset`      | Sanity dataset the environment builds from |
+| `sanityDataset`      | Sanity dataset the environment's Studio deploys to (until Sanity is retired) |
+| `shopifyStoreDomain` | host the website calls the Shopify Storefront API on |
 | `gcp:project`, `gcp:userProjectOverride`, `github:owner` | provider settings |
 
 ## Adding a resource

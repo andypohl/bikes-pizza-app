@@ -33,33 +33,8 @@ class ApiConfig {
             : 'https://submissions.bikes-pizza.dev');
 }
 
-/// The Sanity dataset the store's products are still read from (see
-/// `store/store_repository.dart`), until the shop moves to the Storefront
-/// API. Release builds read `production`, the rest `development`;
-/// `--dart-define=SANITY_PROJECT_ID=...` / `SANITY_DATASET=...` override.
-class SanityConfig {
-  SanityConfig._();
-
-  static const String projectId = String.fromEnvironment(
-    'SANITY_PROJECT_ID',
-    defaultValue: 'nva9b0ia',
-  );
-
-  static const String _definedDataset = String.fromEnvironment(
-    'SANITY_DATASET',
-  );
-
-  static String get dataset => _definedDataset.isNotEmpty
-      ? _definedDataset
-      : (kReleaseMode ? 'production' : 'development');
-
-  /// Sanity API version (a date), see
-  /// https://www.sanity.io/docs/api-versioning
-  static const String apiVersion = '2025-02-19';
-}
-
-/// Shopify settings. The catalogue still comes from Sanity (see
-/// `store/store_repository.dart`); Shopify is where checkout happens.
+/// Shopify settings: the Store tab reads its products from the Storefront
+/// API and checks out through it (see `store/store_repository.dart`).
 ///
 /// The store domain and Storefront access token come from the Shopify admin
 /// (a Headless channel or a custom app with Storefront API access) and are
@@ -68,10 +43,11 @@ class SanityConfig {
 ///   flutter run --dart-define-from-file=config/local.json
 ///
 /// With them, checkout goes through the Storefront API, which lets the
-/// signed-in member's email pre-fill it. Without them, checkout uses the
-/// store's cart permalink, which needs no token. The Storefront access
-/// token is a *public* token by Shopify's design: it can only read the
-/// catalogue and create carts, so shipping it inside the app is expected.
+/// signed-in member's email pre-fill it. Without them the Store tab has no
+/// products, and checkout of a cart uses the store's cart permalink, which
+/// needs no token. The Storefront access token is a *public* token by
+/// Shopify's design: it can only read the catalogue and create carts, so
+/// shipping it inside the app is expected.
 class ShopifyConfig {
   ShopifyConfig._();
 

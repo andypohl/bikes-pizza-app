@@ -25,13 +25,10 @@ abstract class StoreRepository {
   /// possible through the Storefront API; the cart permalink cannot).
   Future<Uri> checkout(List<CartItem> items, {String? email});
 
-  /// The catalogue comes from Sanity, like posts; checkout goes through the
-  /// Storefront API when the build carries its settings, else through the
-  /// store's cart permalink.
-  static StoreRepository forConfig() => SanityStoreRepository(
-    projectId: SanityConfig.projectId,
-    dataset: SanityConfig.dataset,
-    apiVersion: SanityConfig.apiVersion,
+  /// Products and carts both come from the Storefront API when the build
+  /// carries its settings (`ShopifyConfig`); without them the store has
+  /// no products and checkout goes through the store's cart permalink.
+  static StoreRepository forConfig() => ShopifyStoreRepository(
     storeUrl: ShopifyConfig.storeUrl,
     storefront: ShopifyConfig.isConfigured
         ? ShopifyStorefront(
@@ -42,74 +39,22 @@ abstract class StoreRepository {
   );
 }
 
-/// Reads the products that Sanity Connect for Shopify keeps in the dataset
-/// (`product` and `productVariant` documents), the same ones the website's
-/// shop is built from, through the API CDN.
-class SanityStoreRepository implements StoreRepository {
-  SanityStoreRepository({
-    required this.projectId,
-    required this.dataset,
-    required this.apiVersion,
-    required this.storeUrl,
-    this.storefront,
-    http.Client? client,
-  }) : _client = client ?? http.Client();
-
-  final String projectId;
-  final String dataset;
-  final String apiVersion;
+/// The store on Shopify's Storefront API: the same products the website's
+/// shop is built from, read live.
+class ShopifyStoreRepository implements StoreRepository {
+  ShopifyStoreRepository({required this.storeUrl, this.storefront});
 
   /// The store's own domain, where the cart permalink checks out.
   final String storeUrl;
   final ShopifyStorefront? storefront;
-  final http.Client _client;
-
-  /// The same shape the website's `site/src/lib/shop.ts` reads.
-  static const query = '''
-*[_type == "product" && store.status == "active" && store.isDeleted != true && defined(store.slug.current)]
-  | order(store.createdAt desc) {
-  "id": _id,
-  "title": store.title,
-  "handle": store.slug.current,
-  "category": coalesce(store.productType, ""),
-  "descriptionHtml": coalesce(store.descriptionHtml, ""),
-  "image": store.previewImageUrl,
-  "price": coalesce(store.priceRange.minVariantPrice, 0),
-  "variants": store.variants[]->{
-    "id": store.id,
-    "gid": store.gid,
-    "title": store.title,
-    "price": coalesce(store.price, 0),
-    "available": coalesce(store.inventory.isAvailable, false),
-    "image": store.previewImageUrl,
-    "deleted": store.isDeleted == true
-  }
-}''';
-
-  Uri get uri => Uri.https(
-    '$projectId.apicdn.sanity.io',
-    '/v$apiVersion/data/query/$dataset',
-    {'query': query},
-  );
 
   @override
   Future<List<Product>> fetchProducts() async {
-    final response = await _client.get(
-      uri,
-      headers: const {'Accept': 'application/json'},
-    );
-    if (response.statusCode != 200) {
-      throw StoreException('Sanity API returned HTTP ${response.statusCode}');
+    final storefront = this.storefront;
+    if (storefront == null) {
+      throw StoreException('This build was made without the store settings.');
     }
-    final body = jsonDecode(response.body);
-    final result = body is Map<String, dynamic> ? body['result'] : null;
-    if (result is! List) {
-      throw StoreException('Unexpected response from Sanity API');
-    }
-    return result
-        .whereType<Map<String, dynamic>>()
-        .map(Product.fromSanityJson)
-        .toList(growable: false);
+    return storefront.fetchProducts();
   }
 
   @override
@@ -127,9 +72,10 @@ class SanityStoreRepository implements StoreRepository {
   }
 }
 
-/// Creates carts through Shopify's Storefront GraphQL API with a public
-/// access token, which lets the checkout be pre-filled with the shopper's
-/// email. Docs: https://shopify.dev/docs/api/storefront
+/// Reads products and creates carts through Shopify's Storefront GraphQL
+/// API with the store's public access token; a cart made here can be
+/// pre-filled with the shopper's email. Docs:
+/// https://shopify.dev/docs/api/storefront
 class ShopifyStorefront {
   ShopifyStorefront({
     required this.storeDomain,
@@ -145,6 +91,23 @@ class ShopifyStorefront {
 
   Uri get endpoint => Uri.https(storeDomain, '/api/$apiVersion/graphql.json');
 
+  /// Every product the token's sales channel offers, newest first, a
+  /// page at a time (the website's `site/src/lib/shop.ts` asks the same).
+  static const productsQuery = r'''
+query Products($first: Int!, $after: String) {
+  products(first: $first, after: $after, sortKey: CREATED_AT, reverse: true) {
+    pageInfo { hasNextPage endCursor }
+    nodes {
+      id title handle productType descriptionHtml availableForSale
+      featuredImage { url }
+      priceRange { minVariantPrice { amount currencyCode } }
+      variants(first: 100) {
+        nodes { id title availableForSale price { amount currencyCode } image { url } }
+      }
+    }
+  }
+}''';
+
   static const _cartCreateMutation = r'''
 mutation CartCreate($input: CartInput!) {
   cartCreate(input: $input) {
@@ -152,6 +115,29 @@ mutation CartCreate($input: CartInput!) {
     userErrors { field message }
   }
 }''';
+
+  /// Every product, newest first.
+  Future<List<Product>> fetchProducts() async {
+    final products = <Product>[];
+    String? after;
+    do {
+      final data = await _query(productsQuery, {'first': 100, 'after': after});
+      final page = (data['products'] as Map?)?.cast<String, dynamic>();
+      final nodes = page?['nodes'];
+      if (nodes is! List) {
+        throw StoreException('Unexpected response from Shopify');
+      }
+      products.addAll(
+        nodes
+            .whereType<Map>()
+            .map((node) => Product.fromStorefrontJson(node.cast()))
+            .where((product) => product.handle.isNotEmpty),
+      );
+      final info = (page?['pageInfo'] as Map?) ?? const {};
+      after = info['hasNextPage'] == true ? info['endCursor'] as String? : null;
+    } while (after != null);
+    return products;
+  }
 
   Future<Uri> createCheckout(List<CartItem> items, String? email) async {
     final data = await _query(_cartCreateMutation, {

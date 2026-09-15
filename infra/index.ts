@@ -44,8 +44,14 @@ const manageDns = cfg.getBoolean("manageDns") ?? true;
 const repository = cfg.get("repository") ?? "andypohl/bikes-pizza-app";
 const repoName = repository.split("/")[1];
 const githubEnvironment = cfg.require("githubEnvironment");
-/** Sanity dataset the environment's website is built from. */
+/** Sanity dataset the environment's Studio deploys to (until Sanity is retired). */
 const sanityDataset = cfg.require("sanityDataset");
+/**
+ * The host the website calls the Shopify Storefront API on to build its
+ * shop. The access token that goes with it is an environment secret, set
+ * by hand like the other tokens (README, "Secrets").
+ */
+const shopifyStoreDomain = cfg.require("shopifyStoreDomain");
 
 /**
  * The Flutter app's store identifiers, registered as Firebase apps so the
@@ -413,6 +419,7 @@ const variables: Record<string, pulumi.Input<string>> = {
   PUBLIC_API_URL: `https://${submissionsDomain}`,
   REVIEW_PAGE_URL: `https://${submissionsDomain}/`,
   SANITY_DATASET: sanityDataset,
+  SHOPIFY_STORE_DOMAIN: shopifyStoreDomain,
 };
 for (const [variableName, value] of Object.entries(variables)) {
   new github.ActionsEnvironmentVariable(

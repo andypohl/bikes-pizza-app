@@ -1,15 +1,15 @@
-import { sanityClient } from 'sanity:client';
-import { defineQuery } from 'groq';
 import { slugify } from '../utils/slug';
 
 /**
- * The shop: products that Sanity Connect for Shopify keeps in the dataset
- * (`product` and `productVariant` documents, everything under `store`).
- * Read once per build, like posts. Checkout stays with Shopify: the buy
- * button opens the store's cart permalink for the chosen variant.
+ * The shop: the products of the Shopify store, read once per build from
+ * the Storefront GraphQL API with the store's public access token (which
+ * Shopify designs to ship in clients: it can only read the catalogue and
+ * create carts). Checkout stays with Shopify: the buy button opens the
+ * store's cart permalink for the chosen variant.
  */
 
 export interface Variant {
+  /** Shopify's numeric variant id, what the cart permalink needs. */
   id: number;
   title: string;
   price: number;
@@ -19,6 +19,7 @@ export interface Variant {
 }
 
 export interface Product {
+  /** Shopify's product id (`gid://shopify/Product/...`). */
   id: string;
   title: string;
   handle: string;
@@ -32,45 +33,121 @@ export interface Product {
   variants: Variant[];
 }
 
-const PRODUCTS_QUERY = defineQuery(`
-  *[_type == "product" && store.status == "active" && store.isDeleted != true && defined(store.slug.current)]
-    | order(store.createdAt desc) {
-    "id": _id,
-    "title": store.title,
-    "handle": store.slug.current,
-    "category": coalesce(store.productType, ""),
-    "descriptionHtml": coalesce(store.descriptionHtml, ""),
-    "image": store.previewImageUrl,
-    "price": coalesce(store.priceRange.minVariantPrice, 0),
-    "maxPrice": coalesce(store.priceRange.maxVariantPrice, store.priceRange.minVariantPrice, 0),
-    "variants": store.variants[]->{
-      "id": store.id,
-      "title": store.title,
-      "price": coalesce(store.price, 0),
-      "compareAtPrice": store.compareAtPrice,
-      "available": coalesce(store.inventory.isAvailable, false),
-      "image": store.previewImageUrl,
-      "deleted": store.isDeleted == true
+/** The store's own domain, where checkout happens. */
+export const STORE_URL = (import.meta.env.PUBLIC_STORE_URL || 'https://shop.bikes.pizza/').replace(/\/+$/, '');
+
+/**
+ * Where the Storefront API is called: the shop's `*.myshopify.com` host or
+ * a custom domain connected to the store; the store's own domain unless
+ * overridden. The token is `PUBLIC_SHOPIFY_STOREFRONT_TOKEN`; without one
+ * the build has no products (the Store button then links to the store).
+ */
+const STORE_DOMAIN: string = import.meta.env.PUBLIC_SHOPIFY_STORE_DOMAIN || new URL(`${STORE_URL}/`).host;
+const STOREFRONT_TOKEN: string = import.meta.env.PUBLIC_SHOPIFY_STOREFRONT_TOKEN || '';
+const API_VERSION = '2025-07';
+
+const PRODUCTS_QUERY = `
+  query Products($first: Int!, $after: String) {
+    products(first: $first, after: $after, sortKey: CREATED_AT, reverse: true) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        id title handle productType descriptionHtml availableForSale
+        featuredImage { url }
+        priceRange { minVariantPrice { amount } maxVariantPrice { amount } }
+        variants(first: 100) {
+          nodes { id title availableForSale price { amount } compareAtPrice { amount } image { url } }
+        }
+      }
     }
   }
-`);
+`;
 
-type RawVariant = Variant & { deleted: boolean };
+interface RawProduct {
+  id: string;
+  title: string;
+  handle: string;
+  productType: string | null;
+  descriptionHtml: string | null;
+  availableForSale: boolean;
+  featuredImage: { url: string } | null;
+  priceRange: { minVariantPrice: { amount: string }; maxVariantPrice: { amount: string } };
+  variants: {
+    nodes: {
+      id: string;
+      title: string;
+      availableForSale: boolean;
+      price: { amount: string };
+      compareAtPrice: { amount: string } | null;
+      image: { url: string } | null;
+    }[];
+  };
+}
+
+/** The number at the end of a Shopify GID (`gid://shopify/ProductVariant/123`). */
+export function numericId(gid: string): number {
+  return Number(gid.split('/').pop()?.split('?')[0]) || 0;
+}
+
+function toProduct(raw: RawProduct): Product {
+  const variants = raw.variants.nodes
+    .map((variant) => ({
+      id: numericId(variant.id),
+      title: variant.title,
+      price: Number(variant.price.amount) || 0,
+      compareAtPrice: variant.compareAtPrice ? Number(variant.compareAtPrice.amount) || null : null,
+      available: variant.availableForSale,
+      image: variant.image?.url ?? null,
+    }))
+    .filter((variant) => variant.id > 0);
+  const price = Number(raw.priceRange.minVariantPrice.amount) || 0;
+  return {
+    id: raw.id,
+    title: raw.title,
+    handle: raw.handle,
+    category: (raw.productType ?? '').trim(),
+    descriptionHtml: raw.descriptionHtml ?? '',
+    image: raw.featuredImage?.url ?? null,
+    price,
+    maxPrice: Math.max(price, Number(raw.priceRange.maxVariantPrice.amount) || 0),
+    available: raw.availableForSale && variants.some((variant) => variant.available),
+    variants,
+  };
+}
+
+async function storefront<T>(query: string, variables: Record<string, unknown>): Promise<T> {
+  const response = await fetch(`https://${STORE_DOMAIN}/api/${API_VERSION}/graphql.json`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'X-Shopify-Storefront-Access-Token': STOREFRONT_TOKEN },
+    body: JSON.stringify({ query, variables }),
+  });
+  if (!response.ok) throw new Error(`shopify: HTTP ${response.status} from the Storefront API`);
+  const body: { data?: T; errors?: { message: string }[] } = await response.json();
+  if (body.errors?.length) throw new Error(`shopify: ${body.errors.map((error) => error.message).join('; ')}`);
+  if (!body.data) throw new Error('shopify: empty reply from the Storefront API');
+  return body.data;
+}
+
+async function fetchProducts(): Promise<Product[]> {
+  if (!STOREFRONT_TOKEN) {
+    console.warn('shop: PUBLIC_SHOPIFY_STOREFRONT_TOKEN is not set; building without products');
+    return [];
+  }
+  const products: Product[] = [];
+  let after: string | null = null;
+  do {
+    const data: { products: { pageInfo: { hasNextPage: boolean; endCursor: string | null }; nodes: RawProduct[] } } =
+      await storefront(PRODUCTS_QUERY, { first: 100, after });
+    products.push(...data.products.nodes.filter((raw) => raw.handle).map(toProduct));
+    after = data.products.pageInfo.hasNextPage ? data.products.pageInfo.endCursor : null;
+  } while (after);
+  return products;
+}
 
 let cache: Promise<Product[]> | undefined;
 
-/** Every active product, newest first. Fetched once per build. */
+/** Every product of the store, newest first. Fetched once per build. */
 export function getProducts(): Promise<Product[]> {
-  cache ??= sanityClient.fetch<Omit<Product, 'available'>[]>(PRODUCTS_QUERY).then((products) =>
-    products.map((product) => {
-      // A dangling variant reference dereferences to null; drop those and
-      // variants Shopify has deleted.
-      const variants = ((product.variants ?? []) as (RawVariant | null)[])
-        .filter((variant): variant is RawVariant => variant !== null && !!variant.id && !variant.deleted)
-        .map(({ deleted: _deleted, ...variant }) => variant);
-      return { ...product, variants, available: variants.some((variant) => variant.available) };
-    }),
-  );
+  cache ??= fetchProducts();
   return cache;
 }
 
@@ -108,9 +185,6 @@ export function priceOf(product: Product): string {
 export function formatMoney(amount: number): string {
   return money.format(amount);
 }
-
-/** The store's own domain, where checkout happens. */
-export const STORE_URL = (import.meta.env.PUBLIC_STORE_URL || 'https://shop.bikes.pizza/').replace(/\/+$/, '');
 
 /** Shopify's cart permalink: opens checkout with one of the variant in the cart. */
 export function checkoutUrl(variant: Variant, quantity = 1): string {
