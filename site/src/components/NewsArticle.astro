@@ -1,10 +1,7 @@
 ---
 // One news article in full: title, date, photo when it has one, the body
 // and the credit.
-import { PortableText } from 'astro-portabletext';
-import ImageBlock from './portable-text/ImageBlock.astro';
-import Link from './portable-text/Link.astro';
-import { creditOf, memberPath, postPath, responsive, type Post } from '../lib/sanity';
+import { creditOf, memberPath, postPath, responsive, type Post } from '../lib/posts';
 import { formatDate } from '../utils/format';
 
 interface Props {
@@ -18,8 +15,7 @@ interface Props {
 const { post, linkTitle = false, eager = false } = Astro.props;
 // The photo keeps its proportions, as wide as the text at most and never
 // taller than 22.5rem (360px), the same cap as the app's article image.
-const image = post.image ? responsive(post.image, [800, 1200, 1600]) : null;
-const components = { type: { image: ImageBlock }, mark: { link: Link } };
+const image = post.image ? responsive(post.image) : null;
 ---
 
 <article class="max-w-3xl mx-auto">
@@ -34,7 +30,7 @@ const components = { type: { image: ImageBlock }, mark: { link: Link } };
         src={image.src}
         srcset={image.srcset}
         sizes="(min-width: 768px) 48rem, 100vw"
-        alt={post.image.alt}
+        alt={post.title}
         width={post.image.width}
         height={post.image.height}
         loading={eager ? 'eager' : 'lazy'}
@@ -44,20 +40,18 @@ const components = { type: { image: ImageBlock }, mark: { link: Link } };
     )
   }
 
-  <div class="post-body text-ink leading-relaxed font-light text-lg">
-    <PortableText value={post.body} components={components} />
-  </div>
+  <div class="post-body text-ink leading-relaxed font-light text-lg" set:html={post.html} />
 
   {
     creditOf(post) && (
       <p class="mt-8 text-sm text-muted">
         By{' '}
-        {post.author?.username ? (
-          <a href={memberPath(post.author)} class="text-ink underline decoration-line underline-offset-4 hover:text-spice">
-            {post.author.username}
+        {post.credit?.username ? (
+          <a href={memberPath(post.credit)} class="text-ink underline decoration-line underline-offset-4 hover:text-spice">
+            {post.credit.username}
           </a>
         ) : (
-          <span class="text-ink">{post.submittedBy}</span>
+          <span class="text-ink">{creditOf(post)}</span>
         )}
       </p>
     )

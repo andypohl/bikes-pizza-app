@@ -1,6 +1,6 @@
 # bikes.pizza website
 
-Astro site that renders the posts in Sanity as a photo gallery, adapted from
+Astro site that renders the posts in Firestore as a photo gallery, adapted from
 [Astro Frame Shift](https://github.com/EmaSuriano/astro-frame-shift) by Ema
 Suriano: masonry grid, category pages per feed, post pages with the full body
 and related posts, view transitions, and a dark/light toggle.
@@ -24,13 +24,21 @@ npm run build     # static output in dist/, served by the `home` Hosting target
 npm run preview
 ```
 
-Posts are fetched at build time from the public Sanity dataset (project and
-dataset in `astro.config.mjs`; override with `PUBLIC_SANITY_PROJECT_ID` and
-`PUBLIC_SANITY_DATASET`), so no token is needed. Canonical and Open Graph
-URLs use `PUBLIC_SITE_URL` (default `https://bikes.pizza`); the development
-deploy sets it to its own domain. Images are served from
-Sanity's CDN with responsive `srcset`s. `src/lib/sanity.ts` holds the query
-and image helpers; `src/pages/` has the index, `category/[category]`,
+Posts are fetched at build time from the `posts` collection of a Firebase
+project over Firestore's REST API (`src/lib/firestore.ts`); the security
+rules make published posts readable by anyone, so no credentials are
+needed. The project is `PUBLIC_FIREBASE_PROJECT`, which the deploys set to
+the environment's project; without it `astro.config.mjs` falls back to the
+development project in `.firebaserc`, so local builds and pull request
+checks show the development content. Canonical and Open Graph URLs use
+`PUBLIC_SITE_URL` (default `https://bikes.pizza`); the development deploy
+sets it to its own domain. Photos come from Cloud Storage as the renditions
+the functions made when the post was published (WebP at several widths in
+a `srcset`, a JPEG for link previews, a blurred placeholder while a size
+loads; tiles are cropped to 4:3 by CSS around the photo's focus point).
+Post bodies arrive as HTML rendered when the post was written and are
+inserted as they are. `src/lib/posts.ts` holds the post type, the fetch and
+the image helpers; `src/pages/` has the index, `category/[category]`,
 `post/[slug]` and `member/[username]` routes. The last lists everything a
 member has submitted and is linked from the credit on their posts; it is
 built for each member with a username and at least one post, at the
@@ -61,8 +69,10 @@ so it stays with Shopify. The cart lives in the browser
 badge with the count and opens a drawer whose quantity controls reflect
 what is in the cart, with a Checkout link that hands the whole cart to
 Shopify as one cart permalink. The header's Store button goes to
-`/shop/` when the build has products and to that domain otherwise. Product changes in Shopify reach the
-site through the same rebuild webhook as posts.
+`/shop/` when the build has products and to that domain otherwise. The
+products are still read from Sanity (project and dataset in
+`astro.config.mjs`, overridden with `PUBLIC_SANITY_PROJECT_ID` and
+`PUBLIC_SANITY_DATASET`) until the shop moves to the Storefront API.
 
 `/submit/` is the website's submission form ("Submit a bike or pizza" in the
 header). It needs a signed-in member: signed-out visitors are sent to the

@@ -5,14 +5,13 @@
 // Uses the same column grid as PostGrid so a featured tile spans two of
 // its columns (one when there is only one column).
 import PostTile from './PostTile.astro';
-import type { GalleryPost } from '../lib/sanity';
+import type { GalleryPost } from '../lib/posts';
 
 interface Props {
   posts: GalleryPost[];
 }
 
 const { posts } = Astro.props;
-const WIDTHS = [800, 1200, 1600, 2000];
 const SIZES = '(min-width: 1024px) 50vw, (min-width: 768px) 66vw, 100vw';
 ---
 
@@ -21,7 +20,7 @@ const SIZES = '(min-width: 1024px) 50vw, (min-width: 768px) 66vw, 100vw';
     <div class="featured" data-count={posts.length}>
       {posts.map((post) => (
         <div class="featured-item">
-          <PostTile post={post} eager titleAbove widths={WIDTHS} sizes={SIZES} />
+          <PostTile post={post} eager titleAbove sizes={SIZES} />
         </div>
       ))}
     </div>

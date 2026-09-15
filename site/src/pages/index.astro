@@ -4,7 +4,7 @@ import CategoryFilters from '../components/CategoryFilters.astro';
 import PostGrid from '../components/PostGrid.astro';
 import FeaturedRow from '../components/FeaturedRow.astro';
 import WavyDivider from '../components/WavyDivider.astro';
-import { CATEGORIES, getGalleryPosts, splitFeatured } from '../lib/sanity';
+import { CATEGORIES, getGalleryPosts, splitFeatured } from '../lib/posts';
 
 const posts = await getGalleryPosts();
 const categories = CATEGORIES;

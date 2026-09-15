@@ -8,7 +8,7 @@
 import Layout from '../../layouts/Layout.astro';
 import CategoryFilters from '../../components/CategoryFilters.astro';
 import NewsPage from '../../components/NewsPage.astro';
-import { CATEGORIES, getNewsPosts, newsPages, summaryOf } from '../../lib/sanity';
+import { CATEGORIES, getNewsPosts, newsPages, summaryOf } from '../../lib/posts';
 
 const news = await getNewsPosts();
 const pages = newsPages(news);

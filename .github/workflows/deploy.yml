@@ -1,16 +1,19 @@
 # Reusable deploy: builds the website, runs the Cloud Functions tests, and
 # deploys to the Firebase project of one GitHub environment. Called by the
 # release deploy (production), the merge deploy (development) and the
-# website rebuild that Sanity triggers. Not run on its own.
+# website rebuild the functions ask for when a post changes. Not run on its
+# own.
 #
 # Authentication is keyless: GitHub's OIDC token is exchanged for the deploy
 # service account through Workload Identity Federation (see docs/firebase.md).
 #
 # Variables, read from the environment (which overrides the repository):
-#   FIREBASE_PROJECT                Firebase project ID to deploy to
-#   SANITY_DATASET                  dataset the environment is built from; also
-#                                   picks which Studio and app the sanity job
-#                                   deploys, so it must be set on both environments
+#   FIREBASE_PROJECT                Firebase project ID to deploy to and to
+#                                   build the website's posts from
+#   SANITY_DATASET                  dataset the shop's products are built from;
+#                                   also picks which Studio and app the sanity
+#                                   job deploys, so it must be set on both
+#                                   environments
 #   GCP_WORKLOAD_IDENTITY_PROVIDER  projects/<number>/locations/global/
 #                                   workloadIdentityPools/<pool>/providers/<id>
 #   GCP_DEPLOY_SERVICE_ACCOUNT      deploy service account email
@@ -106,6 +109,7 @@ jobs:
         env:
           PUBLIC_SITE_URL: ${{ vars.SITE_URL }}
           PUBLIC_API_URL: ${{ vars.PUBLIC_API_URL }}
+          PUBLIC_FIREBASE_PROJECT: ${{ vars.FIREBASE_PROJECT }}
           PUBLIC_SANITY_PROJECT_ID: ${{ vars.SANITY_PROJECT_ID }}
           PUBLIC_SANITY_DATASET: ${{ vars.SANITY_DATASET }}
         run: npm ci && npm run build

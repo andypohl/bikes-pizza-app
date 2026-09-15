@@ -1,15 +1,23 @@
 ---
-import { PortableText } from 'astro-portabletext';
 import Layout from '../../layouts/Layout.astro';
 import PostGrid from '../../components/PostGrid.astro';
-import ImageBlock from '../../components/portable-text/ImageBlock.astro';
-import Link from '../../components/portable-text/Link.astro';
-import { detailSpecs, categoryOf, creditOf, memberPath, responsive, summaryOf, urlFor, type GalleryPost } from '../../lib/sanity';
+import {
+  detailSpecs,
+  categoryOf,
+  creditOf,
+  memberPath,
+  previewUrl,
+  renditionUrl,
+  responsive,
+  summaryOf,
+  widthUpTo,
+  type GalleryPost,
+} from '../../lib/posts';
 import { formatDate } from '../../utils/format';
 
 export async function getStaticPaths() {
   const RELATED_LIMIT = 8;
-  const { categoryOf, getGalleryPosts } = await import('../../lib/sanity');
+  const { categoryOf, getGalleryPosts } = await import('../../lib/posts');
   const posts = await getGalleryPosts();
   return posts.map((post) => ({
     params: { slug: post.id },
@@ -29,10 +37,9 @@ interface Props {
 
 const { post, related } = Astro.props;
 const category = categoryOf(post);
-const { src, srcset } = responsive(post.image, [800, 1200, 1600]);
-const largeSrc = urlFor(post.image).width(2400).quality(80).url();
-const ogImage = urlFor(post.image).width(1200).height(630).quality(80).url();
-const components = { type: { image: ImageBlock }, mark: { link: Link } };
+const { src, srcset } = responsive(post.image);
+const largeSrc = renditionUrl(post.image, `${widthUpTo(post.image)}.webp`);
+const ogImage = previewUrl(post.image);
 const specs = detailSpecs(post);
 ---
 
@@ -61,7 +68,7 @@ const specs = detailSpecs(post);
             src={src}
             srcset={srcset}
             sizes="(min-width: 1024px) 66vw, 100vw"
-            alt={post.image.alt}
+            alt={post.title}
             width={post.image.width}
             height={post.image.height}
             loading="eager"
@@ -93,24 +100,22 @@ const specs = detailSpecs(post);
           )
         }
 
-        <div class="post-body mb-8 text-ink leading-relaxed font-light">
-          <PortableText value={post.body} components={components} />
-        </div>
+        <div class="post-body mb-8 text-ink leading-relaxed font-light" set:html={post.html} />
 
         {
           creditOf(post) && (
             <div class="flex text-sm">
               <span class="font-medium w-28 text-muted">Submitted by:</span>
-              {post.author?.username ? (
+              {post.credit?.username ? (
                 <a
-                  href={memberPath(post.author)}
+                  href={memberPath(post.credit)}
                   class="text-ink font-light underline decoration-line underline-offset-4 hover:text-spice"
-                  title={`All posts by ${post.author.username}`}
+                  title={`All posts by ${post.credit.username}`}
                 >
-                  {post.author.username}
+                  {post.credit.username}
                 </a>
               ) : (
-                <span class="text-ink font-light">{post.submittedBy}</span>
+                <span class="text-ink font-light">{creditOf(post)}</span>
               )}
             </div>
           )
@@ -139,7 +144,7 @@ const specs = detailSpecs(post);
     popovertargetaction="hide"
     aria-label="Close larger image"
   >
-    <img src={largeSrc} alt={post.image.alt} loading="lazy" />
+    <img src={largeSrc} alt={post.title} loading="lazy" />
   </button>
 </div>
 

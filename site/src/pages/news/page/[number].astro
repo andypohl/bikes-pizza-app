@@ -7,7 +7,7 @@ import NewsPage from '../../../components/NewsPage.astro';
 export const partial = true;
 
 export async function getStaticPaths() {
-  const { getNewsPosts, newsPages } = await import('../../../lib/sanity');
+  const { getNewsPosts, newsPages } = await import('../../../lib/posts');
   return newsPages(await getNewsPosts()).map((posts, i) => ({
     params: { number: String(i + 1) },
     props: { number: i + 1, posts },
