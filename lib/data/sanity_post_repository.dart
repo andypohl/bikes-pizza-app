@@ -28,12 +28,13 @@ class SanityPostRepository implements PostRepository {
   /// The projection every post is fetched with. Body images get their asset
   /// URL projected in so the HTML converter can render them.
   static const projection = '''{
+    "docId": _id,
     "slug": slug.current, title, feed, publishedAt, excerpt,
     "plain": pt::text(body),
     "image": mainImage.asset->url,
     "imageSize": mainImage.asset->metadata.dimensions { width, height },
     submittedBy,
-    "author": author->{ "id": _id, "username": coalesce(username, "") },
+    "author": author->{ "id": _id, uid, "username": coalesce(username, "") },
     "bike": bike { brand, year, color, type },
     "pizza": pizza { style },
     body[]{ ..., _type == "image" => { "url": asset->url } }

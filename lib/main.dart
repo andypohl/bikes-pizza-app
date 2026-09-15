@@ -3,13 +3,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'account/member_service.dart';
+import 'api/api_client.dart';
 import 'app_settings.dart';
+import 'config.dart';
 import 'auth/auth_service.dart';
 import 'auth/passkey_service.dart';
 import 'firebase_options.dart';
 import 'firebase_options_dev.dart';
 import 'data/post_repository.dart';
 import 'models/post_feed.dart';
+import 'posts/post_editor.dart';
 import 'screens/news_screen.dart';
 import 'screens/post_list_screen.dart';
 import 'screens/settings_screen.dart';
@@ -38,16 +41,20 @@ Future<Widget> _loadApp() async {
   );
   final settings = await AppSettings.load();
   final cart = await Cart.load();
+  final auth = FirebaseAuthService();
+  // The REST API (editing posts) signs its requests with the same session.
+  final api = ApiClient(baseUrl: ApiConfig.baseUrl, token: auth.idToken);
   return BikesPizzaApp(
     settings: settings,
     repository: PostRepository.forConfig(),
     store: StoreRepository.forConfig(),
     cart: cart,
-    auth: FirebaseAuthService(),
+    auth: auth,
     members: CloudFunctionsMemberService(),
     passkeys: FirebasePasskeyService(),
     submissions: CloudFunctionsSubmissionService(),
     photos: ImagePickerPhotoPicker(),
+    editor: ApiPostEditor(api),
   );
 }
 
@@ -63,6 +70,7 @@ class BikesPizzaApp extends StatelessWidget {
     this.passkeys,
     this.submissions,
     this.photos,
+    this.editor,
   });
 
   final AppSettings settings;
@@ -82,6 +90,10 @@ class BikesPizzaApp extends StatelessWidget {
   /// Both needed for the Submit Pizza / Submit Bike buttons; null hides them.
   final SubmissionService? submissions;
   final PhotoPicker? photos;
+
+  /// With [photos], lets members edit their posts (and admins any post);
+  /// null hides the Edit buttons and the Posts tile in Settings.
+  final PostEditor? editor;
 
   static const _seed = Color(0xFF80C6C4); // teal from the app icon
 
@@ -111,6 +123,7 @@ class BikesPizzaApp extends StatelessWidget {
             passkeys: passkeys,
             submissions: submissions,
             photos: photos,
+            editor: editor,
           ),
         ),
       ),
@@ -133,6 +146,7 @@ class HomeShell extends StatefulWidget {
     this.passkeys,
     this.submissions,
     this.photos,
+    this.editor,
   });
 
   final PostRepository repository;
@@ -143,6 +157,7 @@ class HomeShell extends StatefulWidget {
   final PasskeyService? passkeys;
   final SubmissionService? submissions;
   final PhotoPicker? photos;
+  final PostEditor? editor;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -158,8 +173,19 @@ class _HomeShellState extends State<HomeShell> {
     final tablet = isTablet(context);
     final pages = <Widget>[
       if (tablet)
-        PostListScreen(feed: PostFeed.all, repository: widget.repository),
-      NewsScreen(repository: widget.repository),
+        PostListScreen(
+          feed: PostFeed.all,
+          repository: widget.repository,
+          auth: widget.auth,
+          photos: widget.photos,
+          editor: widget.editor,
+        ),
+      NewsScreen(
+        repository: widget.repository,
+        auth: widget.auth,
+        photos: widget.photos,
+        editor: widget.editor,
+      ),
       PostListScreen(
         feed: PostFeed.pizza,
         repository: widget.repository,
@@ -167,6 +193,7 @@ class _HomeShellState extends State<HomeShell> {
         submissions: widget.submissions,
         photos: widget.photos,
         members: widget.members,
+        editor: widget.editor,
       ),
       PostListScreen(
         feed: PostFeed.bikes,
@@ -175,6 +202,7 @@ class _HomeShellState extends State<HomeShell> {
         submissions: widget.submissions,
         photos: widget.photos,
         members: widget.members,
+        editor: widget.editor,
       ),
       StoreScreen(
         repository: widget.store,
@@ -185,6 +213,8 @@ class _HomeShellState extends State<HomeShell> {
         auth: widget.auth,
         members: widget.members,
         passkeys: widget.passkeys,
+        editor: widget.editor,
+        photos: widget.photos,
       ),
     ];
     // A window can shrink below tablet width; keep the index in range.

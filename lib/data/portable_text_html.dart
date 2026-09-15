@@ -132,6 +132,23 @@ String _image(Map<String, dynamic> block) {
   return '<figure><img src="$src" alt="$alt">$figcaption</figure>';
 }
 
+/// Plain text as the post editor saves it (paragraphs separated by blank
+/// lines, as `textToBlocks` in the functions reads it) rendered the way
+/// [portableTextToHtml] would render the resulting blocks, so an edited
+/// post can be shown before it is fetched again.
+String plainTextToHtml(String text) {
+  final paragraphs = text
+      .replaceAll('\r\n', '\n')
+      .replaceAll('\r', '\n')
+      .split(RegExp(r'\n{2,}'))
+      .map((p) => p.trim())
+      .where((p) => p.isNotEmpty);
+  return [
+    for (final p in paragraphs)
+      '<p>${escapeHtml(p).replaceAll('\n', '<br>')}</p>',
+  ].join();
+}
+
 String escapeHtml(String text) => text
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')

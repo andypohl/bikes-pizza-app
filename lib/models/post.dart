@@ -3,12 +3,16 @@ import 'bike_options.dart';
 import 'pizza_options.dart';
 
 /// The member who submitted a post: their Sanity `member` document id
-/// (stable, used to list their posts) and current username.
+/// (stable, used to list their posts), account id and current username.
 class PostAuthor {
-  const PostAuthor({required this.id, required this.username});
+  const PostAuthor({required this.id, required this.username, this.uid});
 
   final String id;
   final String username;
+
+  /// The member's Firebase account id, which says whether the signed-in
+  /// user is this member (and so may edit the post).
+  final String? uid;
 }
 
 /// One labelled bike detail ready to display, e.g. `Type: Mountain`.
@@ -99,6 +103,7 @@ class BikeDetails implements PostDetails {
 class Post {
   const Post({
     required this.id,
+    this.documentId = '',
     required this.title,
     required this.url,
     required this.publishedAt,
@@ -114,6 +119,11 @@ class Post {
   });
 
   final String id;
+
+  /// The Sanity document id, which editing goes by. Empty for a post that
+  /// did not come from Sanity (tests).
+  final String documentId;
+
   final String title;
 
   /// Canonical URL of the post on the website.
@@ -162,8 +172,41 @@ class Post {
 
   bool hasTag(String slug) => tags.contains(slug);
 
+  /// Whether the account with [uid] is the member this post is credited to.
+  bool isBy(String? uid) =>
+      uid != null && author?.uid != null && author!.uid == uid;
+
+  /// This post with some fields replaced, for showing an edit before the
+  /// post is fetched again.
+  Post copyWith({
+    String? title,
+    String? excerpt,
+    String? html,
+    String? featureImage,
+    double? imageAspectRatio,
+    BikeDetails? bike,
+    PizzaDetails? pizza,
+    bool clearBike = false,
+    bool clearPizza = false,
+  }) => Post(
+    id: id,
+    documentId: documentId,
+    title: title ?? this.title,
+    url: url,
+    publishedAt: publishedAt,
+    excerpt: excerpt ?? this.excerpt,
+    html: html ?? this.html,
+    featureImage: featureImage ?? this.featureImage,
+    imageAspectRatio: imageAspectRatio ?? this.imageAspectRatio,
+    tags: tags,
+    submittedBy: submittedBy,
+    author: author,
+    bike: clearBike ? null : bike ?? this.bike,
+    pizza: clearPizza ? null : pizza ?? this.pizza,
+  );
+
   /// Image transformation parameters for Sanity's image CDN.
-  static const _imageParams = 'w=1200&auto=format&q=80';
+  static const imageParams = 'w=1200&auto=format&q=80';
 
   /// Builds a post from the projection `SanityPostRepository` requests.
   factory Post.fromSanityJson(
@@ -192,6 +235,7 @@ class Post {
 
     return Post(
       id: slug.isNotEmpty ? slug : json['_id'] as String? ?? '',
+      documentId: json['docId'] as String? ?? json['_id'] as String? ?? '',
       title: json['title'] as String? ?? '(untitled)',
       url: slug.isEmpty
           ? ''
@@ -207,7 +251,7 @@ class Post {
       html: portableTextToHtml(body),
       featureImage: image == null || image.isEmpty
           ? null
-          : '$image?$_imageParams',
+          : '$image?$imageParams',
       imageAspectRatio: width != null && height != null && height > 0
           ? width / height
           : null,
@@ -218,6 +262,7 @@ class Post {
           : PostAuthor(
               id: authorId,
               username: (rawAuthor as Map)['username'] as String? ?? '',
+              uid: rawAuthor['uid'] as String?,
             ),
       bike: bike == null || bike.isEmpty ? null : bike,
       pizza: pizza == null || pizza.isEmpty ? null : pizza,

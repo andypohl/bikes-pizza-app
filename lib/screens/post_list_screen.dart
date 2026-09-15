@@ -5,8 +5,10 @@ import '../auth/auth_service.dart';
 import '../data/post_repository.dart';
 import '../models/post.dart';
 import '../models/post_feed.dart';
+import '../posts/post_editor.dart';
 import '../submissions/photo_picker.dart';
 import '../submissions/submission_service.dart';
+import '../widgets/edit_post_button.dart';
 import '../widgets/layout.dart';
 import '../widgets/post_article.dart';
 import '../widgets/post_tile.dart';
@@ -22,6 +24,8 @@ import 'submit_screen.dart';
 ///
 /// Feeds that take submissions show a "Submit …" bar under the list to
 /// signed-in members when [auth], [submissions] and [photos] are all given.
+/// With [auth], [editor] and [photos], an open post offers an Edit button
+/// to the member who posted it and to administrators.
 class PostListScreen extends StatefulWidget {
   const PostListScreen({
     super.key,
@@ -31,6 +35,7 @@ class PostListScreen extends StatefulWidget {
     this.submissions,
     this.photos,
     this.members,
+    this.editor,
     this.author,
   });
 
@@ -39,6 +44,7 @@ class PostListScreen extends StatefulWidget {
   final AuthService? auth;
   final SubmissionService? submissions;
   final PhotoPicker? photos;
+  final PostEditor? editor;
 
   /// Pre-fills the submission's credit with the member's username.
   final MemberService? members;
@@ -151,10 +157,25 @@ class _PostListScreenState extends State<PostListScreen> {
     }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            PostDetailScreen(post: post, repository: widget.repository),
+        builder: (_) => PostDetailScreen(
+          post: post,
+          repository: widget.repository,
+          auth: widget.auth,
+          editor: widget.editor,
+          photos: widget.photos,
+          onChanged: _replace,
+        ),
       ),
     );
+  }
+
+  /// Shows an edited post in the list (and beside it) as it now reads.
+  void _replace(Post post) {
+    setState(() {
+      final index = _posts.indexWhere((p) => p.id == post.id);
+      if (index >= 0) _posts[index] = post;
+      if (_selected?.id == post.id) _selected = post;
+    });
   }
 
   void _openSubmit(
@@ -229,6 +250,10 @@ class _PostListScreenState extends State<PostListScreen> {
                           key: ValueKey(selected.id),
                           post: selected,
                           repository: widget.repository,
+                          auth: auth,
+                          editor: widget.editor,
+                          photos: photos,
+                          onChanged: _replace,
                           onClose: () => setState(() => _selected = null),
                         ),
                 ),
@@ -300,14 +325,25 @@ class _PostPane extends StatelessWidget {
     required this.post,
     required this.repository,
     required this.onClose,
+    this.auth,
+    this.editor,
+    this.photos,
+    this.onChanged,
   });
 
   final Post post;
   final PostRepository repository;
   final VoidCallback onClose;
+  final AuthService? auth;
+  final PostEditor? editor;
+  final PhotoPicker? photos;
+  final ValueChanged<Post>? onChanged;
 
   @override
   Widget build(BuildContext context) {
+    final auth = this.auth;
+    final editor = this.editor;
+    final photos = this.photos;
     return Column(
       key: const Key('post-pane'),
       children: [
@@ -316,6 +352,14 @@ class _PostPane extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
+              if (auth != null && editor != null && photos != null)
+                EditPostButton(
+                  post: post,
+                  auth: auth,
+                  editor: editor,
+                  photos: photos,
+                  onSaved: (updated) => onChanged?.call(updated),
+                ),
               if (post.url.isNotEmpty)
                 IconButton(
                   tooltip: 'Open on bikes.pizza',

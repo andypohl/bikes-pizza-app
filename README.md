@@ -13,7 +13,7 @@ Five bottom-bar tabs:
 | Pizza    | Posts tagged `pizza`                                           |
 | Bikes    | Posts tagged `biking` or `off-road-biking`                     |
 | Store    | Product grid from Sanity, a cart, and Shopify checkout       |
-| Settings | Account (sign-in, username, newsletters, password, deletion), theme |
+| Settings | Account (sign-in, username, newsletters, password, deletion), Posts (edit what you posted), theme |
 
 Tapping a post opens it in-app with the hero image and full HTML body. A
 toolbar button opens the post in the browser.
@@ -100,6 +100,23 @@ stored), makes a thumbnail, stores both in Cloud Storage under
 status `pending`, and emails a configured address with a link to the review
 page. Nothing reaches the blog at this point.
 
+**Editing posts.** A member can change a post they are credited to (the
+`author` reference set when their submission was published): Settings →
+Posts lists them, and an open post shows an Edit button in its app bar
+(`lib/widgets/edit_post_button.dart`) to the member who posted it and to
+administrators. The edit screen (`lib/screens/edit_post_screen.dart`)
+takes a new photo, title, description or story, and the structured
+details (a bike's brand, year, color and type, a pizza's style, the same
+choices as the Post details app); only what changed is sent, through the
+REST API's `/api/posts` endpoints (`docs/api.md`, `functions/posts.js`,
+reached with `lib/api/api_client.dart`). A member's edit is reviewed like
+a new post: it is stored as a pending submission of kind `edit`, the
+reviewer is emailed, and the post changes only when the review page
+applies it (one pending edit per post; the screen says so meanwhile). An
+administrator's edit is applied at once. A story written in the Studio
+with headings, lists or links is edited as plain text and, if changed,
+saved as plain paragraphs; the screen warns about that.
+
 **Review page**: `web/review/`, its own Hosting site served at
 https://submissions.bikes.pizza/. It works through the REST API at
 `/api/` on the same site (`functions/api.js`, documented in `docs/api.md`),
@@ -112,7 +129,10 @@ code, and every sign-in afterwards asks for the code; the API refuses admin
 tokens without it. It
 lists submissions as a paginated table with thumbnails and Pending / Posted
 / Rejected / All filters. Opening a row shows the full photo and story, and
-offers Queue to post, Save as draft, or Reject. Queued submissions wait in a
+offers Queue to post, Save as draft, or Reject. A member's edit of a
+published post appears in the same list marked "Edit", with what changed
+and a link to the post; Apply edit writes it to the post right away (there
+is no draft or queue for an edit), Reject drops it. Queued submissions wait in a
 per-feed queue and go live one at a time on a fixed schedule (bikes at
 8am, 12pm, 4pm and 8pm Central; pizza at 9am, 1pm, 5pm and 9pm), run by
 scheduled functions; the page shows each queue's length and the time to
@@ -356,6 +376,11 @@ lib/
   data/portable_text_html.dart      Portable Text to HTML for the renderer
   screens/post_list_screen.dart list with pull-to-refresh + infinite scroll
   screens/post_detail_screen.dart
+  screens/edit_post_screen.dart edit a post (photo, title, story, details)
+  screens/my_posts_screen.dart  Settings > Posts: the member's posts
+  widgets/edit_post_button.dart Edit button for the poster and admins
+  posts/post_editor.dart        PostEditor on the REST API's /api/posts
+  api/api_client.dart           REST API client (ID token, JSON, errors)
   screens/settings_screen.dart
   screens/store_screen.dart     Shopify product grid, or placeholder
   screens/product_detail_screen.dart

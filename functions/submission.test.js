@@ -115,3 +115,24 @@ test("sendMail posts a Mailgun message with basic auth and reply-to", async () =
     /Mailgun 401: Forbidden/,
   );
 });
+
+test("notificationEmail describes an edit and what changed", () => {
+  const mail = notificationEmail({
+    kind: "edit",
+    feed: "bikes",
+    title: "Trek 970 (restored)",
+    from: "Ada",
+    description: "New story",
+    userEmail: "ada@example.com",
+    reviewUrl: "https://submissions.example.com/",
+    post: { title: "Trek 970", url: "https://example.com/post/trek-970/" },
+    changes: { title: "Trek 970 (restored)", story: "New story", image: true, bike: { brand: "Trek" } },
+  });
+  assert.equal(mail.subject, "Edit to bike post: Trek 970");
+  assert.match(mail.text, /Ada edited their bike post: Trek 970/);
+  assert.match(mail.text, /Post: https:\/\/example.com\/post\/trek-970\//);
+  assert.match(mail.text, /Changed: title, story, photo, bike/);
+  assert.match(mail.text, /New title: Trek 970 \(restored\)/);
+  assert.match(mail.text, /New story:\nNew story/);
+  assert.match(mail.text, /Review it: https:\/\/submissions.example.com\//);
+});

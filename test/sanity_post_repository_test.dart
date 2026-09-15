@@ -8,6 +8,7 @@ import 'package:bikes_pizza/data/sanity_post_repository.dart';
 import 'package:bikes_pizza/models/post_feed.dart';
 
 Map<String, dynamic> _row(String slug, {String feed = 'pizza'}) => {
+  'docId': 'doc-$slug',
   'slug': slug,
   'title': 'Post $slug',
   'feed': feed,
@@ -107,8 +108,17 @@ void main() {
     expect(first.excerpt, 'Body of a');
     expect(first.html, '<p>Body of a</p>');
     expect(first.publishedAt.toUtc().year, 2025);
+    expect(first.documentId, 'doc-a');
     expect(first.author, isNull);
     expect(first.credit, isNull);
+  });
+
+  test('the projection asks for the document id and the member account id', () {
+    expect(SanityPostRepository.projection, contains('"docId": _id'));
+    expect(
+      SanityPostRepository.projection,
+      contains('author->{ "id": _id, uid,'),
+    );
   });
 
   test(
@@ -118,7 +128,7 @@ void main() {
         {
           ..._row('a'),
           'submittedBy': 'Ada',
-          'author': {'id': 'm1', 'username': 'ada_bikes'},
+          'author': {'id': 'm1', 'uid': 'u1', 'username': 'ada_bikes'},
         },
         {
           ..._row('b'),
@@ -131,10 +141,14 @@ void main() {
       final posts = (await repo(client, pageSize: 3).fetchPosts(PostFeed.all))
           .posts;
       expect(posts[0].author?.id, 'm1');
+      expect(posts[0].author?.uid, 'u1');
+      expect(posts[0].isBy('u1'), isTrue);
+      expect(posts[0].isBy('u2'), isFalse);
       expect(posts[0].credit, 'ada_bikes');
       expect(posts[1].author?.id, 'm2');
       expect(posts[1].credit, 'Bob'); // no username chosen yet
       expect(posts[2].author, isNull);
+      expect(posts[2].isBy('u1'), isFalse);
       expect(posts[2].credit, 'Cy');
     },
   );

@@ -37,6 +37,24 @@ class SanityConfig {
   static const int pageSize = 15;
 }
 
+/// The REST API behind the submissions site (`docs/api.md`): editing posts
+/// and, on tablets, the review and admin screens. Requests carry the
+/// signed-in member's Firebase ID token. Release builds talk to the
+/// production API and the rest to the development one, matching the
+/// Firebase project each signs in to; `--dart-define=API_URL=...` points a
+/// build elsewhere (an emulator, say).
+class ApiConfig {
+  ApiConfig._();
+
+  static const String _definedUrl = String.fromEnvironment('API_URL');
+
+  static String get baseUrl => _definedUrl.isNotEmpty
+      ? _definedUrl
+      : (kReleaseMode
+            ? 'https://submissions.bikes.pizza'
+            : 'https://submissions.bikes-pizza.dev');
+}
+
 /// Shopify settings. The catalogue itself comes from Sanity (see
 /// `store/store_repository.dart`); Shopify is only where checkout happens.
 ///

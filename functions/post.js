@@ -60,6 +60,12 @@ export function buildPost(submission, { imageAssetId, now = new Date(), authorId
   };
 }
 
+/** Where the website shows a post: news posts under /news/, the rest under /post/. */
+export function postUrl(siteUrl, feed, slug) {
+  const base = siteUrl.replace(/\/$/, "");
+  return `${base}/${feed === "news" ? "news" : "post"}/${slug}/`;
+}
+
 /**
  * Creates the post in Sanity, published or as a draft.
  *

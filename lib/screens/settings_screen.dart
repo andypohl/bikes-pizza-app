@@ -10,6 +10,9 @@ import '../auth/passkey_service.dart';
 import '../auth/session_expiry.dart';
 import '../auth/sign_in_screen.dart';
 import '../config.dart';
+import '../posts/post_editor.dart';
+import '../submissions/photo_picker.dart';
+import 'my_posts_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({
@@ -17,6 +20,8 @@ class SettingsScreen extends StatelessWidget {
     required this.auth,
     this.members,
     this.passkeys,
+    this.editor,
+    this.photos,
   });
 
   final AuthService auth;
@@ -24,6 +29,11 @@ class SettingsScreen extends StatelessWidget {
 
   /// Null when this build cannot use passkeys; the screens then omit them.
   final PasskeyService? passkeys;
+
+  /// Both needed for the Posts tile (editing published posts); null
+  /// hides it.
+  final PostEditor? editor;
+  final PhotoPicker? photos;
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +44,13 @@ class SettingsScreen extends StatelessWidget {
       body: ListView(
         children: [
           const _SectionHeader('Account'),
-          _AccountSection(auth: auth, members: members, passkeys: passkeys),
+          _AccountSection(
+            auth: auth,
+            members: members,
+            passkeys: passkeys,
+            editor: editor,
+            photos: photos,
+          ),
           const Divider(),
           const _SectionHeader('Appearance'),
           RadioGroup<ThemeMode>(
@@ -78,11 +94,15 @@ class _AccountSection extends StatelessWidget {
     required this.auth,
     required this.members,
     required this.passkeys,
+    required this.editor,
+    required this.photos,
   });
 
   final AuthService auth;
   final MemberService? members;
   final PasskeyService? passkeys;
+  final PostEditor? editor;
+  final PhotoPicker? photos;
 
   @override
   Widget build(BuildContext context) {
@@ -105,6 +125,8 @@ class _AccountSection extends StatelessWidget {
           );
         }
         final members = this.members;
+        final editor = this.editor;
+        final photos = this.photos;
         return Column(
           children: [
             ListTile(
@@ -116,6 +138,23 @@ class _AccountSection extends StatelessWidget {
                 child: const Text('Sign out'),
               ),
             ),
+            if (editor != null && photos != null && user.emailVerified)
+              ListTile(
+                key: const Key('my-posts'),
+                leading: const Icon(Icons.edit_note_outlined),
+                title: const Text('Posts'),
+                subtitle: const Text('Edit the bikes and pizzas you posted'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => MyPostsScreen(
+                      editor: editor,
+                      photos: photos,
+                      auth: auth,
+                    ),
+                  ),
+                ),
+              ),
             if (members != null && user.emailVerified)
               ListTile(
                 key: const Key('manage-account'),

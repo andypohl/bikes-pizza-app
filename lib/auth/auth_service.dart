@@ -151,6 +151,10 @@ abstract class AuthService {
   /// Whether the signed-in account is an administrator (the `admin` claim).
   /// Administrators must keep a second factor for the admin pages.
   Future<bool> isAdmin();
+
+  /// A fresh Firebase ID token for the REST API (`ApiClient`), or null when
+  /// nobody is signed in.
+  Future<String?> idToken();
 }
 
 /// [AuthService] backed by Firebase Authentication.
@@ -383,6 +387,17 @@ class FirebaseAuthService implements AuthService {
       return token.claims?['admin'] == true;
     } on fb.FirebaseAuthException {
       return false;
+    }
+  }
+
+  @override
+  Future<String?> idToken() async {
+    final user = _auth.currentUser;
+    if (user == null) return null;
+    try {
+      return await user.getIdToken();
+    } on fb.FirebaseAuthException {
+      return null;
     }
   }
 

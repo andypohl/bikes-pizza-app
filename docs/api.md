@@ -168,6 +168,9 @@ the schedule. Returns `{ "posted": Submission | null, ...countdown fields }`;
 ```json
 {
   "id": "…",
+  "kind": "post" | "edit",
+  "post": null | { "id", "slug", "title", "feed", "url", "imageUrl" },
+  "changes": null | { "title"?, "story"?, "bike"?, "pizza"?, "image": boolean },
   "feed": "bikes",
   "title": "1991 Trek 970",
   "from": "Ada",
@@ -190,10 +193,99 @@ the schedule. Returns `{ "posted": Submission | null, ...countdown fields }`;
 }
 ```
 
+A submission of kind `edit` is a member's request to change one of their
+published posts (see Posts): `post` names the post, `changes` holds the
+new values (`image: true` means a new photo, held at `photoUrl`), and
+`title` and `description` read as the post would after the edit. On review,
+`publish` applies the edit to the post right away (no queue; the reply is
+the `"status": "approved"` shape with the post's id and URL), `reject`
+drops it, and `draft` and the queue endpoints refuse it. Its `image` URLs
+are null when the photo is not changing.
+
 `photoUrl` and `thumbUrl` are Cloud Storage download links carrying a
 per-submission token, so they work in an `<img>` or an image widget without
 further authentication. Treat them as private: anyone holding the link can
 open the photo.
+
+## Posts
+
+Members can edit the posts credited to them (the `author` reference on a
+post, set when a submission is published) from the app; administrators can
+edit any post. For these endpoints "admin" means the `admin` claim on a
+token minted after a second factor, as elsewhere; an admin signed in
+without one is treated as an ordinary member. A post the caller may not
+edit answers `404`, the same as one that does not exist.
+
+A member's edit does not change the post: it is stored as a submission of
+kind `edit` (see Submission below), the reviewer is emailed, and the
+change reaches the post when the review page applies it. An
+administrator's edit is applied at once.
+
+### `GET /api/posts`
+
+The caller's published posts, newest first:
+
+```json
+{ "posts": [Post summary, ...] }
+```
+
+Each summary is `{ "id", "title", "feed", "slug", "url", "publishedAt",
+"image": { "url", "width", "height" } | null }`, where `id` is the Sanity
+document id and `url` the post's page on the website.
+
+### `GET /api/posts/{id}`
+
+The post as its editor sees it: the summary fields plus
+
+```json
+{
+  "story": "First paragraph.\n\nSecond paragraph.",
+  "storyHasFormatting": false,
+  "bike": { "brand": "GT", "year": "1990s", "color": "", "type": "mtb" } | null,
+  "pizza": { "style": "detroit" } | null,
+  "pendingEdit": null | { "id": "<submission id>", "createdAt": "…" }
+}
+```
+
+`story` is the body as plain text, one paragraph per blank line.
+`storyHasFormatting` is true when the body holds more than plain
+paragraphs (headings, lists, links, bold text, images, as a post written
+in the Studio might); saving a new story then replaces all of it with
+plain paragraphs. `bike` is present on bike posts and `pizza` on pizza
+posts, each with every field, empty when not set; the values are the ones
+in `studio/schemaTypes/bikeOptions.ts` and `pizzaOptions.ts`.
+`pendingEdit` names the edit of this post that is waiting for review, if
+there is one (a member may not send another until it is reviewed).
+
+### `PATCH /api/posts/{id}`
+
+Asks for changes to the fields given, leaving the rest alone:
+
+```json
+{
+  "title": "…",
+  "story": "…",
+  "image": { "data": "<base64>", "contentType": "image/jpeg" | "image/png" | "image/webp" },
+  "bike": { "brand": "…", "year": "…", "color": "…", "type": "…" },
+  "pizza": { "style": "…" }
+}
+```
+
+`bike` and `pizza` replace the post's details as a whole: send every field,
+with an empty string to clear one. A new `image` (8 MB max before
+encoding) goes through the same pipeline as a submission's photo
+(rotation fixed, 2048px long edge, JPEG) and, for members, the same
+Google Cloud Vision checks, with the same `400` messages; administrators'
+photos are not inspected. The slug, and so the URL, never changes.
+
+For a member the reply is `{ "status": "pending", "submissionId",
+"notified" }`, `notified` saying whether the reviewer email went out; a
+second edit while one is pending answers `409`. For an administrator it
+is `{ "status": "applied", "post": … }` with the post as `GET
+/api/posts/{id}` now reads. Unknown fields, details for the wrong feed, an
+unknown option value or an empty title answer `400`. The website rebuilds
+through the Sanity webhook once the post changes, as for any content
+change.
 
 ## Site settings
 

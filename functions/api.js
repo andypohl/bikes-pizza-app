@@ -19,6 +19,9 @@
 //   POST /api/queue/:feed/submit-next   admin; posts the oldest entry now
 //   GET  /api/site/settings             public (no token); {submitButton}
 //   POST /api/site/settings             admin; {submitButton: boolean}
+//   GET  /api/posts                     verified user; the posts credited to them
+//   GET  /api/posts/:id                 the credited member, or an admin
+//   PATCH /api/posts/:id                same; {title?, story?, image?, bike?, pizza?}
 //   GET  /api/admin/users               admin; ?page=&pageSize= — by most recent post
 //   GET  /api/admin/users/:uid          admin
 //   PATCH /api/admin/users/:uid         admin; {username?, email?, newsletters?}
@@ -33,7 +36,7 @@ import cors from "cors";
 import express from "express";
 
 import { ValidationError } from "./account.js";
-import { AppError, secondFactorAdminFromClaims, userFromClaims } from "./errors.js";
+import { AppError, actorFromClaims, secondFactorAdminFromClaims, userFromClaims } from "./errors.js";
 
 export const STATUS_FOR_CODE = {
   "invalid-argument": 400,
@@ -54,9 +57,10 @@ export const BODY_LIMIT = "12mb";
  * `service` exposes create(data, user), list(query), get(id),
  * review(input, admin) and a `queue` with info(feed), items(feed),
  * add(input, admin), remove(input, admin) and submitNext(feed), a
- * `site` with settings() and updateSettings(data, admin), and `users`
+ * `site` with settings() and updateSettings(data, admin), `users`
  * with list(query), get(uid), update(uid, data, admin) and remove(uid,
- * admin); see index.js for the wiring.
+ * admin), and `posts` with mine(user), get(id, actor) and update(id, data,
+ * actor); see index.js for the wiring.
  */
 export function createApi({ verifyToken, service, log = () => {} }) {
   const app = express();
@@ -150,6 +154,15 @@ export function createApi({ verifyToken, service, log = () => {} }) {
       return queue.submitNext(req.params.feed);
     }),
   );
+
+  // Editing posts: the credited member, or an admin whose session passed
+  // a second factor (actorFromClaims); the service decides per post.
+  const posts = service.posts;
+  if (posts) {
+    api.get("/posts", wrap((req) => posts.mine(userFromClaims(req.claims))));
+    api.get("/posts/:id", wrap((req) => posts.get(req.params.id, actorFromClaims(req.claims))));
+    api.patch("/posts/:id", wrap((req) => posts.update(req.params.id, req.body, actorFromClaims(req.claims))));
+  }
 
   const users = service.users;
   if (users) {
