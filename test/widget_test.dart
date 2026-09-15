@@ -7,6 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:bikes_pizza/account/member_service.dart';
+import 'package:bikes_pizza/admin/admin_service.dart';
+import 'package:bikes_pizza/admin/submissions_screen.dart';
+import 'package:bikes_pizza/admin/users_screen.dart';
 import 'package:bikes_pizza/api/api_client.dart';
 import 'package:bikes_pizza/app_settings.dart';
 import 'package:bikes_pizza/auth/auth_service.dart';
@@ -461,6 +464,201 @@ class FakePostEditor implements PostEditor {
   }
 }
 
+/// In-memory admin API: a few submissions and users; records reviews,
+/// queue changes, updates and deletions. [deny] answers every call as the
+/// API does for an admin session without a second factor.
+class FakeAdminService implements AdminService {
+  bool deny = false;
+  bool submitButtonOn = true;
+  final reviews = <(String, String, String)>[];
+  final dequeued = <String>[];
+  final updates = <(String, String?, String?, List<String>?)>[];
+  final deleted = <String>[];
+  final listedStatuses = <String>[];
+
+  final items = <AdminSubmission>[
+    const AdminSubmission(
+      id: 's1',
+      kind: 'post',
+      feed: 'bikes',
+      title: 'Trek 970',
+      from: 'Ada',
+      description: 'A fine bike.',
+      status: 'pending',
+      submitterEmail: 'ada@example.com',
+    ),
+    const AdminSubmission(
+      id: 'e1',
+      kind: 'edit',
+      feed: 'pizza',
+      title: 'Detroit slice, renamed',
+      from: 'Bob',
+      description: 'Story',
+      status: 'pending',
+      post: EditedPost(id: 'p1', title: 'Detroit slice'),
+      changes: {'title': 'Detroit slice, renamed', 'image': false},
+    ),
+    const AdminSubmission(
+      id: 's2',
+      kind: 'post',
+      feed: 'pizza',
+      title: 'Grandma pie',
+      from: 'Cy',
+      description: '',
+      status: 'queued',
+      queue: QueueEntry(byEmail: 'admin@example.com', note: 'yum'),
+    ),
+  ];
+
+  final accounts = <AdminUser>[
+    const AdminUser(
+      uid: 'u1',
+      email: 'ada@example.com',
+      emailVerified: true,
+      username: 'ada_bikes',
+      subscribed: true,
+      providers: ['Email'],
+      postCount: 2,
+      latestPost: UserPost(title: 'Trek 970'),
+      newsletters: [
+        Newsletter(id: 'news', name: 'Newsletter', subscribed: true),
+      ],
+      posts: [
+        UserPost(title: 'Trek 970'),
+        UserPost(title: 'Old Trek'),
+      ],
+    ),
+    const AdminUser(
+      uid: 'u2',
+      email: 'bob@example.com',
+      providers: ['Google'],
+      newsletters: [Newsletter(id: 'news', name: 'Newsletter')],
+    ),
+  ];
+
+  void _check() {
+    if (deny) {
+      throw ApiException(
+        'Two-factor authentication is required for this.',
+        code: 'permission-denied',
+      );
+    }
+  }
+
+  @override
+  Future<SubmissionPage> submissions({
+    String status = '',
+    int limit = 20,
+    String? after,
+  }) async {
+    _check();
+    listedStatuses.add(status);
+    return SubmissionPage(
+      items: [
+        for (final s in items)
+          if (status.isEmpty || s.status == status) s,
+      ],
+    );
+  }
+
+  @override
+  Future<AdminSubmission> submission(String id) async =>
+      items.firstWhere((s) => s.id == id);
+
+  @override
+  Future<ReviewResult> review(
+    String id,
+    String action, {
+    String note = '',
+  }) async {
+    _check();
+    reviews.add((id, action, note));
+    return switch (action) {
+      'publish' => const ReviewResult(
+        status: 'queued',
+        position: 1,
+        feed: 'bikes',
+        countdown: '2h 0m 0s',
+      ),
+      'draft' => const ReviewResult(status: 'approved', postStatus: 'draft'),
+      _ => const ReviewResult(status: 'rejected'),
+    };
+  }
+
+  @override
+  Future<QueueInfo> queueInfo(String feed) async {
+    _check();
+    return QueueInfo(
+      feed: feed,
+      length: feed == 'bikes' ? 2 : 0,
+      countdown: '1h 5m 0s',
+    );
+  }
+
+  @override
+  Future<void> dequeue(String feed, String id) async {
+    _check();
+    dequeued.add(id);
+  }
+
+  @override
+  Future<bool> submitButton() async {
+    _check();
+    return submitButtonOn;
+  }
+
+  @override
+  Future<bool> setSubmitButton(bool on) async {
+    _check();
+    return submitButtonOn = on;
+  }
+
+  @override
+  Future<UserPage> users({int page = 1, int pageSize = 25}) async {
+    _check();
+    return UserPage(page: page, pages: 3, total: 60, users: accounts);
+  }
+
+  @override
+  Future<AdminUser> user(String uid) async {
+    _check();
+    return accounts.firstWhere((u) => u.uid == uid);
+  }
+
+  @override
+  Future<AdminUser> updateUser(
+    String uid, {
+    String? username,
+    String? email,
+    List<String>? newsletters,
+  }) async {
+    _check();
+    updates.add((uid, username, email, newsletters));
+    final was = accounts.firstWhere((u) => u.uid == uid);
+    return AdminUser(
+      uid: uid,
+      email: email ?? was.email,
+      username: username ?? was.username,
+      providers: was.providers,
+      newsletters: [
+        for (final n in was.newsletters)
+          Newsletter(
+            id: n.id,
+            name: n.name,
+            subscribed: newsletters?.contains(n.id) ?? n.subscribed,
+          ),
+      ],
+      posts: was.posts,
+    );
+  }
+
+  @override
+  Future<void> deleteUser(String uid) async {
+    _check();
+    deleted.add(uid);
+  }
+}
+
 /// Returns a tiny PNG, or nothing when [cancel] is set.
 class FakePhotoPicker implements PhotoPicker {
   bool cancel = false;
@@ -602,6 +800,7 @@ void main() {
   late FakeSubmissionService submissions;
   late FakePhotoPicker photos;
   late FakePostEditor editor;
+  late FakeAdminService admin;
 
   setUp(() {
     PackageInfo.setMockInitialValues(
@@ -617,6 +816,7 @@ void main() {
     passkeys = null;
     submissions = FakeSubmissionService();
     photos = FakePhotoPicker();
+    admin = FakeAdminService();
     editor = FakePostEditor()
       ..posts['doc-Newest post'] = _editable('doc-Newest post')
       ..posts['doc-Older post'] = _editable(
@@ -692,6 +892,7 @@ void main() {
         submissions: submissions,
         photos: photos,
         editor: editor,
+        admin: admin,
       ),
     );
     await tester.pumpAndSettle();
@@ -2490,5 +2691,234 @@ void main() {
     expect(find.text('Could not save that.'), findsOneWidget);
     expect(find.byType(EditPostScreen), findsOneWidget);
     expect(find.text('Thanks!'), findsNothing);
+  });
+
+  // ---- tablet admin ---------------------------------------------------------
+
+  /// Signs in as an administrator and opens Settings.
+  Future<void> settingsAsAdmin(WidgetTester tester, {Size? size}) async {
+    await pumpApp(tester, size: size ?? const Size(800, 1200));
+    auth.admin = true;
+    await signInWithGoogle(tester);
+  }
+
+  testWidgets('Settings → Admin appears on tablets for administrators only', (
+    tester,
+  ) async {
+    await settingsAsAdmin(tester, size: phone);
+    expect(find.byKey(const Key('admin-section')), findsNothing);
+  });
+
+  testWidgets('Settings → Admin is hidden from members on tablets', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    await signInWithGoogle(tester);
+    expect(find.byKey(const Key('admin-section')), findsNothing);
+  });
+
+  testWidgets('the submissions screen lists, filters and reviews', (
+    tester,
+  ) async {
+    await settingsAsAdmin(tester);
+    expect(find.byKey(const Key('admin-section')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('admin-submissions')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Submissions'), findsOneWidget);
+    expect(find.textContaining('Bike queue: 2 waiting'), findsOneWidget);
+    expect(find.text('Trek 970'), findsOneWidget);
+    expect(find.text('Detroit slice, renamed'), findsOneWidget);
+    expect(find.textContaining('Edit · Pizza'), findsOneWidget);
+    expect(find.text('Grandma pie'), findsNothing); // queued, not pending
+    expect(admin.listedStatuses.last, 'pending');
+
+    await tester.tap(find.byKey(const Key('filter-queued')));
+    await tester.pumpAndSettle();
+    expect(admin.listedStatuses.last, 'queued');
+    expect(find.text('Grandma pie'), findsOneWidget);
+    expect(find.text('Trek 970'), findsNothing);
+
+    // The website submit switch talks to the API.
+    final toggle = find.byKey(const Key('submit-button-setting'));
+    expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(admin.submitButtonOn, isFalse);
+
+    // Back to pending; open one on this portrait tablet: its own screen.
+    await tester.tap(find.byKey(const Key('filter-pending')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('submission-s1')));
+    await tester.pumpAndSettle();
+    expect(find.text('A fine bike.'), findsOneWidget);
+    expect(find.text('Queue to post'), findsOneWidget);
+    expect(find.byKey(const Key('review-draft')), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('review-note')), 'lovely');
+    await tester.tap(find.byKey(const Key('review-publish')));
+    await tester.pumpAndSettle();
+
+    expect(admin.reviews, [('s1', 'publish', 'lovely')]);
+    expect(
+      find.textContaining('Queued at position 1 for Bike'),
+      findsOneWidget,
+    );
+    expect(find.text('Submissions'), findsOneWidget); // back on the list
+  });
+
+  testWidgets('an edit offers Apply edit and no draft; rejecting asks first', (
+    tester,
+  ) async {
+    await settingsAsAdmin(tester);
+    await tester.tap(find.byKey(const Key('admin-submissions')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('submission-e1')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('edit-of')), findsOneWidget);
+    expect(find.textContaining('changes: title'), findsOneWidget);
+    expect(find.text('Apply edit'), findsOneWidget);
+    expect(find.byKey(const Key('review-draft')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('review-reject')));
+    await tester.pumpAndSettle();
+    expect(find.text('Reject this submission?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(admin.reviews, isEmpty);
+
+    await tester.tap(find.byKey(const Key('review-reject')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm-reject')));
+    await tester.pumpAndSettle();
+    expect(admin.reviews, [('e1', 'reject', '')]);
+    expect(find.text('Rejected.'), findsOneWidget);
+  });
+
+  testWidgets('a queued submission can be taken out of the queue', (
+    tester,
+  ) async {
+    await settingsAsAdmin(tester);
+    await tester.tap(find.byKey(const Key('admin-submissions')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('filter-queued')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('submission-s2')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Queued by admin@example.com'), findsOneWidget);
+    expect(find.byKey(const Key('review-publish')), findsNothing);
+    await tester.tap(find.byKey(const Key('review-dequeue')));
+    await tester.pumpAndSettle();
+    expect(admin.dequeued, ['s2']);
+    expect(find.textContaining('pending again'), findsOneWidget);
+  });
+
+  testWidgets('landscape tablets review a submission beside the list', (
+    tester,
+  ) async {
+    await settingsAsAdmin(tester, size: landscapeTablet);
+    await tester.tap(find.byKey(const Key('admin-submissions')));
+    await tester.pumpAndSettle();
+    expect(find.text('Choose a submission to review it here.'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('submission-s1')));
+    await tester.pumpAndSettle();
+    expect(find.text('A fine bike.'), findsOneWidget);
+    expect(find.text('Submissions'), findsOneWidget); // the list is still there
+    await tester.tap(find.byKey(const Key('close-submission')));
+    await tester.pumpAndSettle();
+    expect(find.text('A fine bike.'), findsNothing);
+  });
+
+  testWidgets('admin screens explain a session without a second factor', (
+    tester,
+  ) async {
+    admin.deny = true;
+    await settingsAsAdmin(tester);
+    await tester.tap(find.byKey(const Key('admin-users')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('admin-denied')), findsOneWidget);
+    expect(find.textContaining('two-factor authentication'), findsOneWidget);
+  });
+
+  testWidgets('the users screen lists users and edits one', (tester) async {
+    await settingsAsAdmin(tester);
+    await tester.tap(find.byKey(const Key('admin-users')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Users'), findsOneWidget);
+    expect(find.text('60 users, most recent post first.'), findsOneWidget);
+    expect(find.text('ada_bikes'), findsOneWidget);
+    expect(find.text('bob@example.com'), findsOneWidget);
+    expect(find.text('Page 1 of 3'), findsOneWidget);
+    expect(
+      tester
+          .widget<OutlinedButton>(find.byKey(const Key('page-previous')))
+          .onPressed,
+      isNull,
+    );
+
+    await tester.tap(find.byKey(const Key('user-u1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Old Trek'), findsOneWidget);
+    expect(find.byKey(const Key('user-reset-password')), findsOneWidget);
+    expect(
+      tester.widget<FilledButton>(find.byKey(const Key('user-save'))).onPressed,
+      isNull,
+    );
+
+    await tester.enterText(find.byKey(const Key('user-username')), 'ada_rides');
+    await tester.tap(find.byKey(const Key('user-newsletter-news')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('user-save')));
+    await tester.pumpAndSettle();
+    final (uid, username, email, newsletters) = admin.updates.single;
+    expect(uid, 'u1');
+    expect(username, 'ada_rides');
+    expect(email, isNull);
+    expect(newsletters, isEmpty);
+    expect(find.text('Saved.'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('user-reset-password')));
+    await tester.pumpAndSettle();
+    expect(auth.resetEmails, ['ada@example.com']);
+  });
+
+  testWidgets('deleting a user asks first and returns to the list', (
+    tester,
+  ) async {
+    await settingsAsAdmin(tester);
+    await tester.tap(find.byKey(const Key('admin-users')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('user-u2')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('user-reset-password')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('user-delete')));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete bob@example.com?'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('confirm-delete-user')));
+    await tester.pumpAndSettle();
+    expect(admin.deleted, ['u2']);
+    expect(find.text('Deleted bob@example.com.'), findsOneWidget);
+    expect(find.text('Users'), findsOneWidget);
+  });
+
+  testWidgets('the admin screens stand on their own', (tester) async {
+    useSize(tester, const Size(800, 1200));
+    auth = FakeAuthService();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SubmissionsScreen(admin: admin, auth: auth),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Trek 970'), findsOneWidget);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: UsersScreen(admin: admin, auth: auth),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('ada_bikes'), findsOneWidget);
   });
 }

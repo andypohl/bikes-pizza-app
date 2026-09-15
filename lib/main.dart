@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'account/member_service.dart';
+import 'admin/admin_service.dart';
 import 'api/api_client.dart';
 import 'app_settings.dart';
 import 'config.dart';
@@ -55,6 +56,7 @@ Future<Widget> _loadApp() async {
     submissions: CloudFunctionsSubmissionService(),
     photos: ImagePickerPhotoPicker(),
     editor: ApiPostEditor(api),
+    admin: ApiAdminService(api),
   );
 }
 
@@ -71,6 +73,7 @@ class BikesPizzaApp extends StatelessWidget {
     this.submissions,
     this.photos,
     this.editor,
+    this.admin,
   });
 
   final AppSettings settings;
@@ -94,6 +97,10 @@ class BikesPizzaApp extends StatelessWidget {
   /// With [photos], lets members edit their posts (and admins any post);
   /// null hides the Edit buttons and the Posts tile in Settings.
   final PostEditor? editor;
+
+  /// The review and user administration screens for administrators on
+  /// tablets; null hides Settings → Admin.
+  final AdminService? admin;
 
   static const _seed = Color(0xFF80C6C4); // teal from the app icon
 
@@ -124,6 +131,7 @@ class BikesPizzaApp extends StatelessWidget {
             submissions: submissions,
             photos: photos,
             editor: editor,
+            admin: admin,
           ),
         ),
       ),
@@ -147,6 +155,7 @@ class HomeShell extends StatefulWidget {
     this.submissions,
     this.photos,
     this.editor,
+    this.admin,
   });
 
   final PostRepository repository;
@@ -158,6 +167,7 @@ class HomeShell extends StatefulWidget {
   final SubmissionService? submissions;
   final PhotoPicker? photos;
   final PostEditor? editor;
+  final AdminService? admin;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -215,6 +225,7 @@ class _HomeShellState extends State<HomeShell> {
         passkeys: widget.passkeys,
         editor: widget.editor,
         photos: widget.photos,
+        admin: widget.admin,
       ),
     ];
     // A window can shrink below tablet width; keep the index in range.
