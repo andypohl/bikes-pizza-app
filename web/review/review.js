@@ -78,7 +78,7 @@ function when(iso) {
 const STATUS_LABEL = { pending: "Pending", queued: "Queued", posting: "Posting", approved: "Posted", rejected: "Rejected" };
 const FEED_LABEL = { pizza: "Pizza", bikes: "Bike", news: "News" };
 // An edit of a published post (kind "edit") is applied at once on
-// "publish"; there is no draft or queue for it.
+// "publish"; there is no queue for it.
 const isEdit = (d) => d.kind === "edit";
 const feedLabel = (d) => `${isEdit(d) ? "Edit · " : ""}${FEED_LABEL[d.feed] ?? d.feed}`;
 const CHANGE_LABEL = { title: "title", story: "story", image: "photo", bike: "bike details", pizza: "pizza style" };
@@ -242,7 +242,6 @@ function openDetail(row) {
   const pending = d.status === "pending";
   $("#d-actions").hidden = !pending;
   $("#d-publish").textContent = isEdit(d) ? "Apply edit" : "Queue to post";
-  $("#d-draft").hidden = isEdit(d);
   $("#d-queue-actions").hidden = d.status !== "queued";
   $("#d-note-label").hidden = !pending;
   $("#d-note").value = "";
@@ -251,7 +250,7 @@ function openDetail(row) {
   $("#d-review").hidden = !r && !q;
   if (r) {
     const bits = [`${STATUS_LABEL[d.status]} by ${r.byEmail ?? r.by} on ${when(r.at)}`];
-    if (r.postUrl) bits.push(r.postStatus === "draft" ? `draft ${r.postId}` : r.postUrl);
+    if (r.postUrl) bits.push(r.postUrl);
     if (r.note) bits.push(`Note: ${r.note}`);
     $("#d-review").textContent = bits.join(" · ");
   } else if (q) {
@@ -276,12 +275,7 @@ async function review(action) {
     if (data.status === "queued") {
       say(`Queued at position ${data.position} for ${FEED_LABEL[data.feed]}; next post in ${data.countdown} (${at(data.nextPostAt)}).`, true);
     } else if (data.status === "approved") {
-      say(
-        data.postStatus === "draft"
-          ? "Saved as a draft in Sanity."
-          : `Published: ${data.postUrl ?? data.postId}`,
-        true,
-      );
+      say(`Published: ${data.postUrl ?? data.postId}`, true);
     } else {
       say("Rejected.", true);
     }
@@ -311,7 +305,6 @@ $("#next").addEventListener("click", () => {
   }
 });
 $("#d-publish").addEventListener("click", () => review("publish"));
-$("#d-draft").addEventListener("click", () => review("draft"));
 $("#d-reject").addEventListener("click", () => review("reject"));
 $("#d-dequeue").addEventListener("click", async () => {
   if (!current) return;

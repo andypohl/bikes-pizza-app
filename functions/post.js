@@ -1,9 +1,23 @@
-// Turns an approved submission into a Sanity `post` document (the schema in
-// studio/schemaTypes/post.ts). The member's email is deliberately absent.
+// The `post` document in Firestore (`posts/{slug}`): what the website
+// builds from and the app reads, written here when a review is approved,
+// when an edit is applied, and by the migration from Sanity. Pure: the
+// store is injected by the callers.
+//
+//   slug, feed, title, publishedAt (ISO), status: "published",
+//   summary,                       one line for lists
+//   body, bodyFormat,              as written ("text" | "markdown")
+//   html,                          rendered from body at write time
+//   image: null | { base, version, width, height, sizes, blur, focus, formats }
+//   details: null | { brand, year, color, type } | { style }
+//   credit: null | { uid, username, name }
+//   source: null | { system, id, url }
+//   createdAt, updatedAt            set by the store
 
 import { randomUUID } from "node:crypto";
 
-import { postPath } from "./contract.js";
+import { GALLERY_FEEDS, postPath } from "./contract.js";
+import { bodyToText, renderBody, summarize } from "./markdown.js";
+import { FORMATS } from "./renditions.js";
 
 /** URL-safe slug from a title; empty if nothing usable remains. */
 export function slugify(text) {
@@ -16,50 +30,15 @@ export function slugify(text) {
     .slice(0, 80);
 }
 
-const key = () => randomUUID().replace(/-/g, "").slice(0, 12);
-
-/** Plain text (paragraphs separated by blank lines) as Portable Text blocks. */
-export function textToBlocks(text) {
-  return String(text ?? "")
-    .replace(/\r\n?/g, "\n")
-    .split(/\n{2,}/)
-    .map((p) => p.trim())
-    .filter(Boolean)
-    .map((paragraph) => ({
-      _type: "block",
-      _key: key(),
-      style: "normal",
-      markDefs: [],
-      children: [{ _type: "span", _key: key(), text: paragraph, marks: [] }],
-    }));
-}
-
 /**
- * The document to create. The slug takes a suffix from the submission id so
- * two submissions with the same title do not collide.
- *
- * @param {{id: string, feed: string, title: string, from: string, description?: string}} submission
- * @param {{imageAssetId: string, now?: Date}} options
+ * The slug for a new post: the title, plus a suffix from the review id so
+ * two posts with the same title never collide (the id of the review is
+ * stable, so retrying a publish lands on the same slug).
  */
-export function buildPost(submission, { imageAssetId, now = new Date(), authorId }) {
-  const base = slugify(submission.title) || submission.feed;
-  const suffix = String(submission.id).replace(/[^a-zA-Z0-9]/g, "").slice(0, 6).toLowerCase();
-  return {
-    _type: "post",
-    title: submission.title,
-    slug: { _type: "slug", current: suffix ? `${base}-${suffix}` : base },
-    feed: submission.feed,
-    publishedAt: now.toISOString(),
-    mainImage: {
-      _type: "image",
-      asset: { _type: "reference", _ref: imageAssetId },
-      alt: submission.title,
-    },
-    body: textToBlocks(submission.description),
-    submittedBy: submission.from,
-    ...(authorId ? { author: { _type: "reference", _ref: authorId } } : {}),
-    source: { system: "submission", id: submission.id },
-  };
+export function slugFor(title, feed, id = randomUUID()) {
+  const base = slugify(title) || feed;
+  const suffix = String(id).replace(/[^a-zA-Z0-9]/g, "").slice(0, 6).toLowerCase();
+  return suffix ? `${base}-${suffix}` : base;
 }
 
 /** Where the website shows a post (the path shape comes from the contract). */
@@ -67,17 +46,89 @@ export function postUrl(siteUrl, feed, slug) {
   return `${siteUrl.replace(/\/$/, "")}${postPath(feed, slug)}`;
 }
 
+/** Which of a post's fields a bike or a pizza post keeps as details. */
+export const DETAIL_FIELDS = { bikes: ["brand", "year", "color", "type"], pizza: ["style"] };
+
+/** The stored details for a feed: only its fields, only non-empty values, or null. */
+export function detailsFor(feed, details) {
+  const fields = DETAIL_FIELDS[feed];
+  if (!fields || !details) return null;
+  const kept = {};
+  for (const field of fields) {
+    const value = typeof details[field] === "string" ? details[field].trim() : "";
+    if (value) kept[field] = value;
+  }
+  return Object.keys(kept).length ? kept : null;
+}
+
 /**
- * Creates the post in Sanity, published or as a draft.
- *
- * @param {import('./sanity.js').SanityClient} sanity
- * @param {object} doc  from {@link buildPost}
- * @param {{status: "published"|"draft", siteUrl: string}} options
- * @returns {Promise<{postId: string, postUrl: string|null, postStatus: string}>}
+ * The image field from what `makeRenditions` returned, once the files are
+ * in the bucket. `base` is the URL prefix the clients append a file name
+ * to (`${base}800.webp`), so they need to know nothing about buckets.
  */
-export async function createPost(sanity, doc, { status, siteUrl }) {
-  const draft = status === "draft";
-  const postId = await sanity.createDocument(doc, { draft });
-  const url = draft ? null : postUrl(siteUrl, doc.feed, doc.slug.current);
-  return { postId, postUrl: url, postStatus: status };
+export function imageField(renditions, base) {
+  return {
+    base,
+    version: renditions.version,
+    width: renditions.width,
+    height: renditions.height,
+    sizes: renditions.sizes,
+    formats: FORMATS,
+    blur: renditions.blur,
+    focus: renditions.focus,
+  };
+}
+
+/**
+ * A complete post document from its parts. The body is rendered here; the
+ * summary is the typed one or the start of the body.
+ */
+export function postDocument({ slug, feed, title, publishedAt, body = "", bodyFormat = "text", summary = "", image = null, details = null, credit = null, source = null, status = "published" }) {
+  if (!slug || !feed || !title || !publishedAt) throw new Error("a post needs a slug, feed, title and publishedAt");
+  const html = renderBody(body, bodyFormat);
+  return {
+    slug,
+    feed,
+    title,
+    publishedAt: publishedAt instanceof Date ? publishedAt.toISOString() : publishedAt,
+    status,
+    summary: summary.trim() || summarize(bodyToText(body, bodyFormat)),
+    body,
+    bodyFormat,
+    html,
+    image,
+    details: detailsFor(feed, details),
+    credit,
+    source,
+  };
+}
+
+/** The fields of an existing document that change when its body or title is edited. */
+export function bodyPatch({ title, body, bodyFormat, summary = "" }) {
+  const patch = {};
+  if (title !== undefined) patch.title = title;
+  if (body !== undefined) {
+    patch.body = body;
+    patch.bodyFormat = bodyFormat;
+    patch.html = renderBody(body, bodyFormat);
+    patch.summary = summary.trim() || summarize(bodyToText(body, bodyFormat));
+  }
+  return patch;
+}
+
+/** The document as the API hands it out (the website and the app read Firestore directly). */
+export function publicPost(doc, siteUrl) {
+  return {
+    id: doc.slug,
+    slug: doc.slug,
+    feed: doc.feed,
+    title: doc.title,
+    publishedAt: doc.publishedAt ?? null,
+    url: postUrl(siteUrl, doc.feed, doc.slug),
+    summary: doc.summary ?? "",
+    image: doc.image ?? null,
+    details: doc.details ?? null,
+    credit: doc.credit ?? null,
+    gallery: GALLERY_FEEDS.includes(doc.feed),
+  };
 }

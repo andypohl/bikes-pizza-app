@@ -2,9 +2,10 @@
 //
 // All entry points but deleteAccount require a Firebase user with a verified
 // email. Member profiles live in Firestore (members/{uid}; see members.js).
-// Submissions are stored for review and, on approval, published to Sanity
-// as posts (submissions.js, post.js); they are reachable both as callables
-// and through the REST API in api.js.
+// Submissions are stored for review and, on approval, published as posts
+// in Firestore with their photo renditions in Storage (submissions.js,
+// post.js, post_store.js); they are reachable both as callables and
+// through the REST API in api.js.
 //
 // member:            the member's profile (email, username, newsletters)
 //                    for the account page and the app.
@@ -45,33 +46,27 @@ import { profile, validateUpdate } from "./account.js";
 import * as adminUsers from "./admin_users.js";
 import * as webauthn from "@simplewebauthn/server";
 import { createApi } from "./api.js";
-import { syncMemberUsername } from "./authors.js";
 import { AppError, ValidationError, userFromClaims } from "./errors.js";
 import { processImage } from "./images.js";
 import { NEWSLETTERS, firestoreMemberStore, loadMember, updateMember as applyMemberUpdate } from "./members.js";
+import { firestorePostStore } from "./post_store.js";
 import { isMailConfigured, sendMail } from "./mail.js";
 import * as passkeys from "./passkeys.js";
-import * as posts from "./posts.js";
+import * as postEditing from "./posts.js";
 import { inspectImage } from "./vision.js";
 import { requestRebuild } from "./rebuild.js";
 import { TIME_ZONE, cronFor } from "./schedule.js";
 import { notificationEmail } from "./submission.js";
 import { accountDeletedEmail } from "./account.js";
-import { SanityClient } from "./sanity.js";
 import { firestoreSiteSettings, getSettings, updateSettings } from "./site_settings.js";
 import { firestoreSubmissionStore } from "./submission_store.js";
 import * as subs from "./submissions.js";
 
 initializeApp();
 
-// Approved submissions become posts in Sanity. The token (an Editor token
-// for the project) is set with `firebase functions:secrets:set
-// SANITY_WRITE_TOKEN`; the identifiers are plain parameters with defaults.
-const sanityWriteToken = defineSecret("SANITY_WRITE_TOKEN");
-const sanityProjectId = defineString("SANITY_PROJECT_ID", { default: "" });
-const sanityDataset = defineString("SANITY_DATASET", { default: "" });
-const SANITY_API_VERSION = "2025-02-19";
-const SANITY_DEFAULTS = { projectId: "nva9b0ia", dataset: "production" };
+// Which environment this deployment is (the workflow writes it): the
+// website of the same environment is rebuilt after a post changes.
+const siteEnvironmentParam = defineString("SITE_ENVIRONMENT", { default: "development" });
 // The website that renders the posts; published posts link there.
 const siteUrlParam = defineString("SITE_URL", { default: "" });
 const siteUrl = () => siteUrlParam.value().trim() || "https://bikes.pizza";
@@ -94,11 +89,10 @@ const reviewPageUrl = defineString("REVIEW_PAGE_URL", { default: "" });
 // workflow has to run. The token is a fine-grained GitHub personal access
 // token for the repository with "Contents: read and write", set with
 // `firebase functions:secrets:set GITHUB_DISPATCH_TOKEN` (the same token the
-// Sanity webhook uses); a placeholder value skips the request.
+// website rebuild workflow accepts); a placeholder value skips the request.
 const githubDispatchToken = defineSecret("GITHUB_DISPATCH_TOKEN");
 const githubRepository = defineString("GITHUB_REPOSITORY", { default: "" });
-/** Which environment's site to rebuild: production builds from the `production` dataset. */
-const siteEnvironment = () => ((sanityDataset.value().trim() || SANITY_DEFAULTS.dataset) === "production" ? "production" : "development");
+const siteEnvironment = () => (siteEnvironmentParam.value().trim() === "production" ? "production" : "development");
 const rebuildWebsite = (reason) =>
   requestRebuild(
     { repository: githubRepository.value().trim() || undefined, environment: siteEnvironment(), reason },
@@ -116,14 +110,8 @@ const passkeyOrigins = defineString("PASSKEY_ORIGINS", { default: "" });
 /** The signed-in, verified user behind a callable request, or throws. */
 const verifiedUser = (request) => userFromClaims(request.auth && { uid: request.auth.uid, ...request.auth.token });
 
-function sanityClient() {
-  return new SanityClient({
-    projectId: sanityProjectId.value().trim() || SANITY_DEFAULTS.projectId,
-    dataset: sanityDataset.value().trim() || SANITY_DEFAULTS.dataset,
-    apiVersion: SANITY_API_VERSION,
-    token: sanityWriteToken.value(),
-  });
-}
+/** Published posts and their photo renditions (post_store.js). */
+const posts = () => firestorePostStore(getFirestore(), getStorage().bucket());
 
 /** Translates failures inside `work` into callable errors. */
 async function guarded(uid, what, work) {
@@ -148,8 +136,8 @@ function withMember(request, what, work) {
   });
 }
 
-// updateMember also patches the member's Sanity document after a rename.
-const memberOptions = { region: "us-central1", secrets: [sanityWriteToken] };
+// updateMember also renames the member on their posts (and rebuilds the site).
+const memberOptions = { region: "us-central1", secrets: [githubDispatchToken] };
 
 export const member = onCall(memberOptions, (request) =>
   withMember(request, "load your account", async ({ member }) => profile(member, NEWSLETTERS)),
@@ -161,13 +149,13 @@ export const updateMember = onCall(memberOptions, (request) =>
     const updated = await applyMemberUpdate(user, patch, { store });
     logger.info("member updated", { uid: user.uid, fields: Object.keys(patch) });
     if ("username" in patch) {
-      // Best effort: the website reads the username from Sanity at build
-      // time; if this fails the next publish brings it up to date.
+      // Best effort: the posts carry the username; if this fails the admin
+      // page can rename again.
       try {
-        const found = await syncMemberUsername(sanityClient(), { uid: user.uid, username: patch.username });
-        if (found) await rebuildWebsite(`member ${user.uid} renamed`);
+        const changed = await posts().setUsername(user.uid, patch.username);
+        if (changed) await rebuildWebsite(`member ${user.uid} renamed`);
       } catch (error) {
-        logger.warn("member username not synced to Sanity", { uid: user.uid, message: error.message });
+        logger.warn("member username not written to their posts", { uid: user.uid, message: error.message });
       }
     }
     return profile(updated, NEWSLETTERS);
@@ -324,28 +312,32 @@ function notifyDeleted(requested) {
 const googleAuth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
 const safeSearch = (bytes) => inspectImage(bytes, { getToken: () => googleAuth.getAccessToken() });
 
-/** What the user-administration endpoints need: Auth admin, members, Sanity. */
+/** What the user-administration endpoints need: Auth admin, members, posts. */
 const userAdminDeps = () => ({
   auth: getAuth(),
   members: firestoreMemberStore(getFirestore()),
-  sanity: sanityClient(),
+  posts: posts(),
   newsletters: NEWSLETTERS,
   siteUrl: siteUrl(),
   log: logger.warn,
 });
 
-/** The submission operations, bound to Firestore, Storage, Vision, Sanity and Mailgun. */
+/** The submission operations, bound to Firestore, Storage, Vision and Mailgun. */
 const service = {
   create: (data, user) =>
     subs.createSubmission(data, user, { store: store(), processImage, safeSearch, notify, log: logger.info }),
-  review: (input, admin) =>
-    subs.reviewSubmission(subs.parseReview(input), admin, {
+  review: async (input, admin) => {
+    const result = await subs.reviewSubmission(subs.parseReview(input), admin, {
       store: store(),
-      sanity: sanityClient(),
+      posts: posts(),
       members: firestoreMemberStore(getFirestore()),
       siteUrl: siteUrl(),
       log: logger.info,
-    }),
+    });
+    // An approved edit changes a post at once; a queued post waits for its slot.
+    if (result.postStatus === "published") await rebuildWebsite(`edit ${input?.id} applied`);
+    return result;
+  },
   list: (query) => subs.listSubmissions(subs.parseListQuery(query), { store: store() }),
   get: (id) => subs.getSubmission(id, { store: store() }),
   site: {
@@ -369,14 +361,13 @@ const service = {
     },
   },
   posts: {
-    mine: (user) => posts.listMyPosts(user, { sanity: sanityClient(), siteUrl: siteUrl() }),
-    get: (id, actor) => posts.getPost(id, actor, { sanity: sanityClient(), siteUrl: siteUrl(), store: store() }),
+    mine: (user) => postEditing.listMyPosts(user, { posts: posts(), siteUrl: siteUrl() }),
+    get: (id, actor) => postEditing.getPost(id, actor, { posts: posts(), siteUrl: siteUrl(), store: store() }),
     // Members' edits become pending submissions (reviewed like new posts);
-    // admins' apply at once. The website rebuilds through the Sanity
-    // webhook, as for any content change.
-    update: (id, data, actor) =>
-      posts.updatePost(id, data, actor, {
-        sanity: sanityClient(),
+    // admins' apply at once, and the website is rebuilt.
+    update: async (id, data, actor) => {
+      const result = await postEditing.updatePost(id, data, actor, {
+        posts: posts(),
         store: store(),
         members: firestoreMemberStore(getFirestore()),
         processImage,
@@ -384,7 +375,10 @@ const service = {
         notify,
         siteUrl: siteUrl(),
         log: logger.info,
-      }),
+      });
+      if (result.status === "applied") await rebuildWebsite(`post ${id} edited by admin`);
+      return result;
+    },
   },
   queue: {
     info: (feed) => subs.queueInfo(feed, { store: store() }),
@@ -392,7 +386,7 @@ const service = {
     submitNext: (feed) =>
       subs.submitNext(feed, {
         store: store(),
-        sanity: sanityClient(),
+        posts: posts(),
         members: firestoreMemberStore(getFirestore()),
         siteUrl: siteUrl(),
         log: logger.info,
@@ -418,7 +412,7 @@ const queueRunner = (feed) =>
       schedule: cronFor(feed),
       timeZone: TIME_ZONE,
       region: "us-central1",
-      secrets: [sanityWriteToken, githubDispatchToken],
+      secrets: [githubDispatchToken],
       retryCount: 2,
       ...heavy,
     },
@@ -433,7 +427,7 @@ export const postBikesQueue = queueRunner("bikes");
 export const postPizzaQueue = queueRunner("pizza");
 
 export const api = onRequest(
-  { region: "us-central1", secrets: [sanityWriteToken, mailgunApiKey], ...heavy },
+  { region: "us-central1", secrets: [mailgunApiKey, githubDispatchToken], ...heavy },
   createApi({
     verifyToken: (token) => getAuth().verifyIdToken(token),
     service,

@@ -1,10 +1,16 @@
 rules_version = '2';
 
-// Submission photos are written only by Cloud Functions (Admin SDK, which
-// bypasses these rules). Clients fetch them through the tokenised download
-// URLs the REST API hands out, so no rule-based access is allowed.
+// Written only by Cloud Functions (Admin SDK, which bypasses these rules).
+// A published post's photo renditions (posts/{slug}/{version}/...) are
+// public: the website and the app load them by URL. Submission photos are
+// not; clients fetch those through the tokenised download URLs the REST
+// API hands out.
 service firebase.storage {
   match /b/{bucket}/o {
+    match /posts/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
     match /{allPaths=**} {
       allow read, write: if false;
     }
