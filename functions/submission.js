@@ -1,5 +1,5 @@
 // Pure helpers for member submissions: checking the request, shaping the
-// stored record, and wording the notification email. Publishing to Sanity
+// stored record, and wording the notification email. Publishing to Firestore
 // happens later, on approval; see post.js.
 
 import { ValidationError } from "./account.js";

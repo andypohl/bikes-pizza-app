@@ -30,8 +30,6 @@ jobs:
       functions: ${{ steps.filter.outputs.functions == 'true' || github.event_name == 'workflow_dispatch' }}
       infra: ${{ steps.filter.outputs.infra == 'true' || github.event_name == 'workflow_dispatch' }}
       site: ${{ steps.filter.outputs.site == 'true' || github.event_name == 'workflow_dispatch' }}
-      studio: ${{ steps.filter.outputs.studio == 'true' || github.event_name == 'workflow_dispatch' }}
-      post-details: ${{ steps.filter.outputs.post-details == 'true' || github.event_name == 'workflow_dispatch' }}
       config: ${{ steps.filter.outputs.config == 'true' || github.event_name == 'workflow_dispatch' }}
       contract: ${{ steps.filter.outputs.contract == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
@@ -41,9 +39,9 @@ jobs:
         # checkout needed). A manual run has no diff and runs everything.
         if: ${{ github.event_name == 'pull_request' }}
         with:
-          # Files that feed more than one check are listed under each. The
-          # Studio's schema option lists are imported by the website and
-          # the Post details app; the account page is copied into the site.
+          # Files that feed more than one check are listed under each: the
+          # contract's generated copies belong to their consumers too, and
+          # the account page is copied into the site.
           filters: |
             workflow: &workflow
               - .github/workflows/pr-checks.yml
@@ -67,14 +65,6 @@ jobs:
               - *workflow
               - site/**
               - web/public/**
-              - studio/schemaTypes/**
-            studio:
-              - *workflow
-              - studio/**
-            post-details:
-              - *workflow
-              - apps/post-details/**
-              - studio/schemaTypes/**
             contract:
               - *workflow
               - contract/**
@@ -82,8 +72,6 @@ jobs:
               - functions/contract.js
               - lib/contract.dart
               - site/src/lib/contract.ts
-              - studio/schemaTypes/bikeOptions.ts
-              - studio/schemaTypes/pizzaOptions.ts
             config:
               - *workflow
               - web/**
@@ -236,51 +224,3 @@ jobs:
           for f in firebase.json .firebaserc firestore.indexes.json; do
             node -e "JSON.parse(require('fs').readFileSync('$f', 'utf8'))" && echo "$f ok"
           done
-
-  studio:
-    name: Studio build
-    needs: changes
-    if: ${{ needs.changes.outputs.studio == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: studio
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: studio/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-  post-details:
-    name: Post details app build
-    needs: changes
-    if: ${{ needs.changes.outputs.post-details == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: apps/post-details
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: apps/post-details/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build

@@ -78,23 +78,6 @@ function javascript({ typed }) {
   return out.join("\n");
 }
 
-/** The Studio's option modules, in the shape they have always had. */
-function studioOptions(names) {
-  const out = [`// ${HEADER}\n`, `export type Option = {title: string; value: string}\n`];
-  for (const name of names) {
-    out.push(`export const ${name}: Option[] = [\n${lists[name].map((o) => `  {title: ${js(o.title)}, value: ${js(o.value)}},`).join("\n")}\n]\n`);
-  }
-  return out.join("\n");
-}
-
-function studioPizza() {
-  return [
-    `// ${HEADER}\n`,
-    `import {type Option} from './bikeOptions'\n`,
-    `export const PIZZA_STYLES: Option[] = [\n${lists.PIZZA_STYLES.map((o) => `  {title: ${js(o.title)}, value: ${js(o.value)}},`).join("\n")}\n]\n`,
-  ].join("\n");
-}
-
 // ---- Dart -----------------------------------------------------------------
 
 const dartString = (s) => `'${s.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/\$/g, "\\$")}'`;
@@ -131,8 +114,6 @@ const outputs = {
   "functions/contract.js": javascript({ typed: false }),
   "site/src/lib/contract.ts": javascript({ typed: true }),
   "lib/contract.dart": dart(),
-  "studio/schemaTypes/bikeOptions.ts": studioOptions(["BIKE_YEARS", "BIKE_COLORS", "BIKE_TYPES"]),
-  "studio/schemaTypes/pizzaOptions.ts": studioPizza(),
 };
 
 const check = process.argv.includes("--check");

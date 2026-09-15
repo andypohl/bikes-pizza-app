@@ -12,7 +12,7 @@ Five bottom-bar tabs:
 | Blog     | Every post, newest first, with title and thumbnail             |
 | Pizza    | Posts tagged `pizza`                                           |
 | Bikes    | Posts tagged `biking` or `off-road-biking`                     |
-| Store    | Product grid from Sanity, a cart, and Shopify checkout       |
+| Store    | Product grid from Shopify, a cart, and Shopify checkout      |
 | Settings | Account (sign-in, username, newsletters, password, deletion), Posts (edit what you posted), theme; on tablets, Admin for administrators |
 
 Tapping a post opens it in-app with the hero image and full HTML body. A
@@ -24,14 +24,13 @@ It is not shown on a post. See "Member submissions" below.
 
 ## Shared facts (the contract)
 
-Facts that the app, the Cloud Functions, the website and the Studio must
-agree on live once, as JSON in `contract/`: the feeds (labels, nouns,
+Facts that the app, the Cloud Functions and the website must agree on
+live once, as JSON in `contract/`: the feeds (labels, nouns,
 whether they take submissions, posting hours), the option lists for a
 post's bike and pizza details, the username rule, the shape of a post's
 URL and the image limits. `node tool/contract/generate.mjs` writes the
 language-specific copies (`functions/contract.js`, `lib/contract.dart`,
-`site/src/lib/contract.ts`, `studio/schemaTypes/*Options.ts`), which are
-committed; a pull-request check fails when they are out of date. Change
+`site/src/lib/contract.ts`), which are committed; a pull-request check fails when they are out of date. Change
 the JSON, run the generator, commit both.
 
 ## Build-time configuration
@@ -67,21 +66,7 @@ was written; photos come from Cloud Storage as the renditions made on
 publish (`PostImage.url` picks the width that fits). The store's products
 come from Shopify's Storefront API (see Store below).
 
-## Website and Studio
-
-`studio/` is the Sanity Studio for the `post` content model (title, slug,
-feed, main image, excerpt, Portable Text body, `submittedBy`, a reference
-to the submitting `member`, and a record of where a post came from).
-There is a hosted Studio per environment: https://bikes-pizza.sanity.studio/
-for the production dataset behind bikes.pizza, and
-https://bikes-pizza-dev.sanity.studio/ for the development copy behind
-bikes-pizza.dev. Both, and the Post details app, deploy with everything
-else: merges to `main` update the development ones, releases the production
-ones.
-See `studio/README.md` for running it, deploying the schema, and importing
-posts from the old Ghost site. `apps/post-details/` is a Sanity App SDK app
-in the Dashboard for filling in a bike post's brand, year, color and type
-and for linking a post to a member by username; see its README.
+## Website
 
 `site/` is the public website at https://bikes.pizza/, an Astro site that
 renders the posts as a photo gallery (the Astro Frame Shift theme by Ema
@@ -127,9 +112,9 @@ reached with `lib/api/api_client.dart`). A member's edit is reviewed like
 a new post: it is stored as a pending submission of kind `edit`, the
 reviewer is emailed, and the post changes only when the review page
 applies it (one pending edit per post; the screen says so meanwhile). An
-administrator's edit is applied at once. A story written in the Studio
-with headings, lists or links is edited as plain text and, if changed,
-saved as plain paragraphs; the screen warns about that.
+administrator's edit is applied at once. A story written by an editor in
+Markdown (headings, lists or links) is edited as plain text and, if
+changed, saved as plain paragraphs; the screen warns about that.
 
 **Admin on a tablet.** On an iPad or Android tablet (shortest side 600
 logical pixels or more), Settings shows an Admin section to a signed-in
@@ -166,22 +151,18 @@ per-feed queue and go live one at a time on a fixed schedule (bikes at
 scheduled functions; the page shows each queue's length and the time to
 its next post, and the API exposes the queues under `/api/queue/`.
 
-**Publishing** (`functions/post.js`) uploads the photo to Sanity as an
-image asset and creates a `post` document: title, a slug made from the title
-plus a suffix from the submission id, the feed, the description as Portable
-Text paragraphs, `submittedBy` (the name the member gave), `author` (a
-reference to the member's `member` document, created on their first post
-with their username; see Members) and
-`source: {system: "submission", id}`. "Queue to post" publishes it when its
-turn comes; "Save as draft" creates it as a Sanity draft for editing in the
-Studio. The submitter's email never reaches the post. The website's Sanity
-webhook then rebuilds bikes.pizza so the post appears.
-
-Configure once per Firebase project: an Editor API token for the Sanity
-project, stored as the `SANITY_WRITE_TOKEN` secret
-(`firebase functions:secrets:set SANITY_WRITE_TOKEN`). The project, dataset
-and site URL default to the repo's; `functions/.env.example` lists the
-overrides.
+**Publishing** (`functions/post.js`, `functions/submissions.js`) makes the
+photo's renditions (`functions/renditions.js`: WebP and JPEG at several
+widths, a 4:3 tile and a blurred placeholder, in Cloud Storage under
+`posts/{slug}/{version}/`) and writes the `posts/{slug}` document in
+Firestore: title, a slug made from the title plus a suffix from the
+submission id, the feed, the description as the body (plain text, rendered
+to HTML at write time), a summary, the details, the credit (`uid`,
+`username`, `name`; see Members) and `source: {system: "submission", id}`.
+"Queue to post" publishes it when its turn comes. The submitter's email
+never reaches the post. The functions then ask GitHub to rebuild
+bikes.pizza so the post appears (`functions/rebuild.js`). The site URL
+and environment come from `functions/.env` (`functions/.env.example`).
 
 The email goes out through Mailgun's HTTP API. Configure once per
 Firebase project:
@@ -292,12 +273,10 @@ member functions need a verified email, those wait on the device (browser
 `localStorage`, or the app's preferences) and are sent once the email is
 verified. The username is the default credit on the submission form.
 
-**Usernames on posts.** Sanity holds a `member` document per member who
-has published (account id and current username, nothing else), and each
-submitted post references it. The website and the app read the username
-through that reference at query time, so a rename is one patch to the
-member document (`updateMember` does it and asks for a site rebuild) rather
-than a rewrite of every post. The credit on a post links to everything the
+**Usernames on posts.** Each submitted post carries its credit (the
+member's account id, username and the name they typed), so the website
+and the app read it with the post. A rename updates the credit on every
+post of that member (`updateMember` does it and asks for a site rebuild). The credit on a post links to everything the
 member has posted: `/member/<username>/` on the website, a "Posts by"
 list in the app. Posts whose member has not chosen a username yet show the
 typed credit instead. `tool/backfill_post_authors.py` adds the reference
@@ -341,7 +320,7 @@ Run the functions' unit tests with `npm test` inside `functions/`.
 ## Website sign-up (same accounts as the app)
 
 Website sign-ups go through the account page (`web/public/`), which the
-website serves at https://bikes.pizza/account/ (see the Sanity section) and
+website serves at https://bikes.pizza/account/ (see Website above) and
 which is also its own Hosting site. It signs people in with Firebase Auth
 (email/password, Google, or Apple once a Services ID is configured; see
 `docs/firebase.md`) and sends them back to the site. New email accounts must
@@ -366,8 +345,8 @@ something changed and Close never asking about unsaved edits. Email
 accounts get a Reset password button (Firebase emails the usual reset
 link). Two-factor authentication is required, as on the review page.
 Delete user, in red, asks "Are you sure?" and then removes the Auth
-user and the member profile, freeing the username; the member's posts, and
-the Sanity member document they reference, stay.
+user and the member profile, freeing the username; the member's posts
+stay, credited as they were.
 
 All three pages read their Firebase config from Hosting's reserved
 `/__/firebase/init.json`, so nothing project-specific is committed. They are
@@ -381,9 +360,8 @@ submissions.bikes.pizza) only changes when a GitHub release is published (or
 when the "Deploy to production" workflow is run by hand). Every merge to
 `main` deploys the same code to the development project, served at
 https://bikes-pizza.dev/ and https://submissions.bikes-pizza.dev/, with its
-own Firestore, Auth users and Cloud Functions, and built from the
-`development` Sanity dataset. The workflows authenticate without any stored
-key: GitHub's OIDC token is exchanged for a deploy-only service account via
+own Firestore, Auth users, Storage and Cloud Functions. The workflows
+authenticate without any stored key: GitHub's OIDC token is exchanged for a deploy-only service account via
 Workload Identity Federation, configured per GitHub environment
 (`production`, `development`). See `docs/firebase.md` for the cloud-side
 setup and the list of variables. `firebase deploy --project dev` deploys to
@@ -401,9 +379,9 @@ lib/
   firebase_options.dart         generated by flutterfire configure
   models/post.dart              normalised Post model
   models/post_feed.dart         Blog / Pizza / Bikes feed definitions
-  data/post_repository.dart     PostRepository interface + backend selection
-  data/sanity_post_repository.dart
-  data/portable_text_html.dart      Portable Text to HTML for the renderer
+  data/post_repository.dart     PostRepository interface
+  data/firestore_post_repository.dart   posts over Firestore's REST API
+  data/firestore.dart           Firestore REST client and value decoder
   screens/post_list_screen.dart list with pull-to-refresh + infinite scroll
   screens/post_detail_screen.dart
   screens/edit_post_screen.dart edit a post (photo, title, story, details)
@@ -422,8 +400,7 @@ lib/
   widgets/post_tile.dart        title + thumbnail row
 test/                           unit tests for both backends, widget tests
 functions/                      Cloud Functions (submissions, members, REST API)
-site/                           Astro website; studio/ the Sanity Studio
-apps/post-details/              Sanity Dashboard app: bike details, member links
+site/                           Astro website
 web/                            account page and submissions review page
 infra/                          Pulumi program for the cloud resources (dev, prod stacks)
 ```
@@ -439,9 +416,8 @@ flutter run            # pick a connected device / simulator
 ```
 
 Debug and profile builds (simulators, devices while developing) use the
-development Firebase project, `bikes-pizza-dev`, and read the `development`
-Sanity dataset, so nothing done from a simulator touches bikes.pizza's
-users or submissions. Release builds, the ones that go to the app stores,
+development Firebase project, `bikes-pizza-dev`, and its posts, so nothing
+done from a simulator touches bikes.pizza's users, posts or submissions. Release builds, the ones that go to the app stores,
 use production. The choice is made at start-up from the build mode
 (`lib/main.dart`, `lib/config.dart`); the native config files for both
 projects are in the repo (`android/app/src/debug/` and `ios/dev/` for
@@ -451,12 +427,12 @@ bikes-pizza.dev; Google sign-in there waits on the Google provider being
 enabled on the dev project.
 
 Formatting, `flutter analyze`, `flutter test`, the Cloud Functions unit
-tests, the infrastructure typecheck, and builds of the website, the Studio
-and the Post details app run on GitHub Actions for pull requests targeting
-`main` (`.github/workflows/pr-checks.yml`). Each check runs only when the
-files it covers changed, so a docs-only pull request finishes in seconds;
-shared inputs such as the Studio's option lists trigger every check that
-imports them, and a change to the workflow itself runs all of them. Merging to `main` deploys the Cloud
+tests, the infrastructure typecheck, the contract check and a build of the
+website run on GitHub Actions for pull requests targeting `main`
+(`.github/workflows/pr-checks.yml`). Each check runs only when the files
+it covers changed, so a docs-only pull request finishes in seconds; shared
+inputs such as the contract trigger every check that consumes them, and a
+change to the workflow itself runs all of them. Merging to `main` deploys the Cloud
 Functions, the website and the account page to the development project
 (`.github/workflows/deploy-dev.yml`); publishing a GitHub release deploys
 them to production (`.github/workflows/deploy-firebase.yml`). Both call

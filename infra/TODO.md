@@ -49,8 +49,7 @@ Not managed by the program, and why:
 - **Secret values.** The program creates the Secret Manager entries; values
   are set with `firebase functions:secrets:set` and never pass through
   config or state. This is also why the stack passphrase is empty.
-- **Sanity** (project, datasets, Studio) and **Shopify**: no Pulumi
-  provider for either. Datasets are created with the Sanity CLI.
+- **Shopify**: no Pulumi provider.
 - **Flutter app registrations** (`flutterfire configure`), the **Resize
   Images extension**, and the **Artifact Registry cleanup policy** the
   Firebase CLI sets.
