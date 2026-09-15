@@ -1,7 +1,8 @@
 import { sanityClient } from 'sanity:client';
 import { createImageUrlBuilder } from '@sanity/image-url';
-import type { SanityImageSource } from '@sanity/image-url/lib/types/types';
+import type { SanityImageSource } from '@sanity/image-url';
 import { defineQuery } from 'groq';
+import type { PortableTextBlock } from '@portabletext/types';
 import { BIKE_COLORS, BIKE_TYPES, BIKE_YEARS, type Option } from '../../../studio/schemaTypes/bikeOptions';
 import { PIZZA_STYLES } from '../../../studio/schemaTypes/pizzaOptions';
 
@@ -55,7 +56,7 @@ export interface Post {
   publishedAt: string;
   excerpt: string | null;
   plain: string;
-  body: unknown[];
+  body: PortableTextBlock[];
   /** Null only for a news post without a main image. */
   image: PostImage | null;
   /** The credit typed at submission; the fallback when there is no author. */

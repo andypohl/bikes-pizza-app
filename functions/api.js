@@ -2,7 +2,6 @@
 // through a Hosting rewrite to the `api` function (see index.js). Every
 // request carries a Firebase ID token as `Authorization: Bearer <token>`.
 //
-//   GET  /api/me                        who the token belongs to
 //   GET  /api/submissions               admin; ?status=&limit=&after=
 //
 // "admin" means a user with the `admin` claim whose token was minted after
@@ -11,12 +10,8 @@
 //   GET  /api/submissions/:id           admin
 //   POST /api/submissions/:id/review    admin; {action, note}
 //   POST /api/submissions               verified user; same body as submitPost
-//   GET  /api/queue/:feed               admin; the queue in posting order
-//   GET  /api/queue/:feed/length        {feed, length}
 //   GET  /api/queue/:feed/countdown-time {feed, length, nextPostAt, seconds, countdown, clock}
-//   POST /api/queue/:feed/add           admin; {id, note}
 //   POST /api/queue/:feed/remove        admin; {id}
-//   POST /api/queue/:feed/submit-next   admin; posts the oldest entry now
 //   GET  /api/site/settings             public (no token); {submitButton}
 //   POST /api/site/settings             admin; {submitButton: boolean}
 //   GET  /api/posts                     verified user; the posts credited to them
@@ -55,8 +50,8 @@ export const BODY_LIMIT = "12mb";
  *
  * `verifyToken(idToken)` resolves to the token's claims or rejects.
  * `service` exposes create(data, user), list(query), get(id),
- * review(input, admin) and a `queue` with info(feed), items(feed),
- * add(input, admin), remove(input, admin) and submitNext(feed), a
+ * review(input, admin) and a `queue` with info(feed) and
+ * remove(input, admin), a
  * `site` with settings() and updateSettings(data, admin), `users`
  * with list(query), get(uid), update(uid, data, admin) and remove(uid,
  * admin), and `posts` with mine(user), get(id, actor) and update(id, data,
@@ -88,8 +83,6 @@ export function createApi({ verifyToken, service, log = () => {} }) {
     wrap((req) => service.site.updateSettings(req.body, secondFactorAdminFromClaims(req.claims))),
   );
 
-  api.get("/me", wrap((req) => userFromClaims(req.claims)));
-
   api.get(
     "/submissions",
     wrap((req) => {
@@ -118,21 +111,6 @@ export function createApi({ verifyToken, service, log = () => {} }) {
 
   const queue = service.queue;
   api.get(
-    "/queue/:feed",
-    wrap((req) => {
-      secondFactorAdminFromClaims(req.claims);
-      return queue.items(req.params.feed);
-    }),
-  );
-  api.get(
-    "/queue/:feed/length",
-    wrap(async (req) => {
-      userFromClaims(req.claims);
-      const { feed, length } = await queue.info(req.params.feed);
-      return { feed, length };
-    }),
-  );
-  api.get(
     "/queue/:feed/countdown-time",
     wrap((req) => {
       userFromClaims(req.claims);
@@ -140,19 +118,8 @@ export function createApi({ verifyToken, service, log = () => {} }) {
     }),
   );
   api.post(
-    "/queue/:feed/add",
-    wrap((req) => queue.add({ ...req.body, feed: req.params.feed }, secondFactorAdminFromClaims(req.claims))),
-  );
-  api.post(
     "/queue/:feed/remove",
     wrap((req) => queue.remove({ ...req.body, feed: req.params.feed }, secondFactorAdminFromClaims(req.claims))),
-  );
-  api.post(
-    "/queue/:feed/submit-next",
-    wrap((req) => {
-      secondFactorAdminFromClaims(req.claims);
-      return queue.submitNext(req.params.feed);
-    }),
   );
 
   // Editing posts: the credited member, or an admin whose session passed

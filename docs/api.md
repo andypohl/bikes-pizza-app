@@ -3,8 +3,8 @@
 The review page and, in future, the app talk to submissions through a small
 REST API served at `https://submissions.bikes.pizza/api/`. It is the
 `api` Cloud Function (`functions/api.js`), reached through a Hosting rewrite
-on the submissions site, and shares its logic with the `submitPost` and
-`reviewSubmission` callables (`functions/submissions.js`).
+on the submissions site, and shares its logic with the `submitPost`
+callable (`functions/submissions.js`).
 
 ## Authentication
 
@@ -15,7 +15,7 @@ Authorization: Bearer <ID token>
 ```
 
 The token's account must have a verified email. Endpoints marked *admin*
-also need the `admin` custom claim (granted with `tools/grant_admin.py`).
+also need the `admin` custom claim (granted with `tool/grant_admin.py`).
 A missing or expired token gets `401`; a verified account without the claim
 gets `403`.
 
@@ -39,10 +39,6 @@ Failures are JSON with an HTTP status and a stable code:
 Messages are safe to show to the person.
 
 ## Endpoints
-
-### `GET /api/me`
-
-Who the token belongs to: `{ "uid", "email", "admin" }`.
 
 ### `GET /api/submissions` (admin)
 
@@ -109,17 +105,12 @@ that posts its oldest entry at fixed times in Central Time
 | `bikes` | 8am, 12pm, 4pm, 8pm    |
 | `pizza` | 9am, 1pm, 5pm, 9pm     |
 
-Scheduled functions call the same code as `submit-next` at those times. A
-slot with an empty queue posts nothing. If posting fails, the entry stays
+Scheduled functions post at those times. A slot with an empty queue posts
+nothing. If posting fails, the entry stays
 at the front of the queue with `queue.lastError` set and is retried at the
 next slot.
 
 `{feed}` below is `pizza` or `bikes`; anything else is a `400`.
-
-### `GET /api/queue/{feed}/length`
-
-`{ "feed", "length" }`, the number of submissions waiting. Any verified
-account may call this.
 
 ### `GET /api/queue/{feed}/countdown-time`
 
@@ -139,29 +130,10 @@ Any verified account. When the feed next posts and how long that is:
 `countdown` drops leading zero units (`"32m 14s"`, `"14s"`); `clock` is
 always `HH:MM:SS`. The next slot is reported even when the queue is empty.
 
-### `GET /api/queue/{feed}` (admin)
-
-The queue in posting order: the countdown fields above plus
-`"items": [Submission with "position" starting at 1, ...]`.
-
-### `POST /api/queue/{feed}/add` (admin)
-
-Body `{ "id", "note": "optional" }`. Queues a pending submission of that
-feed; the same thing the review `publish` action does. Returns the
-`"status": "queued"` shape above. A submission of the other feed is a
-`400`; one that is not pending is a `409`.
-
 ### `POST /api/queue/{feed}/remove` (admin)
 
 Body `{ "id" }`. Takes a queued submission back to pending. Returns
 `{ "status": "pending", "id", ...countdown fields }`. Not queued: `409`.
-
-### `POST /api/queue/{feed}/submit-next` (admin)
-
-Posts the oldest queued submission to the blog now, without waiting for
-the schedule. Returns `{ "posted": Submission | null, ...countdown fields }`;
-`posted` is `null` when the queue was empty. A failure at Sanity answers
-`503` and leaves the entry queued.
 
 ## Submission
 

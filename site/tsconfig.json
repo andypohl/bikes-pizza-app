@@ -3,6 +3,6 @@
   "include": [".astro/types.d.ts", "**/*"],
   "exclude": ["dist"],
   "compilerOptions": {
-    "types": ["@sanity/astro/module"]
+    "types": ["@sanity/astro/module", "node"]
   }
 }

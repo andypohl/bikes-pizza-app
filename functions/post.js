@@ -77,6 +77,6 @@ export function postUrl(siteUrl, feed, slug) {
 export async function createPost(sanity, doc, { status, siteUrl }) {
   const draft = status === "draft";
   const postId = await sanity.createDocument(doc, { draft });
-  const postUrl = draft ? null : `${siteUrl.replace(/\/$/, "")}/post/${doc.slug.current}/`;
-  return { postId, postUrl, postStatus: status };
+  const url = draft ? null : postUrl(siteUrl, doc.feed, doc.slug.current);
+  return { postId, postUrl: url, postStatus: status };
 }
