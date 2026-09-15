@@ -16,9 +16,7 @@ name: Rebuild website
 
 on:
   repository_dispatch:
-    # `sanity-content-changed` is the old name; the functions deployed to
-    # production still send it until the next release, then it can go.
-    types: [content-changed, sanity-content-changed]
+    types: [content-changed]
   workflow_dispatch:
 
 permissions:

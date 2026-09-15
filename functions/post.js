@@ -1,7 +1,6 @@
 // The `post` document in Firestore (`posts/{slug}`): what the website
 // builds from and the app reads, written here when a review is approved,
-// when an edit is applied, and by the migration from Sanity. Pure: the
-// store is injected by the callers.
+// when an edit is applied. Pure: the store is injected by the callers.
 //
 //   slug, feed, title, publishedAt (ISO), status: "published",
 //   summary,                       one line for lists
