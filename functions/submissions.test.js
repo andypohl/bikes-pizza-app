@@ -49,6 +49,9 @@ export function memoryStore(seed = []) {
     async setReview(id, { status, review }) {
       docs.set(id, { ...docs.get(id), status, review: { ...review, at: new Date(2026, 5, 1) } });
     },
+    async pendingEdit(postId) {
+      return [...docs.values()].find((d) => d.status === "pending" && d.kind === "edit" && d.post?.id === postId) ?? null;
+    },
     timestamp: () => new Date(2026, 5, 1, 12, ++n),
     async transition(id, { from, patch, message }) {
       const doc = docs.get(id);
@@ -413,4 +416,75 @@ test("getSubmission mints a token for photos stored without one", async () => {
   assert.equal(item.review.postUrl, "https://blog/old");
   assert.equal(item.review.note, "");
   await assert.rejects(getSubmission("missing", { store }), (e) => e.code === "not-found");
+});
+
+// ---- edits of existing posts (posts.js) ------------------------------------
+
+/** A pending edit as posts.js stores one, plus the Sanity post it is for. */
+async function seededEdit({ withPhoto = true } = {}) {
+  const store = memoryStore();
+  if (withPhoto) await store.putImage("submissions/e1/photo.jpg", Buffer.from("new photo"), { contentType: "image/jpeg", metadata: {} });
+  await store.create("e1", {
+    kind: "edit",
+    post: { id: "p1", slug: "trek-970-abc123", title: "Trek 970", feed: "bikes", url: "https://example.com/post/trek-970-abc123/", imageUrl: null },
+    feed: "bikes",
+    title: "Trek 970 (restored)",
+    from: "Ada",
+    description: "Story",
+    changes: { title: "Trek 970 (restored)", image: withPhoto },
+    uid: "u1",
+    email: "ada@example.com",
+    status: "pending",
+    image: withPhoto ? { path: "submissions/e1/photo.jpg", thumbPath: "submissions/e1/thumb.jpg", contentType: "image/jpeg", width: 20, height: 10, token: "t" } : null,
+    review: null,
+  });
+  const post = { _id: "p1", title: "Trek 970", feed: "bikes", slug: "trek-970-abc123", body: [], authorUid: "u1" };
+  const calls = [];
+  const sanity = {
+    calls,
+    query: async () => post,
+    uploadImage: async (image) => calls.push(["upload", image.filename]) && "image-new",
+    patchDocument: async (id, set, options) => {
+      calls.push(["patch", id, set, options]);
+      Object.assign(post, set);
+    },
+  };
+  return { store, sanity };
+}
+
+test("reviewing an edit with publish applies it to the post at once", async () => {
+  const { store, sanity } = await seededEdit();
+  const result = await reviewSubmission({ id: "e1", action: "publish", note: "" }, admin, { store, sanity, siteUrl: "https://example.com" });
+  assert.deepEqual(result, { status: "approved", postId: "p1", postUrl: "https://example.com/post/trek-970-abc123/", postStatus: "published" });
+  assert.deepEqual(sanity.calls[0], ["upload", "bikes-photo.jpg"]);
+  assert.equal(sanity.calls[1][2].title, "Trek 970 (restored)");
+  assert.equal(sanity.calls[1][2].mainImage.asset._ref, "image-new");
+  const doc = store.docs.get("e1");
+  assert.equal(doc.status, "approved");
+  assert.equal(doc.review.postId, "p1");
+  assert.equal(doc.review.action, "publish");
+  await assert.rejects(reviewSubmission({ id: "e1", action: "publish", note: "" }, admin, { store, sanity }), /already posted/);
+});
+
+test("an edit can be rejected but neither drafted nor queued", async () => {
+  const { store, sanity } = await seededEdit({ withPhoto: false });
+  await assert.rejects(reviewSubmission({ id: "e1", action: "draft", note: "" }, admin, { store, sanity }), /applied or rejected/);
+  await assert.rejects(enqueue({ feed: "bikes", id: "e1" }, admin, { store }), /applied on review/);
+  assert.equal(store.docs.get("e1").status, "pending");
+  const result = await reviewSubmission({ id: "e1", action: "reject", note: "no" }, admin, { store, sanity });
+  assert.deepEqual(result, { status: "rejected" });
+  assert.equal(sanity.calls.length, 0);
+});
+
+test("edits are serialised with their kind, post and changes", async () => {
+  const { store } = await seededEdit({ withPhoto: false });
+  const item = await getSubmission("e1", { store });
+  assert.equal(item.kind, "edit");
+  assert.equal(item.post.id, "p1");
+  assert.deepEqual(item.changes, { title: "Trek 970 (restored)", image: false });
+  assert.equal(item.image.photoUrl, null);
+  const plain = (await listSubmissions(parseListQuery({}), { store: await seeded() })).items[0];
+  assert.equal(plain.kind, "post");
+  assert.equal(plain.post, null);
+  assert.equal(plain.changes, null);
 });

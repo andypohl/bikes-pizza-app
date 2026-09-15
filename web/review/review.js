@@ -76,7 +76,12 @@ function when(iso) {
 }
 
 const STATUS_LABEL = { pending: "Pending", queued: "Queued", posting: "Posting", approved: "Posted", rejected: "Rejected" };
-const FEED_LABEL = { pizza: "Pizza", bikes: "Bike" };
+const FEED_LABEL = { pizza: "Pizza", bikes: "Bike", news: "News" };
+// An edit of a published post (kind "edit") is applied at once on
+// "publish"; there is no draft or queue for it.
+const isEdit = (d) => d.kind === "edit";
+const feedLabel = (d) => `${isEdit(d) ? "Edit · " : ""}${FEED_LABEL[d.feed] ?? d.feed}`;
+const CHANGE_LABEL = { title: "title", story: "story", image: "photo", bike: "bike details", pizza: "pizza style" };
 const FEEDS = ["bikes", "pizza"];
 
 function at(iso) {
@@ -157,8 +162,10 @@ function render() {
     tr.className = "row";
     const d = row;
     const cells = [
-      d.image.thumbUrl ? Object.assign(document.createElement("img"), { src: d.image.thumbUrl, alt: "" }) : "",
-      FEED_LABEL[d.feed] ?? d.feed,
+      d.image.thumbUrl || d.post?.imageUrl
+        ? Object.assign(document.createElement("img"), { src: d.image.thumbUrl || `${d.post.imageUrl}?w=160&h=120&fit=crop&auto=format`, alt: "" })
+        : "",
+      feedLabel(d),
       d.title,
       d.from,
       when(d.createdAt),
@@ -202,7 +209,16 @@ function openDetail(row) {
   current = row;
   const d = row;
   $("#d-title").textContent = d.title;
-  $("#d-meta").textContent = `${FEED_LABEL[d.feed] ?? d.feed} · from ${d.from} <${d.submittedBy.email}> · ${when(d.createdAt)}`;
+  $("#d-meta").textContent = `${feedLabel(d)} · from ${d.from} <${d.submittedBy.email}> · ${when(d.createdAt)}`;
+  $("#d-edit-of").hidden = !isEdit(d);
+  if (isEdit(d)) {
+    $("#d-post-link").textContent = d.post?.title ?? d.post?.id ?? "the post";
+    $("#d-post-link").href = d.post?.url ?? "#";
+    const changed = Object.entries(d.changes ?? {})
+      .filter(([, value]) => value !== false)
+      .map(([key]) => CHANGE_LABEL[key] ?? key);
+    $("#d-changes").textContent = changed.length ? changed.join(", ") : "nothing";
+  }
   $("#d-description").textContent = d.description || "(no description)";
   const ss = d.safeSearch;
   $("#d-safesearch").hidden = !ss;
@@ -218,11 +234,15 @@ function openDetail(row) {
     if (people.persons) seen.push(`${people.persons} person${people.persons === 1 ? "" : "s"} (${people.personScore})`);
     $("#d-people").textContent = `People: ${seen.length ? seen.join(" · ") : "none seen"}`;
   }
-  const full = d.image.photoUrl;
+  // An edit without a new photo shows the post's current one.
+  const full = d.image.photoUrl || (isEdit(d) && d.post?.imageUrl ? `${d.post.imageUrl}?w=1200&auto=format` : null);
   $("#d-image").src = full || d.image.thumbUrl || "";
+  $("#d-image").hidden = !full && !d.image.thumbUrl;
   $("#d-image-link").href = full || "#";
   const pending = d.status === "pending";
   $("#d-actions").hidden = !pending;
+  $("#d-publish").textContent = isEdit(d) ? "Apply edit" : "Queue to post";
+  $("#d-draft").hidden = isEdit(d);
   $("#d-queue-actions").hidden = d.status !== "queued";
   $("#d-note-label").hidden = !pending;
   $("#d-note").value = "";

@@ -6,6 +6,7 @@ import { ValidationError } from "./account.js";
 import { ensureMember } from "./authors.js";
 import { AppError } from "./errors.js";
 import { buildPost, createPost } from "./post.js";
+import { applyEditSubmission } from "./posts.js";
 import { countdown } from "./schedule.js";
 import { FEEDS, submissionRecord, validateSubmission } from "./submission.js";
 
@@ -67,7 +68,9 @@ export function parseReview(data) {
 /**
  * Reviews a pending submission: `reject` records the decision, `draft`
  * creates a Sanity draft right away, and `publish` puts it in its feed's
- * queue to be posted at the next scheduled time.
+ * queue to be posted at the next scheduled time. An edit of an existing
+ * post (kind `edit`, see posts.js) is applied to the post at once on
+ * `publish`; it cannot be drafted or queued.
  */
 export async function reviewSubmission({ id, action, note }, admin, deps) {
   const { store, log = () => {} } = deps;
@@ -75,9 +78,19 @@ export async function reviewSubmission({ id, action, note }, admin, deps) {
   if (!data) throw new AppError("not-found", "That submission no longer exists.");
   if (data.status !== "pending") throw new AppError("failed-precondition", notPending(data.status));
 
+  const reviewedBy = { by: admin.uid, byEmail: admin.email, note, action };
+  if (data.kind === "edit") {
+    if (action === "draft") throw new ValidationError("An edit can be applied or rejected, not drafted.");
+    if (action === "publish") {
+      const result = await applyEditSubmission(data, deps);
+      await store.setReview(id, { status: "approved", review: { ...reviewedBy, ...result } });
+      log("post edit applied", { id, by: admin.uid, ...result });
+      return { status: "approved", ...result };
+    }
+  }
+
   if (action === "publish") return enqueue({ feed: data.feed, id, note }, admin, deps);
 
-  const reviewedBy = { by: admin.uid, byEmail: admin.email, note, action };
   if (action === "reject") {
     await store.setReview(id, { status: "rejected", review: reviewedBy });
     log("submission rejected", { id, by: admin.uid });
@@ -140,6 +153,7 @@ export async function enqueue({ feed, id, note = "" }, admin, { store, log = () 
   const data = await store.get(id);
   if (!data) throw new AppError("not-found", "That submission no longer exists.");
   if (data.feed !== feed) throw new ValidationError(`That submission is for the ${data.feed} feed.`);
+  if (data.kind === "edit") throw new ValidationError("Edits are applied on review, not queued.");
   await store.transition(id, {
     from: ["pending"],
     patch: {
@@ -271,6 +285,9 @@ export async function serialise(item, store) {
   const review = item.review;
   return {
     id: item.id,
+    kind: item.kind === "edit" ? "edit" : "post",
+    post: item.kind === "edit" ? (item.post ?? null) : null,
+    changes: item.kind === "edit" ? (item.changes ?? null) : null,
     feed: item.feed,
     title: item.title,
     from: item.from,

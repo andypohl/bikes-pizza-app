@@ -53,6 +53,15 @@ const service = {
     update: async (uid, data, admin) => calls.push(["users.update", uid, data, admin.uid]) && { uid, ...data },
     remove: async (uid, admin) => calls.push(["users.remove", uid, admin.uid]) && { deleted: uid },
   },
+  posts: {
+    mine: async (user) => calls.push(["posts.mine", user.uid]) && { posts: [{ id: "p1" }] },
+    get: async (id, actor) => {
+      calls.push(["posts.get", id, actor.uid, actor.admin]);
+      if (id === "gone") throw new AppError("not-found", "That post no longer exists.");
+      return { id };
+    },
+    update: async (id, data, actor) => calls.push(["posts.update", id, data, actor.uid, actor.admin]) && { id, ...data },
+  },
   queue: {
     info: async (feed) => {
       if (feed === "news") throw new ValidationError("Unknown feed.");
@@ -241,4 +250,30 @@ test("admin user routes need an admin who used a second factor, and pass the bod
   assert.equal(removed.status, 200);
   assert.deepEqual(removed.body, { deleted: "u1" });
   assert.deepEqual(calls.at(-1), ["users.remove", "u1", "a1"]);
+});
+
+test("posts: members see their own; admins count as admins only with a second factor", async () => {
+  calls.length = 0;
+  const mine = await call("/api/posts", { token: "member" });
+  assert.equal(mine.status, 200);
+  assert.deepEqual(mine.body, { posts: [{ id: "p1" }] });
+  assert.deepEqual(calls[0], ["posts.mine", "u1"]);
+
+  const one = await call("/api/posts/p1", { token: "member" });
+  assert.equal(one.status, 200);
+  assert.deepEqual(calls[1], ["posts.get", "p1", "u1", false]);
+  await call("/api/posts/p1", { token: "admin" });
+  assert.deepEqual(calls[2], ["posts.get", "p1", "a1", false], "one-step admin session edits as a member");
+  await call("/api/posts/p1", { token: "admin2fa" });
+  assert.deepEqual(calls[3], ["posts.get", "p1", "a1", true]);
+
+  const gone = await call("/api/posts/gone", { token: "member" });
+  assert.equal(gone.status, 404);
+  assert.equal((await call("/api/posts", { token: "unverified" })).status, 409);
+  assert.equal((await call("/api/posts/p1")).status, 401);
+
+  const patched = await call("/api/posts/p1", { token: "member", method: "PATCH", body: { title: "New" } });
+  assert.equal(patched.status, 200);
+  assert.deepEqual(patched.body, { id: "p1", title: "New" });
+  assert.deepEqual(calls.at(-1), ["posts.update", "p1", { title: "New" }, "u1", false]);
 });

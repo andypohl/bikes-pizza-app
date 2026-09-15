@@ -28,7 +28,9 @@
 //                    rebuild the website (rebuild.js).
 // api:               HTTPS; the REST API behind /api/ on the submissions
 //                    Hosting site (list, fetch, review, create, queues,
-//                    site settings such as the website's submit button).
+//                    site settings such as the website's submit button,
+//                    user administration, and editing published posts:
+//                    posts.js).
 // postBikesQueue,    scheduled; post the oldest queued submission of the
 // postPizzaQueue:    feed at its posting times (schedule.js).
 
@@ -51,6 +53,7 @@ import { processImage } from "./images.js";
 import { NEWSLETTERS, firestoreMemberStore, loadMember, updateMember as applyMemberUpdate } from "./members.js";
 import { isMailConfigured, sendMail } from "./mail.js";
 import * as passkeys from "./passkeys.js";
+import * as posts from "./posts.js";
 import { inspectImage } from "./vision.js";
 import { requestRebuild } from "./rebuild.js";
 import { TIME_ZONE, cronFor } from "./schedule.js";
@@ -368,6 +371,24 @@ const service = {
       logger.info("user deleted by admin", { uid, by: admin.uid });
       return result;
     },
+  },
+  posts: {
+    mine: (user) => posts.listMyPosts(user, { sanity: sanityClient(), siteUrl: siteUrl() }),
+    get: (id, actor) => posts.getPost(id, actor, { sanity: sanityClient(), siteUrl: siteUrl(), store: store() }),
+    // Members' edits become pending submissions (reviewed like new posts);
+    // admins' apply at once. The website rebuilds through the Sanity
+    // webhook, as for any content change.
+    update: (id, data, actor) =>
+      posts.updatePost(id, data, actor, {
+        sanity: sanityClient(),
+        store: store(),
+        members: firestoreMemberStore(getFirestore()),
+        processImage,
+        safeSearch,
+        notify,
+        siteUrl: siteUrl(),
+        log: logger.info,
+      }),
   },
   queue: {
     info: (feed) => subs.queueInfo(feed, { store: store() }),

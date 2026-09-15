@@ -62,3 +62,11 @@ test("patchDocument sends a set patch", async () => {
   await client(fetchImpl).patchDocument("m1", { username: "ada" });
   assert.deepEqual(JSON.parse(calls[0].init.body), { mutations: [{ patch: { id: "m1", set: { username: "ada" } } }] });
 });
+
+test("patchDocument adds unset paths when given", async () => {
+  const { calls, fetchImpl } = fakeFetch(() => ({ body: { results: [] } }));
+  await client(fetchImpl).patchDocument("p1", { title: "x" }, { unset: ["bike.year"] });
+  assert.deepEqual(JSON.parse(calls[0].init.body), {
+    mutations: [{ patch: { id: "p1", set: { title: "x" }, unset: ["bike.year"] } }],
+  });
+});

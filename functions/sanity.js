@@ -77,13 +77,16 @@ export class SanityClient {
   }
 
   /**
-   * Sets fields on an existing document.
+   * Sets fields on an existing document, and removes the `unset` ones.
    * @param {string} id
    * @param {object} set  field → value
+   * @param {{unset?: string[]}} [options]  paths to remove
    */
-  async patchDocument(id, set) {
+  async patchDocument(id, set, { unset = [] } = {}) {
+    const patch = { id, set };
+    if (unset.length) patch.unset = unset;
     await this.#request(`/data/mutate/${this.dataset}`, {
-      body: { mutations: [{ patch: { id, set } }] },
+      body: { mutations: [{ patch }] },
     });
   }
 

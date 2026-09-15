@@ -52,6 +52,17 @@ export function firestoreSubmissionStore(db, bucket) {
       return { items: snap.docs.slice(0, limit).map(item), hasMore: snap.docs.length > limit };
     },
 
+    /** The pending edit submission for a post, if there is one. */
+    async pendingEdit(postId) {
+      const snap = await col
+        .where("status", "==", "pending")
+        .where("kind", "==", "edit")
+        .where("post.id", "==", postId)
+        .limit(1)
+        .get();
+      return snap.empty ? null : item(snap.docs[0]);
+    },
+
     /** A server timestamp for fields set through transition(). */
     timestamp: () => FieldValue.serverTimestamp(),
 

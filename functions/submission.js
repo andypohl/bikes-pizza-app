@@ -83,9 +83,31 @@ export function submissionRecord({ feed, title, from, description }, { uid, emai
   };
 }
 
-/** Subject and body for the email that announces a new submission. */
-export function notificationEmail({ feed, title, from, description, userEmail, reviewUrl }) {
-  const noun = FEEDS[feed].noun;
+/**
+ * Subject and body for the email that announces a new submission, or an
+ * edit a member asked for on one of their posts (`kind: "edit"`, with
+ * `post` and `changes` from posts.js).
+ */
+export function notificationEmail({ kind, feed, title, from, description, userEmail, reviewUrl, post, changes }) {
+  const noun = FEEDS[feed]?.noun ?? feed;
+  if (kind === "edit") {
+    const changed = Object.entries(changes ?? {})
+      .filter(([, value]) => value !== false)
+      .map(([key]) => (key === "image" ? "photo" : key));
+    const lines = [
+      `${from} edited their ${noun} post: ${post?.title ?? title}`,
+      post?.url ? `Post: ${post.url}` : "",
+      `Changed: ${changed.length ? changed.join(", ") : "nothing"}`,
+      "",
+      `Review it${reviewUrl ? `: ${reviewUrl}` : " on the review page."}`,
+      "",
+      `From: ${from} <${userEmail}>`,
+      "",
+      changes?.title !== undefined ? `New title: ${title}` : "",
+      changes?.story !== undefined ? `New story:\n${description || "(none)"}` : "",
+    ].filter((line) => line !== "");
+    return { subject: `Edit to ${noun} post: ${post?.title ?? title}`, text: lines.join("\n") };
+  }
   const lines = [
     `${from} submitted a ${noun}: ${title}`,
     "",

@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../auth/auth_service.dart';
 import '../data/post_repository.dart';
 import '../models/post.dart';
 import '../models/post_feed.dart';
+import '../posts/post_editor.dart';
+import '../submissions/photo_picker.dart';
+import '../widgets/edit_post_button.dart';
 import '../widgets/post_article.dart';
 import '../widgets/status_message.dart';
 
@@ -11,10 +15,24 @@ import '../widgets/status_message.dart';
 /// Older pages load as the reader scrolls down. Only [maxPages] pages are
 /// kept at a time: going further down drops the earliest page, and coming
 /// back up fetches it again, so a long history never piles up in memory.
+///
+/// With [auth], [editor] and [photos], each article offers an Edit button
+/// to administrators (news is written in the Studio, so no member is
+/// credited).
 class NewsScreen extends StatefulWidget {
-  const NewsScreen({super.key, required this.repository, this.maxPages = 10});
+  const NewsScreen({
+    super.key,
+    required this.repository,
+    this.maxPages = 10,
+    this.auth,
+    this.editor,
+    this.photos,
+  });
 
   final PostRepository repository;
+  final AuthService? auth;
+  final PostEditor? editor;
+  final PhotoPicker? photos;
 
   /// How many pages of articles to keep loaded at once.
   final int maxPages;
@@ -65,6 +83,17 @@ class _NewsScreenState extends State<NewsScreen> {
   void _rebuildItems() {
     _items = [for (final posts in _pages.values) ...posts];
     _indexById = {for (var i = 0; i < _items.length; i++) _items[i].id: i};
+  }
+
+  /// Shows an edited article as it now reads.
+  void _replace(Post post) {
+    setState(() {
+      _pages.updateAll((_, posts) {
+        final index = posts.indexWhere((p) => p.id == post.id);
+        return index < 0 ? posts : (List.of(posts)..[index] = post);
+      });
+      _rebuildItems();
+    });
   }
 
   Future<void> _refresh() async {
@@ -241,6 +270,10 @@ class _NewsScreenState extends State<NewsScreen> {
             key: ValueKey(post.id),
             post: post,
             repository: widget.repository,
+            auth: widget.auth,
+            editor: widget.editor,
+            photos: widget.photos,
+            onChanged: _replace,
           );
         },
       ),
@@ -251,27 +284,54 @@ class _NewsScreenState extends State<NewsScreen> {
 /// One article in the feed, with a rule under it and a button to open it
 /// on bikes.pizza.
 class _NewsItem extends StatelessWidget {
-  const _NewsItem({super.key, required this.post, required this.repository});
+  const _NewsItem({
+    super.key,
+    required this.post,
+    required this.repository,
+    required this.onChanged,
+    this.auth,
+    this.editor,
+    this.photos,
+  });
 
   final Post post;
   final PostRepository repository;
+  final ValueChanged<Post> onChanged;
+  final AuthService? auth;
+  final PostEditor? editor;
+  final PhotoPicker? photos;
 
   @override
   Widget build(BuildContext context) {
+    final auth = this.auth;
+    final editor = this.editor;
+    final photos = this.photos;
+    final editable = auth != null && editor != null && photos != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         PostArticle(post: post, repository: repository),
-        if (post.url.isNotEmpty)
+        if (post.url.isNotEmpty || editable)
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: () => PostArticle.open(post.url),
-                icon: const Icon(Icons.open_in_browser),
-                label: const Text('Open on bikes.pizza'),
-              ),
+            child: Row(
+              children: [
+                if (post.url.isNotEmpty)
+                  TextButton.icon(
+                    onPressed: () => PostArticle.open(post.url),
+                    icon: const Icon(Icons.open_in_browser),
+                    label: const Text('Open on bikes.pizza'),
+                  ),
+                if (editable)
+                  EditPostButton(
+                    post: post,
+                    auth: auth,
+                    editor: editor,
+                    photos: photos,
+                    onSaved: onChanged,
+                    asTextButton: true,
+                  ),
+              ],
             ),
           ),
         const Divider(height: 1),

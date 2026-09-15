@@ -46,8 +46,24 @@ export function adminFromClaims(claims) {
  */
 export function secondFactorAdminFromClaims(claims) {
   const user = adminFromClaims(claims);
-  if (!claims.firebase?.sign_in_second_factor && claims.passkey !== true) {
+  if (!hasSecondFactor(claims)) {
     throw new AppError("permission-denied", "Two-factor authentication is required for this.");
   }
   return user;
+}
+
+/** Whether the token was minted after a second factor or by a passkey. */
+export function hasSecondFactor(claims) {
+  return Boolean(claims?.firebase?.sign_in_second_factor) || claims?.passkey === true;
+}
+
+/**
+ * The verified user behind a request that any member may make but that
+ * admins may make on others' behalf (editing a post). `admin` here is
+ * only true for an admin who signed in with their second factor, so a
+ * one-step admin session gets a member's powers and nothing more.
+ */
+export function actorFromClaims(claims) {
+  const user = userFromClaims(claims);
+  return { ...user, admin: user.admin && hasSecondFactor(claims) };
 }

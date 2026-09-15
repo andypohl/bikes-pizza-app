@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:bikes_pizza/account/member_service.dart';
+import 'package:bikes_pizza/api/api_client.dart';
 import 'package:bikes_pizza/app_settings.dart';
 import 'package:bikes_pizza/auth/auth_service.dart';
 import 'package:bikes_pizza/auth/passkey_service.dart';
@@ -14,6 +15,8 @@ import 'package:bikes_pizza/data/post_repository.dart';
 import 'package:bikes_pizza/main.dart';
 import 'package:bikes_pizza/models/post.dart';
 import 'package:bikes_pizza/models/post_feed.dart';
+import 'package:bikes_pizza/posts/post_editor.dart';
+import 'package:bikes_pizza/screens/edit_post_screen.dart';
 import 'package:bikes_pizza/screens/news_screen.dart';
 import 'package:bikes_pizza/screens/post_detail_screen.dart';
 import 'package:bikes_pizza/store/cart.dart';
@@ -168,6 +171,10 @@ class FakeAuthService implements AuthService {
 
   @override
   Future<bool> isAdmin() async => admin;
+
+  @override
+  Future<String?> idToken() async =>
+      _user == null ? null : 'token-${_user!.uid}';
 
   @override
   Future<void> createAccount({
@@ -408,6 +415,52 @@ class FakeSubmissionService implements SubmissionService {
   }
 }
 
+/// In-memory post editor: serves [posts] for editing, records saves, and
+/// answers them as a member's (pending review) or an administrator's
+/// (applied) according to [applies].
+class FakePostEditor implements PostEditor {
+  final posts = <String, EditablePost>{};
+  List<PostSummary> mine = [];
+  final saved = <(String, PostEdit)>[];
+  bool applies = false;
+  bool fail = false;
+
+  @override
+  Future<List<PostSummary>> myPosts() async {
+    if (fail) throw ApiException('Could not reach bikes.pizza.');
+    return mine;
+  }
+
+  @override
+  Future<EditablePost> load(String id) async {
+    final post = posts[id];
+    if (post == null) {
+      throw ApiException('That post no longer exists.', code: 'not-found');
+    }
+    return post;
+  }
+
+  @override
+  Future<EditOutcome> save(String id, PostEdit edit) async {
+    if (fail) throw ApiException('Could not save that.');
+    saved.add((id, edit));
+    if (!applies) return const EditOutcome.pending('s1');
+    final was = posts[id]!;
+    final now = EditablePost(
+      id: was.id,
+      title: edit.title ?? was.title,
+      feed: was.feed,
+      url: was.url,
+      publishedAt: was.publishedAt,
+      story: edit.story ?? was.story,
+      bike: edit.bike ?? was.bike,
+      pizza: edit.pizza ?? was.pizza,
+    );
+    posts[id] = now;
+    return EditOutcome.applied(now);
+  }
+}
+
 /// Returns a tiny PNG, or nothing when [cancel] is set.
 class FakePhotoPicker implements PhotoPicker {
   bool cancel = false;
@@ -504,6 +557,7 @@ Post _post(
   PizzaDetails? pizza,
 }) => Post(
   id: title,
+  documentId: 'doc-$title',
   title: title,
   url: 'https://example.com/$title/',
   publishedAt: date,
@@ -513,7 +567,29 @@ Post _post(
   pizza: pizza,
 );
 
-const _ada = PostAuthor(id: 'm1', username: 'ada_bikes');
+// The Google sign-in of the fake auth service is this member.
+const _ada = PostAuthor(id: 'm1', username: 'ada_bikes', uid: 'g1');
+
+EditablePost _editable(
+  String id, {
+  String title = 'Newest post',
+  String feed = 'bikes',
+  String story = 'Newest post body',
+  bool formatted = false,
+  String? pendingEditId,
+  BikeDetails? bike = const BikeDetails(brand: 'GT', year: '1990s'),
+}) => EditablePost(
+  id: id,
+  title: title,
+  feed: feed,
+  url: 'https://example.com/$title/',
+  publishedAt: DateTime(2025, 4, 12),
+  story: story,
+  storyHasFormatting: formatted,
+  pendingEditId: pendingEditId,
+  bike: feed == 'bikes' ? bike : null,
+  pizza: feed == 'pizza' ? const PizzaDetails(style: 'detroit') : null,
+);
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -525,6 +601,7 @@ void main() {
   FakePasskeyService? passkeys;
   late FakeSubmissionService submissions;
   late FakePhotoPicker photos;
+  late FakePostEditor editor;
 
   setUp(() {
     PackageInfo.setMockInitialValues(
@@ -540,6 +617,13 @@ void main() {
     passkeys = null;
     submissions = FakeSubmissionService();
     photos = FakePhotoPicker();
+    editor = FakePostEditor()
+      ..posts['doc-Newest post'] = _editable('doc-Newest post')
+      ..posts['doc-Older post'] = _editable(
+        'doc-Older post',
+        title: 'Older post',
+        story: 'Older post body',
+      );
   });
 
   /// Scrolls the account screen's list until [finder] is on screen; the
@@ -607,6 +691,7 @@ void main() {
         passkeys: passkeys,
         submissions: submissions,
         photos: photos,
+        editor: editor,
       ),
     );
     await tester.pumpAndSettle();
@@ -2143,5 +2228,267 @@ void main() {
 
     expect(tile, findsOneWidget);
     expect(find.text('contact@bikes.pizza'), findsOneWidget);
+  });
+
+  // ---- editing posts --------------------------------------------------------
+
+  /// Signs in as the Google member (uid g1, who posted "Newest post") and
+  /// opens [title] from the All tab.
+  Future<void> openPostAsMember(WidgetTester tester, String title) async {
+    await pumpApp(tester);
+    await signInWithGoogle(tester);
+    await tester.tap(find.text('All'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(title));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets(
+    'Settings → Posts lists the member\'s posts and opens the editor',
+    (tester) async {
+      await pumpApp(tester);
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+      // Signed out: no Posts tile.
+      expect(find.byKey(const Key('my-posts')), findsNothing);
+
+      editor.mine = [
+        PostSummary(
+          id: 'doc-Newest post',
+          title: 'Newest post',
+          feed: 'bikes',
+          url: 'https://example.com/newest/',
+          publishedAt: DateTime(2025, 4, 12),
+        ),
+      ];
+      await tester.tap(find.text('Sign in'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const Key('google-sign-in')));
+      await tester.tap(find.byKey(const Key('google-sign-in')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('my-posts')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Your posts'), findsOneWidget);
+      expect(find.text('Newest post'), findsOneWidget);
+      expect(find.textContaining('Bike · '), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('my-post-doc-Newest post')));
+      await tester.pumpAndSettle();
+      expect(find.text('Edit post'), findsOneWidget);
+      expect(
+        tester
+            .widget<TextFormField>(find.byKey(const Key('title')))
+            .controller
+            ?.text,
+        'Newest post',
+      );
+      expect(find.byKey(const Key('bike-brand')), findsOneWidget);
+      expect(find.byKey(const Key('pizza-style')), findsNothing);
+    },
+  );
+
+  testWidgets('an empty or failed Posts list says so', (tester) async {
+    await pumpApp(tester);
+    await signInWithGoogle(tester);
+    await tester.tap(find.byKey(const Key('my-posts')));
+    await tester.pumpAndSettle();
+    expect(find.text('No posts yet'), findsOneWidget);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    editor.fail = true;
+    await tester.tap(find.byKey(const Key('my-posts')));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not load your posts'), findsOneWidget);
+    expect(find.text('Retry'), findsOneWidget);
+  });
+
+  testWidgets('Edit shows for the member who posted, and for administrators', (
+    tester,
+  ) async {
+    await openPostAsMember(tester, 'Newest post');
+    expect(find.byKey(const Key('edit-post')), findsOneWidget);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Older post'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('edit-post')), findsNothing);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    auth.admin = true;
+    await tester.tap(find.text('Older post'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('edit-post')), findsOneWidget);
+
+    // Signed out, nothing to edit anywhere.
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await auth.signOut();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Newest post'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('edit-post')), findsNothing);
+  });
+
+  testWidgets('a member\'s edit sends only what changed, for review', (
+    tester,
+  ) async {
+    await openPostAsMember(tester, 'Newest post');
+    await tester.tap(find.byKey(const Key('edit-post')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Send for review'), findsOneWidget);
+    expect(
+      find.textContaining('for review before they appear'),
+      findsOneWidget,
+    );
+    // Nothing changed yet: nothing to send.
+    expect(
+      tester.widget<FilledButton>(find.byKey(const Key('save'))).onPressed,
+      isNull,
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('title')),
+      'Newest post, restored',
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('save')));
+    await tester.tap(find.byKey(const Key('save')));
+    await tester.pumpAndSettle();
+
+    expect(editor.saved.length, 1);
+    final (id, edit) = editor.saved.single;
+    expect(id, 'doc-Newest post');
+    expect(edit.title, 'Newest post, restored');
+    expect(edit.story, isNull);
+    expect(edit.bike, isNull);
+    expect(edit.photo, isNull);
+    expect(find.text('Thanks!'), findsOneWidget);
+    expect(find.textContaining('for review'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('done')));
+    await tester.pumpAndSettle();
+    // Back on the post, unchanged until the review applies it.
+    expect(find.text('Newest post'), findsWidgets);
+    expect(find.text('Newest post, restored'), findsNothing);
+  });
+
+  testWidgets('changed details and a new photo are sent too', (tester) async {
+    await openPostAsMember(tester, 'Newest post');
+    await tester.tap(find.byKey(const Key('edit-post')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('pick-photo')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('photo-library')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('photo-preview')), findsOneWidget);
+
+    await tester.enterText(find.byKey(const Key('bike-brand')), 'GT Bicycles');
+    await tester.ensureVisible(find.byKey(const Key('bike-type')));
+    await tester.tap(find.byKey(const Key('bike-type')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mountain').last);
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byKey(const Key('save')));
+    await tester.tap(find.byKey(const Key('save')));
+    await tester.pumpAndSettle();
+
+    final (_, edit) = editor.saved.single;
+    expect(edit.title, isNull);
+    expect(edit.photo?.contentType, 'image/png');
+    expect(edit.bike?.brand, 'GT Bicycles');
+    expect(edit.bike?.year, '1990s');
+    expect(edit.bike?.type, 'mtb');
+    expect(edit.bike?.color, '');
+  });
+
+  testWidgets('an administrator\'s edit is applied and shown at once', (
+    tester,
+  ) async {
+    editor.applies = true;
+    await pumpApp(tester);
+    await signInWithGoogle(tester);
+    auth.admin = true;
+    await tester.tap(find.text('All'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Older post'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('edit-post')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Save'), findsOneWidget);
+    expect(find.text('Changes go live right away.'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('title')),
+      'Older post, renamed',
+    );
+    await tester.enterText(
+      find.byKey(const Key('story')),
+      'A new story.\n\nSecond paragraph.',
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('save')));
+    await tester.tap(find.byKey(const Key('save')));
+    await tester.pumpAndSettle();
+
+    // Back on the post, which now reads as saved.
+    expect(find.text('Saved.'), findsOneWidget);
+    expect(find.text('Older post, renamed'), findsOneWidget);
+    expect(find.text('Edit post'), findsNothing);
+    final article = tester.widget<PostArticle>(find.byType(PostArticle));
+    expect(article.post.title, 'Older post, renamed');
+    expect(article.post.html, '<p>A new story.</p><p>Second paragraph.</p>');
+
+    // The list behind shows the new title too.
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('Older post, renamed'), findsOneWidget);
+  });
+
+  testWidgets('the editor warns about formatted stories and pending edits', (
+    tester,
+  ) async {
+    editor.posts['doc-Newest post'] = _editable(
+      'doc-Newest post',
+      formatted: true,
+      pendingEditId: 's1',
+    );
+    await openPostAsMember(tester, 'Newest post');
+    await tester.tap(find.byKey(const Key('edit-post')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('formatting-notice')), findsOneWidget);
+    expect(find.byKey(const Key('pending-notice')), findsOneWidget);
+    expect(find.textContaining('waiting for review'), findsOneWidget);
+    expect(
+      tester.widget<TextFormField>(find.byKey(const Key('title'))).enabled,
+      isFalse,
+    );
+    expect(
+      tester.widget<FilledButton>(find.byKey(const Key('save'))).onPressed,
+      isNull,
+    );
+  });
+
+  testWidgets('a failed save keeps the form and says why', (tester) async {
+    await openPostAsMember(tester, 'Newest post');
+    await tester.tap(find.byKey(const Key('edit-post')));
+    await tester.pumpAndSettle();
+    editor.fail = true;
+    await tester.enterText(find.byKey(const Key('title')), 'Changed');
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('save')));
+    await tester.tap(find.byKey(const Key('save')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Could not save that.'), findsOneWidget);
+    expect(find.byType(EditPostScreen), findsOneWidget);
+    expect(find.text('Thanks!'), findsNothing);
   });
 }
