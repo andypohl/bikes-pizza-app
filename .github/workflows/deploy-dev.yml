@@ -1,7 +1,7 @@
 # Deploys every merge to main to the development Firebase project, served at
-# https://bikes-pizza.dev/ and https://submissions.bikes-pizza.dev/, and the
-# development Sanity Studio and Post details app. Production only changes on
-# a release (deploy-firebase.yml). The steps live in deploy.yml.
+# https://bikes-pizza.dev/ and https://submissions.bikes-pizza.dev/.
+# Production only changes on a release (deploy-firebase.yml). The steps live
+# in deploy.yml.
 name: Deploy to development
 
 on:
@@ -18,7 +18,6 @@ jobs:
     uses: ./.github/workflows/deploy.yml
     with:
       environment: development
-      sanity: true
-    # The Sanity deploy tokens are environment secrets; a called workflow only
-    # sees them when the caller passes them on.
+    # The environment's secrets are only seen by a called workflow when the
+    # caller passes them on.
     secrets: inherit

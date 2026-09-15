@@ -205,6 +205,21 @@ Current:
 - `usernames/{lowercased username}`: `{ uid, username }`, the reservation
   that keeps usernames unique regardless of case. Written in the same
   transaction as the member's `username`; server-only.
+- `posts/{slug}`: a published post, what the website is built from and the
+  app reads (both over Firestore's REST API without credentials; the rules
+  make documents with `status: "published"` readable by anyone, so a list
+  query must filter on it). Fields: `slug`, `feed`, `title`,
+  `publishedAt`, `status`, `summary`, `body` and `bodyFormat` (`text` or
+  `markdown`), `html` (rendered from the body at write time), `image`
+  (`base`, `version`, `width`, `height`, `sizes`, `formats`, `blur`,
+  `focus`; the renditions are in Storage), `details` (a bike's `brand`,
+  `year`, `color`, `type` or a pizza's `style`), `credit` (`uid`,
+  `username`, `name`), `source`, `createdAt`, `updatedAt`. Written by the
+  functions on publish and edit (`functions/post.js`,
+  `functions/post_store.js`). Composite indexes on `status` with
+  `publishedAt`, with `feed` + `publishedAt`, with `credit.uid` +
+  `publishedAt` and with `feed` + `credit.uid` + `publishedAt`, all
+  descending on `publishedAt`, for the lists the site and the app ask for.
 - `submissions/{id}`: a member submission. Fields: `feed`, `title`, `from`,
   `description`, `uid`, `email`, `status` (`pending`, `approved`,
   `rejected`), `createdAt`, `image` (`path`, `thumbPath`, `contentType`,
@@ -242,8 +257,13 @@ The default bucket, in the same region as the functions. Rules live in
 - `submissions/{id}/photo.jpg` and `thumb.jpg`: a submission's normalised
   photo and its thumbnail, written by the `submitPost` function with a
   download token that the REST API's photo links carry; no rule-based
-  client access. Approved photos are uploaded to Sanity as image assets on
-  publish, so the bucket is not referenced by the website.
+  client access.
+- `posts/{slug}/{version}/{width}.{webp,jpg}`, `tile.{webp,jpg}` and, for
+  images inside a Markdown body, `posts/{slug}/inline{n}/...`: a published
+  post's photo renditions, made by the functions on publish
+  (`functions/renditions.js`), publicly readable by rule and served with
+  an immutable cache header; `version` changes with the photo, so a
+  changed photo gets new URLs.
 
 ## Cloud Functions
 
@@ -261,9 +281,9 @@ creating it with defaults on first use.
   state).
 - `updateMember`: changes the member's username and/or the full list of
   newsletters they receive, validated against that same profile. A username
-  someone else holds fails with `already-exists`. After a rename it patches
-  the member's `member` document in Sanity (if they have published) and
-  requests a website rebuild; both are best effort and logged on failure.
+  someone else holds fails with `already-exists`. After a rename it updates
+  the credit on the member's published posts and requests a website
+  rebuild; both are best effort and logged on failure.
 - `deleteAccount`: deletes the caller's own Firebase Auth user and member
   record (freeing the username), as the admin page's delete does, and
   their passkeys; their posts stay. Needs only a signed-in user, not a
@@ -295,11 +315,11 @@ creating it with defaults on first use.
   Touch ID or screen lock is what confirms the person.
 - The REST API's `/api/admin/users` endpoints (`functions/admin_users.js`,
   admin claim required) list users ordered by most recent post (Firebase
-  Auth users joined with `members/{uid}` and the published posts' `author`
-  references in Sanity), read one user, update username / email /
-  newsletters (the email changes on the Auth user and the member record; a
-  username change is mirrored to Sanity and rebuilds the website), and
-  delete a user (Auth user and member record; posts stay).
+  Auth users joined with `members/{uid}` and the published posts' `credit`),
+  read one user, update username / email / newsletters (the email changes
+  on the Auth user and the member record; a username change is written to
+  the member's posts and rebuilds the website), and delete a user (Auth
+  user and member record; posts stay).
 - `submitPost`: takes a member's bike or pizza submission (photo as base64,
   title, from, description), normalises the photo and makes a thumbnail
   (sharp), runs the photo through Cloud Vision in one call: SafeSearch
@@ -325,26 +345,21 @@ creating it with defaults on first use.
   jobs, so deploying them needs the Cloud Scheduler API enabled and the
   deployer to hold Cloud Scheduler Admin. A run that posts something then
   asks GitHub to rebuild the website (`functions/rebuild.js`): a
-  `repository_dispatch` of type `sanity-content-changed` whose payload names
-  the environment (`production` when the functions publish to the
-  `production` dataset, otherwise `development`), so only that site is
-  rebuilt. It needs the `GITHUB_DISPATCH_TOKEN` secret, a fine-grained GitHub
+  `repository_dispatch` of type `content-changed` whose payload names
+  the environment (`SITE_ENVIRONMENT` in `functions/.env`), so only that
+  site is rebuilt. It needs the `GITHUB_DISPATCH_TOKEN` secret, a fine-grained GitHub
   personal access token for the repository with "Contents: read and write";
   with a placeholder value the request is skipped and logged, and a failed
   request is logged but never retried (the post is already published).
   Approving a submission (`publish`)
-  queues it rather than posting it; drafts are created in Sanity
-  immediately. Publishing also finds or creates the submitter's `member`
-  document in Sanity (`functions/authors.js`, account id and username) and
-  references it from the post; if that fails the post still goes out
-  without the reference.
+  queues it rather than posting it. Posting makes the photo's renditions
+  and writes the `posts/{slug}` document (see Cloud Firestore and Cloud
+  Storage above), with the submitter's account id, username and typed name
+  as the credit.
 
-  Configuration: a Secret Manager secret holding a Sanity API token with
-  the Editor role (`SANITY_WRITE_TOKEN`; create it with `npx sanity tokens
-  add` in `studio/` or in Sanity Manage), plus optional plain parameters
-  for the project, dataset and site URL in the git-ignored
-  `functions/.env` (template: `functions/.env.example`), which default to
-  the repo's values.
+  Configuration: the environment and site URL in the git-ignored
+  `functions/.env` (template: `functions/.env.example`), which the deploy
+  workflow writes.
 
 Planned:
 
@@ -369,14 +384,13 @@ described there but not yet imported.
 | Firebase project | `pizzapredator-a445e` | `bikes-pizza-dev` |
 | Website | https://bikes.pizza/ | https://bikes-pizza.dev/ |
 | Submissions and API | https://submissions.bikes.pizza/ | https://submissions.bikes-pizza.dev/ |
-| Sanity dataset | `production` | `development` (a copy; see `studio/README.md`) |
 | Deployed by | a published GitHub release | every merge to `main` |
 | GitHub environment | `production` | `development` |
 | Flutter app builds | release (app stores) | debug and profile (simulators, devices) |
 
-Both projects share the Sanity project and its Editor token (project-wide),
-the Shopify store and the Google account, and nothing else: Auth users,
-Firestore data, Storage and Cloud Functions are separate, so a member of
+Both projects share the Shopify store and the Google account, and nothing
+else: Auth users, Firestore data (including the posts), Storage and Cloud
+Functions are separate, so a member of
 bikes.pizza has to sign up again on bikes-pizza.dev. The development project
 sends no submission emails (its deploy leaves `MAILGUN_DOMAIN` empty, and the
 `MAILGUN_API_KEY` secret there is a placeholder). Google and Apple sign-in are
@@ -386,7 +400,7 @@ The workflows read their settings from GitHub Actions variables, with the
 environment's variables overriding the repository's:
 `FIREBASE_PROJECT`, `GCP_WORKLOAD_IDENTITY_PROVIDER`,
 `GCP_DEPLOY_SERVICE_ACCOUNT`, `SITE_URL`, `REVIEW_PAGE_URL`,
-`PUBLIC_API_URL` and `SANITY_DATASET` are set on the `development`
+`PUBLIC_API_URL` and `SHOPIFY_STORE_DOMAIN` are set on the `development`
 environment; the repository-level values serve production. The full list is
 at the top of `.github/workflows/deploy.yml`.
 
@@ -421,26 +435,13 @@ targets in `firebase.json` by `.firebaserc` (create the extra sites with
   website" workflow (`.github/workflows/deploy-site.yml`) builds `site/`
   and deploys only the home target of each environment (see Environments
   above); it runs on a `repository_dispatch` event of type
-  `sanity-content-changed`, or by hand. A dispatch whose payload names an
+  `content-changed`, or by hand. A dispatch whose payload names an
   `environment` rebuilds that one only; without a payload both are rebuilt.
-  The scheduled functions send it after posting (above). Sanity also sends
-  it, which covers edits made in the Studio, through two GROQ-powered
-  webhooks on the project (Manage → API → Webhooks, or the Webhooks HTTP
-  API), one per dataset: "Rebuild website (production)" on `production` and
-  "Rebuild website (development)" on `development`. Each has URL
-  `https://api.github.com/repos/<owner>/<repo>/dispatches`, method POST,
-  triggers on create, update and delete, filter
-  `_type in ["post", "member", "product", "productVariant"]` (a username
-  change must rebuild too, and so must a product change synced from
-  Shopify), the
-  projection
-  `{"event_type": "sanity-content-changed", "client_payload": {"environment": "<production|development>", "reason": "sanity " + sanity::dataset() + " " + _id}}`,
-  and the headers `Accept: application/vnd.github+json`,
-  `X-GitHub-Api-Version: 2022-11-28` and `Authorization: Bearer <token>`,
-  where the token is the same fine-grained GitHub personal access token the
-  functions hold in `GITHUB_DISPATCH_TOKEN` ("Contents: read and write", the
-  permission `repository_dispatch` requires; it expires, so rotate both
-  places together). Sanity fires once per publish. The workflow spaces
+  The functions send it after posting, after an edit is applied and after
+  a username change (above), with the fine-grained GitHub personal access
+  token they hold in `GITHUB_DISPATCH_TOKEN` ("Contents: read and write",
+  the permission `repository_dispatch` requires; it expires, so rotate it).
+  A product change in Shopify shows up at the next rebuild. The workflow spaces
   rebuilds out: a gate job per environment (`.github/scripts/rebuild-gate.sh`)
   waits until five minutes have passed since that environment's last
   deployment finished, reading the environment's deployment records, and a
@@ -547,8 +548,8 @@ extension, and secret values.
 7. Deploy rules, indexes, and functions from the repo with `firebase deploy`.
 8. Install the Resize Images extension and point it at the bucket.
 9. Set Functions secrets with the CLI (`firebase functions:secrets:set`):
-   `SANITY_WRITE_TOKEN` (an Editor token for the Sanity project) and
-   `MAILGUN_API_KEY`; create `functions/.env` from the example file.
+   `MAILGUN_API_KEY` and `GITHUB_DISPATCH_TOKEN`; create `functions/.env`
+   from the example file.
 10. For deploys from GitHub Actions, create a service account in the Google
    Cloud console (IAM & Admin → Service Accounts) used only for deploys, with
    these roles: Cloud Functions Admin, Cloud Run Admin, Cloud Build Editor,
@@ -572,7 +573,7 @@ extension, and secret values.
     `.github/workflows/deploy.yml`. Steps 1 to 11 apply to both projects;
     for development, skip the Google and Apple providers, the app
     registrations and the Mailgun key (set a placeholder so the functions
-    deploy), and use the `development` Sanity dataset in `functions/.env`.
+    deploy).
 
 ## Rebuilding the app config
 

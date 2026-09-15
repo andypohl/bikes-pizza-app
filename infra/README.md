@@ -29,7 +29,7 @@ Open items are tracked in `TODO.md`, next to this file.
   Pulumi state, and the Services ID lives in Apple Developer.
 - Secret values. The program creates the Secret Manager entries; the values
   are set with `firebase functions:secrets:set` and never pass through state.
-- Sanity (project, datasets, Studio) and Shopify; neither has a provider.
+- Shopify; it has no provider.
 - The Resize Images extension, and the Artifact Registry cleanup policy the
   Firebase CLI sets. (The Flutter app registrations are managed: see the
   `iosBundleId`, `androidPackageName` and `androidSha*Hashes` config.)
@@ -74,15 +74,9 @@ each environment (`gh secret set NAME --env development`, likewise
 - `SHOPIFY_STOREFRONT_TOKEN`: the Shopify store's Storefront API access
   token, which the website build reads its products with (see the Store
   section of the repository README for where to get it).
-- `SANITY_STUDIO_DEPLOY_TOKEN`: a Sanity project robot token with the
-  Deploy Studio role (Manage → project → API → Tokens, or
-  `npx sanity tokens add "GitHub Actions" --role=deploy-studio` in `studio/`).
-- `SANITY_APP_DEPLOY_TOKEN`: a Sanity organization robot token with the
-  Manage SDK Apps permission (Manage → organization → Settings → API →
-  Tokens; the CLI cannot create these).
 
-One Sanity project serves both environments, so the same two tokens can be
-set on both.
+One Shopify store serves both environments, so the same token is set on
+both.
 
 ## State backend
 
@@ -116,7 +110,6 @@ Set with `pulumi config set <key> <value>` on the selected stack.
 | `manageDns`          | manage the Cloudflare records (default true) |
 | `repository`         | GitHub `owner/name` (default `andypohl/bikes-pizza-app`) |
 | `githubEnvironment`  | GitHub environment the deploy workflow targets |
-| `sanityDataset`      | Sanity dataset the environment's Studio deploys to (until Sanity is retired) |
 | `shopifyStoreDomain` | host the website calls the Shopify Storefront API on |
 | `gcp:project`, `gcp:userProjectOverride`, `github:owner` | provider settings |
 

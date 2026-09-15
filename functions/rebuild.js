@@ -1,12 +1,11 @@
-// Asks GitHub to rebuild the website after the functions publish a post.
-// The site is static, so a post that reaches Sanity only shows once the
-// "Rebuild website" workflow (.github/workflows/deploy-site.yml) has run;
-// this sends the same `repository_dispatch` event the Sanity webhook does,
-// with the environment in the payload so only that environment's site is
-// rebuilt. Failures are logged, never thrown: the post is already
+// Asks GitHub to rebuild the website after the functions publish or change
+// a post. The site is static, so a post written to Firestore only shows
+// once the "Rebuild website" workflow (.github/workflows/deploy-site.yml)
+// has run; this sends it a `repository_dispatch` event with the
+// environment in the payload so only that environment's site is rebuilt. Failures are logged, never thrown: the post is already
 // published and the scheduled run must not retry because of GitHub.
 
-export const EVENT_TYPE = "sanity-content-changed";
+export const EVENT_TYPE = "content-changed";
 export const DEFAULT_REPOSITORY = "andypohl/bikes-pizza-app";
 
 /** Values a placeholder secret might hold; treated as "no token". */

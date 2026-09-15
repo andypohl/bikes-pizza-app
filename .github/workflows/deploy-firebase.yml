@@ -1,7 +1,6 @@
-# Deploys the Cloud Functions, the Hosting sites, the Firestore and Storage
-# rules, and the production Sanity Studio and Post details app when a GitHub
-# release is published (pre-releases are skipped). Can also be run by hand from the
-# Actions tab. The steps live in deploy.yml; merges to main go to the
+# Deploys the Cloud Functions, the Hosting sites and the Firestore and
+# Storage rules to production when a GitHub release is published
+# (pre-releases are skipped). Can also be run by hand from the Actions tab. The steps live in deploy.yml; merges to main go to the
 # development project instead (deploy-dev.yml).
 name: Deploy to production
 
@@ -20,7 +19,6 @@ jobs:
     uses: ./.github/workflows/deploy.yml
     with:
       environment: production
-      sanity: true
-    # The Sanity deploy tokens are environment secrets; a called workflow only
-    # sees them when the caller passes them on.
+    # The environment's secrets are only seen by a called workflow when the
+    # caller passes them on.
     secrets: inherit

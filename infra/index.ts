@@ -44,8 +44,6 @@ const manageDns = cfg.getBoolean("manageDns") ?? true;
 const repository = cfg.get("repository") ?? "andypohl/bikes-pizza-app";
 const repoName = repository.split("/")[1];
 const githubEnvironment = cfg.require("githubEnvironment");
-/** Sanity dataset the environment's Studio deploys to (until Sanity is retired). */
-const sanityDataset = cfg.require("sanityDataset");
 /**
  * The host the website calls the Shopify Storefront API on to build its
  * shop. The access token that goes with it is an environment secret, set
@@ -379,14 +377,14 @@ new gcp.serviceaccount.IAMMember(
 // Secrets the functions read. Only the entries are managed here; values are
 // set with `firebase functions:secrets:set` and never pass through state.
 
-for (const secretId of ["SANITY_WRITE_TOKEN", "MAILGUN_API_KEY"]) {
+for (const secretId of ["MAILGUN_API_KEY"]) {
   new gcp.secretmanager.Secret(`secret-${secretId}`, { project: project.projectId, secretId, replication: { auto: {} } }, apisReady);
 }
 
 // ---------------------------------------------------------------------------
 // GitHub environment read by .github/workflows/deploy.yml. Only variables
-// are managed here; the environment's secrets (the Sanity deploy tokens,
-// see README.md) are set by hand so no secret value passes through state.
+// are managed here; the environment's secrets (see README.md) are set by
+// hand so no secret value passes through state.
 
 const ghOpts: pulumi.CustomResourceOptions = {};
 
@@ -418,7 +416,6 @@ const variables: Record<string, pulumi.Input<string>> = {
   SITE_URL: `https://${domain}`,
   PUBLIC_API_URL: `https://${submissionsDomain}`,
   REVIEW_PAGE_URL: `https://${submissionsDomain}/`,
-  SANITY_DATASET: sanityDataset,
   SHOPIFY_STORE_DOMAIN: shopifyStoreDomain,
 };
 for (const [variableName, value] of Object.entries(variables)) {

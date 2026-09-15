@@ -1,6 +1,6 @@
-# Rebuilds the website from Sanity when content changes: the Sanity webhook
-# and the scheduled functions (functions/rebuild.js) send a
-# `repository_dispatch` of type `sanity-content-changed` (see
+# Rebuilds the website when content changes: the functions
+# (functions/rebuild.js) send a `repository_dispatch` of type
+# `content-changed` after publishing or changing a post (see
 # docs/firebase.md), or it is started by hand. A dispatch whose payload
 # names an `environment` rebuilds only that one; without it, both.
 # Production is rebuilt from the latest release, so a content change never
@@ -16,7 +16,9 @@ name: Rebuild website
 
 on:
   repository_dispatch:
-    types: [sanity-content-changed]
+    # `sanity-content-changed` is the old name; the functions deployed to
+    # production still send it until the next release, then it can go.
+    types: [content-changed, sanity-content-changed]
   workflow_dispatch:
 
 permissions:

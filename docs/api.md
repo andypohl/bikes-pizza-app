@@ -34,7 +34,7 @@ Failures are JSON with an HTTP status and a stable code:
 | 403    | `permission-denied`   | Admin endpoint without the claim                  |
 | 404    | `not-found`           | Unknown submission or endpoint                    |
 | 409    | `failed-precondition` | Unverified email; submission already posted       |
-| 503    | `unavailable`         | Sanity, Storage or another dependency failed      |
+| 503    | `unavailable`         | Firestore, Storage or another dependency failed   |
 
 Messages are safe to show to the person.
 
@@ -226,7 +226,7 @@ write: paragraphs separated by blank lines) or `markdown` (what
 administrators may write). `storyHasFormatting` is true for Markdown;
 a member saving a new story over it turns it back into plain text. `bike` is present on bike posts and `pizza` on pizza
 posts, each with every field, empty when not set; the values are the ones
-in `studio/schemaTypes/bikeOptions.ts` and `pizzaOptions.ts`.
+in `contract/options.json`.
 `pendingEdit` names the edit of this post that is waiting for review, if
 there is one (a member may not send another until it is reviewed).
 
