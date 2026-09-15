@@ -17,7 +17,9 @@ is easier to fix now than after release.
 The review covers the app (`lib/`), the Cloud Functions (`functions/`), the
 website (`site/`), the Studio and App SDK app (`studio/`, `apps/`), the three
 static pages (`web/`), the infrastructure (`infra/`, `.github/`) and the
-docs, as of `main` with #114 merged and #115 open.
+docs, as of `main` with #114 merged and #115 open. Section 4 records the
+decision, taken after the findings were discussed, to move content off
+Sanity altogether; the findings are kept as written since they explain why.
 
 ## 1. How the project got here
 
@@ -292,95 +294,133 @@ program's TODO. Path-filter the development deploy.
 - No PR check covers `firebase.json`, the rules files, `.firebaserc` or the
   native projects.
 
-## 4. Target design
+## 4. Decision: Firebase only
+
+After this review was first written, the question of Sanity itself came
+up: with Studio and the App SDK app gone, what would still be missed?
+The answer was short. The image CDN (any size or crop by URL, hotspot,
+metadata) is the one thing that takes real work to replace; Portable Text
+matters only for News; GROQ is unnecessary once the credit sits on the
+post; Sanity Connect is replaceable by the Storefront API the app already
+uses; history and a content browser are conveniences. Against that, Sanity
+is a second platform with two datasets, three tokens, two deploy jobs,
+hand-made webhooks with a rotating PAT and a public dataset, and it
+produced this week's dataset mix-up.
+
+**Decision: move content to Firebase and remove Sanity.** The target design
+and the plan below are written for that.
+
+## 5. Target design
 
 ```
-                    ┌──────────────── Sanity (content, public) ────────────────┐
-                    │ post {title, slug, feed, publishedAt, image, summary,      │
-                    │       body, details{bike|pizza}, credit{uid,username,name},│
-                    │       source}            product, productVariant (Connect) │
-                    └───────────────▲─────────────────────────▲─────────────────┘
-                 reads via CDN      │ writes                   │ reads at build
-                                    │                          │
-   ┌──────────────┐   REST /api   ┌─┴──────────────────────┐   ┌┴─────────────┐  webhook  ┌────────────┐
-   │ Flutter app  │──────────────►│ Cloud Functions        │   │ Astro site   │◄──────────│ rebuild    │
-   │ feeds, store,│               │ one Express API        │   │ + /account/  │           │ workflow   │
-   │ account,     │               │ scheduled queue runners│   │ + /api/** ──►│           └────────────┘
-   │ tablet admin │               └─┬──────────────────────┘   └──────────────┘
-   └──────────────┘                 │ Firestore (private): members, usernames,
-   ┌──────────────┐   REST /api     │ reviews, passkeys, passkeyChallenges, settings
-   │ Admin web    │─────────────────┘ Storage: reviews/{id}/photo.jpg, thumb.jpg
-   │ (fallback)   │
-   └──────────────┘
-   Studio: schema owner and fallback editor.   contract/: generated facts for all four languages.
+   ┌──────────────┐   REST /api   ┌────────────────────────────────┐
+   │ Flutter app  │──────────────►│ Cloud Functions                │
+   │ feeds, store,│               │ one Express API at <site>/api  │
+   │ account,     │   Firestore   │ scheduled queue runners        │
+   │ tablet admin │◄──reads──────►│ image renditions (sharp)       │
+   └──────────────┘               └──┬─────────────────────────────┘
+   ┌──────────────┐   REST /api      │ Firestore
+   │ Admin web    │──────────────────┤   posts (public read when published)
+   │ (fallback)   │                  │   members, usernames, reviews,
+   └──────────────┘                  │   passkeys, passkeyChallenges, settings
+   ┌──────────────┐  Admin SDK       │ Storage
+   │ Astro site   │◄──at build───────┤   posts/{id}/{width}.{jpg,webp} (public)
+   │ + /account/  │                  │   reviews/{id}/photo.jpg, thumb.jpg (private)
+   │ + /api/** ───┼──────────────────┘
+   └──────────────┘        Shopify Storefront API: products (site at build, app live)
+   contract/: generated facts for Dart, JS and TS.   Rebuild: requested by the API after every publish.
 ```
 
-- **Sanity post**: `image` (was `mainImage`), `summary` (was `excerpt`),
-  `details` (was `bike`/`pizza`, keyed by feed), `credit` (replaces
-  `submittedBy` + `author`), no `member` type.
-- **Firestore**: `reviews` (F4) replaces `submissions`; the rest unchanged.
-- **API** (`docs/api.md` rewritten): `/api/account`, `/api/passkeys/...`,
-  `/api/reviews...` (create, list, get, decide, queue), `/api/posts...`
-  (mine, get, patch, and admin-only create for news), `/api/users...`,
-  `/api/settings`. Same error envelope as today. Served at
-  `<site>/api/**`.
-- **Clients**: the app with `Services.of(context)`, one `ApiClient`, Sanity
-  CDN reads and Shopify checkout; the website with the account page built
-  in; one admin web app.
-- **Editorial**: everything day-to-day in the app's tablet admin; Studio
-  as fallback; no App SDK app.
-- **Contract**: `contract/*.json` generated into each language and checked
-  in CI.
-- **Infra**: two Hosting sites per environment (home, admin); Pulumi
-  complete for both stacks with CI preview.
+**Post document** (`posts/{id}`, id = slug):
 
-## 5. Migration plan
+```
+title, feed, publishedAt, status: "published",
+summary,                      one line for lists (typed, or the first sentence)
+body,                         Markdown
+html,                         rendered from body at write time
+image: { path, width, height, blur, focus: {x, y}, sizes: [400, 800, 1200, 2048] } | null
+details: { brand, year, color, type } | { style } | null      keyed by feed
+credit: { uid, username, name } | null
+source: { system: "ghost" | "review", id, url } | null
+createdAt, updatedAt
+```
+
+Rules allow public reads of published posts and nothing else; the site
+reads with the Admin SDK at build time through the deploy identity, the app
+through Firestore's REST endpoint with plain `http` (or the `cloud_firestore`
+package if offline caching is wanted later).
+
+**Images**: the review pipeline already normalises a photo with `sharp`; it
+now also writes the renditions (JPEG and WebP at four widths, a 4:3 crop of
+the 800 width for tiles using `focus`) to a public path in Storage and a
+20-pixel blur placeholder into the document. The site builds `srcset` from
+`sizes`; the app picks the nearest width.
+
+**Body**: Markdown. Submissions are plain paragraphs, which is valid
+Markdown. News written in the app can use headings, links and lists;
+`html` is rendered server-side once so the site and the app never parse
+Markdown themselves.
+
+**Products**: the site queries the Storefront API at build time, the app
+already does at run time; a Shopify webhook to the API requests a rebuild
+on product changes.
+
+**Rebuilds**: the API calls `requestRebuild` after every post write, as the
+queue runner already does; no webhooks.
+
+**Reviews** (`reviews/{id}`, replacing `submissions`) as in F4, with
+`content` being exactly a post document's editable fields, so publishing a
+new post and applying an edit are one write.
+
+**Everything removed**: `studio/`, `apps/post-details/`, `functions/sanity.js`,
+`authors.js`, GROQ in the app and the site, `@sanity/*` packages, Sanity
+Connect, the two datasets, three tokens, two webhooks, the `sanity` CI
+jobs, the `member` document type, `tools/backfill_post_authors.py`, the
+Ghost importer.
+
+## 6. Migration plan
 
 Ordered so each phase is one to three pull requests that leave `main`
-deployable, with the breaking changes grouped where a migration script is
-needed. Estimates are working days.
+deployable. Estimates are working days.
 
 | Phase | What | Breaking? | Size |
 |---|---|---|---|
-| 0. Hygiene | Delete `reviewSubmission` and `submitPost` callables' unused twins and the five dead routes; fix the news URL in `createPost`; `astro check` in CI; PR checks for `web/`, `firebase.json`, rules; Ghost importer fallback; delete `.iml` files and template text; merge `tools/` into `tool/` | no | 0.5 |
-| 1. Contract | `contract/` JSON, generator, generated files replace the four copies of options/feeds/rules/URLs; CI diff check | no | 1 |
-| 2. One transport | Members, passkeys and submissions on REST; app and web on one client; callables deleted; API moves to `<site>/api/**` (Pulumi rewrite + firebase.json; old rewrites kept one release) | API: yes (additive first, then removal) | 2 |
-| 3. Data model | `reviews` collection with `type`/`content`/`status` (migration script for pending items; old ones can be left); `credit` on posts (script patches every post, deletes `member` docs); Studio schema renames (`image`, `summary`, `details`, `credit`); app `Post` model rename; site projection rename | yes (Sanity documents, Firestore) | 2 |
-| 4. Web consolidation | `web/` as a Vite project; account + admin pages from shared modules; account built into the site; `review` target and `submissions.` domain retired (Pulumi); Hosting sites 4 → 2 | infra: yes | 1.5 |
-| 5. Editorial | Credit editable in the admin edit screen; "Write a news post" in tablet admin; retire `apps/post-details` (workflow, README); Studio kept | no | 1 |
-| 6. App structure | `AppServices` scope; screen splits; store widgets to `widgets/`; tests split by feature | no | 1 |
-| 7. Identity | Bundle ids (if chosen), leftovers, consistent Hosting target names | yes if bundle ids change | 0.5-1 |
-| 8. Infra | GCS state, import prod, DNS managed, Pulumi CI preview, production variables on the environment, webhooks scripted, dev deploy path filters | no | 1 |
+| 0. Hygiene | Delete the unused `reviewSubmission` callable and dead routes; fix the news URL in `createPost`; `astro check`; PR checks for `web/`, `firebase.json`, rules; delete `.iml` files and template text; one `tool/` directory | no | 0.5 |
+| 1. Contract | `contract/*.json` and a generator for Dart, JS and TS; the copies of options, feeds, rules and URL shapes replaced; CI diff check | no | 1 |
+| 2. Content on Firebase | (a) backend: `posts` collection, rendition pipeline, Markdown rendering, publish and edit writing posts, admin read of any post, migration script from Sanity (dev first); (b) site: Firestore at build, renditions, Markdown HTML, no `@sanity/*`; (c) app: repository over Firestore REST, one `Post` model with the new names; (d) store: Storefront API on the site; (e) cut over production, delete Sanity code, packages, workflows, tokens, webhooks, docs | yes (content store) | 5 |
+| 3. One transport | Members, passkeys and submissions on REST; app and web on one client; callables deleted; API at `<site>/api/**` (Pulumi + firebase.json; old rewrites kept one release) | API | 2 |
+| 4. Reviews | `reviews` collection with `type`/`content`/`status`; edit-before-approve in the tablet review screen; "Save as draft" removed; migration of pending items | Firestore | 1.5 |
+| 5. Web consolidation | `web/` as a Vite project; account + one admin page from shared modules; account built into the site; `review` target and `submissions.` domain retired; Hosting 4 → 2 | infra | 1.5 |
+| 6. Editorial | Credit editable by admins; "Write a news post" in the tablet admin; admin edit of feed, slug, date | no | 1 |
+| 7. App structure | `AppServices` scope; screen splits; store widgets to `widgets/`; tests split by feature | no | 1 |
+| 8. Identity | Bundle ids (if chosen), leftovers, consistent Hosting target names | if bundle ids change | 0.5-1 |
+| 9. Infra | GCS state, import prod, DNS managed, Pulumi CI preview, production variables on the environment, dev deploy path filters | no | 1 |
 
-Phases 0 and 1 can start now. Phase 8 should land before phases 2 and 4,
-since both change Hosting and DNS and it is better to make those changes
-through a program that already matches production. Phases 3 and 5 depend on
-each other only through the credit field, so 3 goes first. Everything else
-is independent.
+Phases 0 and 1 start now. Phase 2 is the big one and goes next because
+every later phase builds on the new post shape; it is developed against
+the development environment and cut over to production last. Phase 9
+should land before phase 5, which changes Hosting sites and DNS. Phases 3
+and 4 can follow 2 in either order.
 
-## 6. Decisions needed
+## 7. Decisions
 
-1. **Bundle ids** (F9): change to one consistent id on both platforms now,
-   at the cost of a new App Store Connect record, or keep
-   `com.pizzapredator.bikesPizza` / `com.pizzapredator.bikes_pizza` forever.
-2. **Where the API lives** (F2): `bikes.pizza/api/**` as proposed, or a
-   dedicated `api.bikes.pizza` site. The former needs no new domain.
-3. **Keep a web admin at all** (F3): one merged admin page as the fallback
-   to the tablet screens, or tablet-only with the web pages deleted. The
-   proposal keeps one page.
-4. **Drop "Save as draft"** (F4) in favor of editing before approval in the
-   review screen.
-5. **Denormalize the credit** (F5) and drop the `member` document type.
-6. **News from the app** (F7): write news in the tablet admin as plain
-   paragraphs (with Studio for anything richer), or keep news in Studio.
+Accepted as proposed: the API at `<site>/api/**`; one web admin page kept
+as a fallback; "Save as draft" replaced by editing before approval; the
+credit denormalized onto posts; News written from the app; and, above all,
+Firebase in place of Sanity.
 
-## 7. What this review does not recommend
+Still open: **bundle ids** (F9). Changing them means a new App Store
+Connect record and re-doing TestFlight, the AASA and assetlinks files,
+Pulumi config and the Google sign-in registrations; it is only possible
+before the first release.
 
-- Replacing Sanity with Firestore, or the static site with a server. Both
-  would be more work for less.
-- A monorepo tool or shared TypeScript packages across `site/`, `web/`,
-  `studio/` and `functions/`. The contract generator gives the sharing that
-  matters with none of the toolchain.
+## 8. What this review does not recommend
+
+- Replacing the static site with a server. `FUTURE_FEATURES.md` already
+  records when that would change.
+- A monorepo tool or shared TypeScript packages across `site/`, `web/` and
+  `functions/`. The contract generator gives the sharing that matters with
+  none of the toolchain.
 - Versioning the API. Before release there is one client per platform and
   the app can be updated with the backend.
 - A new production Firebase project to shed the `pizzapredator` id. It
