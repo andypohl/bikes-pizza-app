@@ -1,0 +1,19 @@
+{
+  "username": {
+    "pattern": "^[A-Za-z0-9_]{3,24}$",
+    "rule": "3 to 24 letters, digits or underscores"
+  },
+  "postPath": {
+    "news": "/news/{slug}/",
+    "default": "/post/{slug}/"
+  },
+  "image": {
+    "maxEdge": 2048,
+    "maxUploadBytes": 8388608,
+    "types": {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp"
+    }
+  }
+}

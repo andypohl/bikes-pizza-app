@@ -1,6 +1,5 @@
+import '../contract.dart';
 import '../data/portable_text_html.dart';
-import 'bike_options.dart';
-import 'pizza_options.dart';
 
 /// The member who submitted a post: their Sanity `member` document id
 /// (stable, used to list their posts), account id and current username.
@@ -237,11 +236,7 @@ class Post {
       id: slug.isNotEmpty ? slug : json['_id'] as String? ?? '',
       documentId: json['docId'] as String? ?? json['_id'] as String? ?? '',
       title: json['title'] as String? ?? '(untitled)',
-      url: slug.isEmpty
-          ? ''
-          : feed == 'news'
-          ? '$siteUrl/news/$slug/'
-          : '$siteUrl/post/$slug/',
+      url: slug.isEmpty ? '' : '$siteUrl${postPath(feed ?? '', slug)}',
       publishedAt:
           DateTime.tryParse(json['publishedAt'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),

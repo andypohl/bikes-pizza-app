@@ -1,13 +1,12 @@
 // Posting schedule for the queues: the wall-clock hours, in Central Time,
 // at which each feed's queue posts its oldest entry. Pure; no Firebase.
 
-export const TIME_ZONE = "America/Chicago"; // CST/CDT, following daylight saving
+import { POSTING_HOURS, TIME_ZONE } from "./contract.js";
+
+export { TIME_ZONE };
 
 /** Hours of the day (24h, in TIME_ZONE) each feed posts at. */
-export const SCHEDULES = {
-  bikes: [8, 12, 16, 20],
-  pizza: [9, 13, 17, 21],
-};
+export const SCHEDULES = POSTING_HOURS;
 
 /** Cloud Scheduler cron for a feed, to be paired with TIME_ZONE. */
 export function cronFor(feed) {

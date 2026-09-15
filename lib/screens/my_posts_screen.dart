@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../api/api_client.dart';
 import '../auth/auth_service.dart';
 import '../auth/session_expiry.dart';
+import '../models/post_feed.dart';
 import '../posts/post_editor.dart';
 import '../submissions/photo_picker.dart';
 import '../widgets/post_tile.dart';
@@ -33,11 +34,6 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
   String? _error;
 
   static final _dateFormat = DateFormat.yMMMd();
-  static const _feedLabels = {
-    'bikes': 'Bike',
-    'pizza': 'Pizza',
-    'news': 'News',
-  };
 
   @override
   void initState() {
@@ -147,7 +143,7 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${_feedLabels[post.feed] ?? post.feed} · '
+                            '${feedNounLabel(post.feed)} · '
                             '${_dateFormat.format(post.publishedAt.toLocal())}',
                             style: subtitle,
                           ),

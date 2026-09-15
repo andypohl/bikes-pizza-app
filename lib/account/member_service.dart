@@ -1,7 +1,10 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
 import '../auth/session_expiry.dart';
+import '../contract.dart';
 import 'pending_profile.dart';
+
+export '../contract.dart' show usernamePattern, usernameRule;
 
 /// Thrown by [MemberService] with a message safe to show to the user.
 class MemberException implements Exception {
@@ -16,11 +19,6 @@ class MemberException implements Exception {
   @override
   String toString() => message;
 }
-
-/// Usernames: 3 to 24 letters, digits or underscores. Kept in step with
-/// `USERNAME_PATTERN` in functions/account.js.
-final usernamePattern = RegExp(r'^[A-Za-z0-9_]{3,24}$');
-const usernameRule = '3 to 24 letters, digits or underscores';
 
 /// Null when [value] is an acceptable username, else why not.
 String? validateUsername(String? value) {
