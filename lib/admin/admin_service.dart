@@ -1,5 +1,6 @@
 import '../account/member_service.dart';
 import '../api/api_client.dart';
+import '../models/post_feed.dart';
 
 /// The admin side of the REST API (`docs/api.md`): the submissions review
 /// (what https://submissions.bikes.pizza/ does) and user administration
@@ -16,7 +17,7 @@ abstract class AdminService {
 
   Future<AdminSubmission> submission(String id);
 
-  /// `publish`, `draft` or `reject` a pending submission.
+  /// `publish` or `reject` a pending submission.
   Future<ReviewResult> review(String id, String action, {String note = ''});
 
   Future<QueueInfo> queueInfo(String feed);
@@ -99,7 +100,6 @@ class AdminSubmission {
   bool get isPending => status == 'pending';
   bool get isQueued => status == 'queued';
 
-  static const feedLabels = {'pizza': 'Pizza', 'bikes': 'Bike', 'news': 'News'};
   static const statusLabels = {
     'pending': 'Pending',
     'queued': 'Queued',
@@ -116,8 +116,7 @@ class AdminSubmission {
   };
 
   /// "Bike", or "Edit · Bike" for an edit.
-  String get feedLabel =>
-      '${isEdit ? 'Edit · ' : ''}${feedLabels[feed] ?? feed}';
+  String get feedLabel => '${isEdit ? 'Edit · ' : ''}${feedNounLabel(feed)}';
 
   String get statusLabel => statusLabels[status] ?? status;
 
@@ -351,12 +350,10 @@ class ReviewResult {
   String get message {
     switch (status) {
       case 'queued':
-        final feed = AdminSubmission.feedLabels[this.feed] ?? this.feed ?? '';
+        final feed = feedNounLabel(this.feed ?? '');
         return 'Queued at position $position for $feed; next post in $countdown.';
       case 'approved':
-        return postStatus == 'draft'
-            ? 'Saved as a draft in Sanity.'
-            : 'Published: ${postUrl ?? postId ?? ''}';
+        return 'Published: ${postUrl ?? postId ?? ''}';
       case 'rejected':
         return 'Rejected.';
       default:

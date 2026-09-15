@@ -580,7 +580,6 @@ class FakeAdminService implements AdminService {
         feed: 'bikes',
         countdown: '2h 0m 0s',
       ),
-      'draft' => const ReviewResult(status: 'approved', postStatus: 'draft'),
       _ => const ReviewResult(status: 'rejected'),
     };
   }
@@ -2753,7 +2752,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('A fine bike.'), findsOneWidget);
     expect(find.text('Queue to post'), findsOneWidget);
-    expect(find.byKey(const Key('review-draft')), findsOneWidget);
+    expect(find.byKey(const Key('review-draft')), findsNothing);
     await tester.enterText(find.byKey(const Key('review-note')), 'lovely');
     await tester.tap(find.byKey(const Key('review-publish')));
     await tester.pumpAndSettle();
@@ -2766,7 +2765,7 @@ void main() {
     expect(find.text('Submissions'), findsOneWidget); // back on the list
   });
 
-  testWidgets('an edit offers Apply edit and no draft; rejecting asks first', (
+  testWidgets('an edit offers Apply edit; rejecting asks first', (
     tester,
   ) async {
     await settingsAsAdmin(tester);
