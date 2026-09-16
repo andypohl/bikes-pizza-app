@@ -63,6 +63,12 @@ import { API_URL as apiUrl } from '../lib/api';
           <img id="photo-preview" alt="" hidden class="mt-4 max-h-80 rounded-lg" />
         </div>
 
+        <div class="field">
+          <span>Additional pictures <span class="font-light text-muted">(optional, up to 4)</span></span>
+          <input id="extras" name="extras" type="file" accept="image/*" multiple class="block w-full text-sm text-muted file:mr-4 file:rounded-full file:border-0 file:bg-pill file:px-4 file:py-2 file:text-sm file:font-medium file:text-ink" />
+          <ul id="extras-preview" hidden class="mt-4 grid grid-cols-4 gap-3"></ul>
+        </div>
+
         <p id="submit-error" role="alert" hidden class="text-error"></p>
 
         <button id="submit-send" type="submit" class="inline-flex items-center justify-center px-6 py-3 rounded-full bg-accent hover:bg-accent-hover text-on-accent font-medium tracking-wide transition-colors duration-200 disabled:opacity-50">
@@ -129,6 +135,7 @@ import { API_URL as apiUrl } from '../lib/api';
   import { watchSettings } from '../scripts/site-settings';
 
   const MAX_EDGE = 2048; // downscale photos before upload; the API's ceiling is 8 MB
+  const MAX_EXTRAS = 4; // additional pictures per post (the contract's IMAGE_MAX_EXTRA)
 
   const root = document.getElementById('submit-state') as HTMLElement;
   const apiUrl = root.dataset.api!;
@@ -137,6 +144,8 @@ import { API_URL as apiUrl } from '../lib/api';
   const send = document.getElementById('submit-send') as HTMLButtonElement;
   const photo = document.getElementById('photo') as HTMLInputElement;
   const preview = document.getElementById('photo-preview') as HTMLImageElement;
+  const extras = document.getElementById('extras') as HTMLInputElement;
+  const extrasPreview = document.getElementById('extras-preview') as HTMLUListElement;
   const title = form.elements.namedItem('title') as HTMLInputElement;
   let user: SiteUser = null;
   let open: boolean | null = null; // the site's submitButton setting
@@ -203,6 +212,31 @@ import { API_URL as apiUrl } from '../lib/api';
     say('');
   });
 
+  /** The additional pictures chosen, at most MAX_EXTRAS; more clears the choice. */
+  function extraFiles(): File[] {
+    return [...(extras.files ?? [])];
+  }
+
+  extras.addEventListener('change', () => {
+    if (extraFiles().length > MAX_EXTRAS) {
+      extras.value = '';
+      say(`Choose at most ${MAX_EXTRAS} additional pictures.`);
+    } else say('');
+    const files = extraFiles();
+    extrasPreview.replaceChildren(
+      ...files.map((file) => {
+        const li = document.createElement('li');
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(file);
+        img.alt = '';
+        img.className = 'w-full aspect-[4/3] object-cover rounded-lg';
+        li.append(img);
+        return li;
+      }),
+    );
+    extrasPreview.hidden = files.length === 0;
+  });
+
   /** The photo as JPEG, no larger than MAX_EDGE on its long side. */
   async function encodePhoto(file: File): Promise<{ data: string; contentType: string }> {
     const bitmap = await createImageBitmap(file);
@@ -237,6 +271,8 @@ import { API_URL as apiUrl } from '../lib/api';
     send.textContent = 'Sending…';
     try {
       const image = await encodePhoto(file);
+      const images = [];
+      for (const extra of extraFiles()) images.push(await encodePhoto(extra));
       // A cached ID token can predate the email verification (the link is
       // opened in another tab); the API checks the token's claims, so mint
       // a fresh one from the account's current state.
@@ -251,6 +287,7 @@ import { API_URL as apiUrl } from '../lib/api';
           from: String(data.get('from')).trim(),
           description: String(data.get('description')).trim(),
           image,
+          images,
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -276,6 +313,8 @@ import { API_URL as apiUrl } from '../lib/api';
   document.getElementById('submit-another')!.addEventListener('click', () => {
     form.reset();
     preview.hidden = true;
+    extrasPreview.hidden = true;
+    extrasPreview.replaceChildren();
     say('');
     show('form');
   });

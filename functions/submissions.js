@@ -8,6 +8,7 @@ import { postDocument, postUrl, slugFor } from "./post.js";
 import { applyEditSubmission, publishImage } from "./posts.js";
 import { countdown } from "./schedule.js";
 import { FEEDS, submissionRecord, validateSubmission } from "./submission.js";
+import { extraLabel, preparePhoto, storeExtra, storePhoto } from "./uploads.js";
 
 // pending -> queued (approved for posting) -> posting -> approved (on the
 // site), or pending -> rejected; an edit goes pending -> approved directly.
@@ -17,37 +18,28 @@ export const DEFAULT_PAGE = 20;
 export const MAX_PAGE = 50;
 
 /**
- * Stores a validated submission with its processed photo. `safeSearch`
- * inspects the photo first (SafeSearch and people checks, see vision.js) and
- * throws when it fails; what it saw is kept on the record for the reviewer.
+ * Stores a validated submission with its processed photos. `safeSearch`
+ * inspects every photo first (SafeSearch and people checks, see
+ * vision.js), the main one and then the additional ones, and throws when
+ * one fails, before anything is stored; what it saw is kept on the record
+ * for the reviewer.
  */
 export async function createSubmission(data, user, { store, processImage, safeSearch, notify, log = () => {} }) {
   const submission = validateSubmission(data);
-  const { full, thumb } = await processImage(submission.image.bytes);
-  const inspection = await safeSearch(full.bytes);
+  const pipeline = { processImage, safeSearch };
+  const main = await preparePhoto(submission.image.bytes, pipeline);
+  const extras = [];
+  for (const [i, upload] of submission.images.entries()) extras.push(await preparePhoto(upload.bytes, pipeline, extraLabel(i)));
 
   const id = store.newId();
-  const token = store.newToken();
-  const image = {
-    path: `submissions/${id}/photo.jpg`,
-    thumbPath: `submissions/${id}/thumb.jpg`,
-    contentType: "image/jpeg",
-    width: full.width,
-    height: full.height,
-    token,
-  };
-  const options = {
-    contentType: "image/jpeg",
-    metadata: { submissionId: id, uid: user.uid, firebaseStorageDownloadTokens: token },
-  };
-  await Promise.all([
-    store.putImage(image.path, full.bytes, options),
-    store.putImage(image.thumbPath, thumb.bytes, options),
-  ]);
+  const ids = { id, uid: user.uid };
+  const image = await storePhoto(store, main, ids);
+  const images = [];
+  for (const [i, prepared] of extras.entries()) images.push(await storeExtra(store, prepared, { ...ids, index: i + 1 }));
   await store.create(id, {
-    ...submissionRecord(submission, { uid: user.uid, email: user.email, image }),
-    safeSearch: inspection.likelihoods ?? null,
-    people: inspection.people ?? null,
+    ...submissionRecord(submission, { uid: user.uid, email: user.email, image, images }),
+    safeSearch: main.safeSearch,
+    people: main.people,
   });
   log("submission stored", { uid: user.uid, feed: submission.feed, id });
 
@@ -101,7 +93,7 @@ function notPending(status) {
 }
 
 /**
- * Makes the post: the photo's renditions go to Storage and the document
+ * Makes the post: the photos' renditions go to Storage and the document
  * to Firestore, credited to the submitter with the username they have
  * now (their typed name is kept as `credit.name`). The slug comes from the
  * title and the submission id, so a retry after a failure lands on the
@@ -114,8 +106,9 @@ async function publishSubmission(data, { store, posts, members, siteUrl, now, lo
     log("post already published; keeping it", { id: data.id, slug });
     return done;
   }
-  const bytes = await store.readImage(data.image.path);
-  const image = await publishImage(posts, slug, bytes);
+  const image = await publishImage(posts, slug, await store.readImage(data.image.path));
+  const images = [];
+  for (const extra of data.images ?? []) images.push(await publishImage(posts, slug, await store.readImage(extra.path)));
   const credit = { uid: data.uid ?? null, username: "", name: data.from ?? "" };
   if (data.uid && members) {
     try {
@@ -132,6 +125,7 @@ async function publishSubmission(data, { store, posts, members, siteUrl, now, lo
     body: data.description ?? "",
     bodyFormat: "text",
     image,
+    images,
     credit,
     source: { system: "submission", id: data.id },
   });
@@ -263,6 +257,26 @@ export async function getSubmission(id, { store }) {
 
 const iso = (d) => (d instanceof Date ? d.toISOString() : null);
 
+/**
+ * One additional photo as the API shows it: a new upload held for review
+ * (with what Vision saw), or, on an edit, a picture the post keeps
+ * (`kept`, shown from its published renditions).
+ */
+function serialisePhoto(extra, store) {
+  if (extra.keep) {
+    return { kept: true, width: extra.width ?? null, height: extra.height ?? null, photoUrl: extra.photoUrl ?? null, thumbUrl: extra.thumbUrl ?? null, safeSearch: null, people: null };
+  }
+  return {
+    kept: false,
+    width: extra.width ?? null,
+    height: extra.height ?? null,
+    photoUrl: extra.path ? store.imageUrl(extra.path, extra.token) : null,
+    thumbUrl: extra.thumbPath ? store.imageUrl(extra.thumbPath, extra.token) : null,
+    safeSearch: extra.safeSearch ?? null,
+    people: extra.people ?? null,
+  };
+}
+
 /** The API representation of a stored submission. */
 export async function serialise(item, store) {
   const image = item.image ?? {};
@@ -292,6 +306,7 @@ export async function serialise(item, store) {
       photoUrl: image.path ? store.imageUrl(image.path, token) : null,
       thumbUrl: image.thumbPath ? store.imageUrl(image.thumbPath, token) : null,
     },
+    images: (item.images ?? []).map((extra) => serialisePhoto(extra, store)),
     safeSearch: item.safeSearch ?? null,
     people: item.people ?? null,
     queue: item.queue

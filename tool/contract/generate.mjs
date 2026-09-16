@@ -74,6 +74,8 @@ function javascript({ typed }) {
   );
   out.push(`export const IMAGE_MAX_EDGE = ${rules.image.maxEdge};\n`);
   out.push(`export const IMAGE_MAX_UPLOAD_BYTES = ${rules.image.maxUploadBytes};\n`);
+  out.push(`/** How many additional photos a bike or pizza post may carry besides its main one. */\n`);
+  out.push(`export const IMAGE_MAX_EXTRA = ${rules.image.maxExtra};\n`);
   out.push(jsRecord("IMAGE_TYPES", Object.entries(rules.image.types), t(": Record<string, string>")));
   return out.join("\n");
 }
@@ -105,6 +107,7 @@ function dart() {
   out.push(`/// Path of a post's page on the website.\nString postPath(String feed, String slug) =>\n    (_postPaths[feed] ?? _postPaths['default']!).replaceFirst('{slug}', slug);\n`);
   out.push(`const imageMaxEdge = ${rules.image.maxEdge};\n`);
   out.push(`const imageMaxUploadBytes = ${rules.image.maxUploadBytes};\n`);
+  out.push(`/// How many additional photos a bike or pizza post may carry besides its main one.\nconst imageMaxExtra = ${rules.image.maxExtra};\n`);
   return out.join("\n");
 }
 

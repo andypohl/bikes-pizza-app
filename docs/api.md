@@ -79,18 +79,26 @@ Creates a submission for the signed-in member (the same body the
   "title": "…",
   "from": "…",
   "description": "optional",
-  "image": { "data": "<base64>", "contentType": "image/jpeg" | "image/png" | "image/webp" }
+  "image": { "data": "<base64>", "contentType": "image/jpeg" | "image/png" | "image/webp" },
+  "images": [ { "data": "<base64>", "contentType": "…" }, ... ]
 }
 ```
 
-The image may be up to 8 MB before encoding. The photo is checked with
-Google Cloud Vision before anything is stored: SafeSearch first, then face
-detection and object localisation, since photos of people are not wanted.
-One that fails answers `400` with the message "Your photo failed Google
-SafeSearch inspection. Please choose a different photo." or "Your photo
-seems to show a person or a face. Please choose a photo of just the bike or
-the pizza." (see `functions/vision.js` for the thresholds). Returns `{ "submissionId", "notified" }`, where
-`notified` says whether the reviewer email went out.
+`image` is the main photo; `images` (optional) are up to four additional
+pictures, in the order they should appear. Each may be up to 8 MB before
+encoding, but the whole request must stay under 32 MB, so clients scale
+photos down first (2048 px on the long side; the app and the website
+both do). Every photo is checked with Google Cloud Vision before anything
+is stored, the main one first and then the additional ones in order:
+SafeSearch first, then face detection and object localisation, since
+photos of people are not wanted. One that fails answers `400` with the
+message "Your photo failed Google SafeSearch inspection. Please choose a
+different photo." or "Your photo seems to show a person or a face. Please
+choose a photo of just the bike or the pizza." (see `functions/vision.js`
+for the thresholds); for an additional picture the message starts with
+"Additional photo 2" instead of "Your photo", so the member knows which
+one to swap. Returns `{ "submissionId", "notified" }`, where `notified`
+says whether the reviewer email went out.
 
 ## Queues
 
@@ -140,7 +148,7 @@ Body `{ "id" }`. Takes a queued submission back to pending. Returns
   "id": "…",
   "kind": "post" | "edit",
   "post": null | { "id", "slug", "title", "feed", "url", "imageUrl" },
-  "changes": null | { "title"?, "story"?, "bike"?, "pizza"?, "image": boolean },
+  "changes": null | { "title"?, "story"?, "bike"?, "pizza"?, "image": boolean, "images": boolean },
   "feed": "bikes",
   "title": "1991 Trek 970",
   "from": "Ada",
@@ -149,6 +157,11 @@ Body `{ "id" }`. Takes a queued submission back to pending. Returns
   "createdAt": "2026-09-04T16:00:00.000Z",
   "submittedBy": { "uid": "…", "email": "…" },
   "image": { "width": 2048, "height": 1536, "photoUrl": "https://…", "thumbUrl": "https://…" },
+  "images": [
+    { "kept": false, "width": 2048, "height": 1536, "photoUrl": "https://…", "thumbUrl": "https://…",
+      "safeSearch": { … }, "people": { … } },
+    ...
+  ],
   "safeSearch": { "adult": "VERY_UNLIKELY", "spoof": "UNLIKELY", "medical": "VERY_UNLIKELY", "violence": "VERY_UNLIKELY", "racy": "UNLIKELY" },
   "people": { "faces": 0, "faceConfidence": 0, "persons": 1, "personScore": 0.2 },
   "queue": null | {
@@ -163,14 +176,21 @@ Body `{ "id" }`. Takes a queued submission back to pending. Returns
 }
 ```
 
+`safeSearch` and `people` are what Vision saw in the main photo; each
+entry of `images` (the additional pictures, in order) carries its own.
+
 A submission of kind `edit` is a member's request to change one of their
 published posts (see Posts): `post` names the post, `changes` holds the
-new values (`image: true` means a new photo, held at `photoUrl`), and
-`title` and `description` read as the post would after the edit. On review,
-`publish` applies the edit to the post right away (no queue; the reply is
-the `"status": "approved"` shape with the post's id and URL), `reject`
-drops it, and the queue endpoints refuse it. Its `image` URLs
-are null when the photo is not changing.
+new values (`image: true` means a new main photo, held at `photoUrl`;
+`images: true` means the additional pictures change), and `title` and
+`description` read as the post would after the edit. When the additional
+pictures change, `images` is the list as the post would have it: a
+picture the post already has appears with `"kept": true` and its
+published rendition URLs (no Vision fields), a new one with `"kept":
+false` and its held upload. On review, `publish` applies the edit to the
+post right away (no queue; the reply is the `"status": "approved"` shape
+with the post's id and URL), `reject` drops it, and the queue endpoints
+refuse it. Its `image` URLs are null when the main photo is not changing.
 
 `photoUrl` and `thumbUrl` are Cloud Storage download links carrying a
 per-submission token, so they work in an `<img>` or an image widget without
@@ -204,7 +224,8 @@ Each summary is `{ "id", "slug", "feed", "title", "publishedAt", "url",
 (the Firestore document id), `url` the post's page on the website and
 `image` the post's photo as stored on the post (`base`, `sizes`,
 `formats`, `width`, `height`, `blur`, `focus`; see Posts in Firestore
-below) plus `url`, the largest JPEG, for clients that want one picture.
+below) plus `url`, the largest JPEG, for clients that want one picture,
+and `images` the additional pictures in the same shape.
 
 ### `GET /api/posts/{id}`
 
@@ -217,9 +238,13 @@ The post as its editor sees it: the summary fields plus
   "storyHasFormatting": false,
   "bike": { "brand": "GT", "year": "1990s", "color": "", "type": "mtb" } | null,
   "pizza": { "style": "detroit" } | null,
+  "images": [ { "base", "version", "sizes", …, "url" }, ... ],
   "pendingEdit": null | { "id": "<submission id>", "createdAt": "…" }
 }
 ```
+
+`images` are the post's additional pictures in order, each like `image`
+with `url` added; `version` is what an edit sends back to keep one.
 
 `story` is the body as written and `storyFormat` how: `text` (what members
 write: paragraphs separated by blank lines) or `markdown` (what
@@ -240,17 +265,26 @@ Asks for changes to the fields given, leaving the rest alone:
   "story": "…",
   "storyFormat": "text" | "markdown",
   "image": { "data": "<base64>", "contentType": "image/jpeg" | "image/png" | "image/webp" },
+  "images": [ { "keep": "<version>" } | { "data": "<base64>", "contentType": "…" }, ... ],
   "bike": { "brand": "…", "year": "…", "color": "…", "type": "…" },
   "pizza": { "style": "…" }
 }
 ```
 
+`images` replaces the additional pictures as a whole with the list given,
+in that order, at most four: `keep` names a picture the post already has
+by its `version`, anything else is a new upload. Leaving a picture out
+drops it; an empty list removes them all; a `version` the post no longer
+has answers `400`. New uploads are treated like a new `image` below.
+
 `storyFormat` may only be sent by an administrator (a member's story is
 always text). `bike` and `pizza` replace the post's details as a whole: send every field,
-with an empty string to clear one. A new `image` (8 MB max before
-encoding) goes through the same pipeline as a submission's photo
-(rotation fixed, 2048px long edge, JPEG) and, for members, the same
-Google Cloud Vision checks, with the same `400` messages; administrators'
+with an empty string to clear one. A new `image` or additional picture
+(8 MB max before encoding, 32 MB for the whole request) goes through the
+same pipeline as a submission's photo (rotation fixed, 2048px long edge,
+JPEG) and, for members, the same Google Cloud Vision checks, with the same
+`400` messages, an additional picture's naming it ("Additional photo 2
+…"); every new photo is checked before any is stored. Administrators'
 photos are not inspected. The slug, and so the URL, never changes.
 
 For a member the reply is `{ "status": "pending", "submissionId",
@@ -275,13 +309,15 @@ summary,                   one line for lists
 body, bodyFormat,          as written: "text" | "markdown"
 html,                      rendered from body when it was written
 image: null | { base, version, width, height, sizes, formats, blur, focus }
+images: [ same shape, ... ]  additional pictures, in order; empty for most posts
 details: null | { brand, year, color, type } | { style }
 credit: null | { uid, username, name }
 source: null | { system: "submission" | "ghost", id, url }
 createdAt, updatedAt
 ```
 
-A photo's renditions are in Cloud Storage at
+A photo's renditions (the main one's and each additional picture's
+alike) are in Cloud Storage at
 `posts/{slug}/{version}/{width}.{jpg|webp}` for each width in `sizes`,
 plus `tile.jpg`/`tile.webp` (an 800×600 crop around `focus` for the
 gallery); `base` is the URL prefix to append a file name to, followed by

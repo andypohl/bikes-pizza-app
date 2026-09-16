@@ -61,6 +61,8 @@ export interface Post {
   html: string;
   /** Null only for a news post without a photo. */
   image: PostImage | null;
+  /** Additional pictures, in order; empty for most posts. */
+  images: PostImage[];
   /** Bike or pizza details as stored option values (`brand`, `year`, `color`, `type`; `style`), or null. */
   details: Record<string, string> | null;
   credit: Credit | null;
@@ -100,6 +102,7 @@ function toPost(doc: Document): Post {
     summary: str(doc.summary),
     html: str(doc.html),
     image: toImage(doc.image),
+    images: Array.isArray(doc.images) ? doc.images.map(toImage).filter((image): image is PostImage => image !== null) : [],
     details: details ? Object.fromEntries(Object.entries(details).map(([k, v]) => [k, str(v)])) : null,
     credit: credit ? { uid: str(credit.uid), username: str(credit.username), name: str(credit.name) } : null,
   };

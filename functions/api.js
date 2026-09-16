@@ -16,7 +16,7 @@
 //   POST /api/site/settings             admin; {submitButton: boolean}
 //   GET  /api/posts                     verified user; the posts credited to them
 //   GET  /api/posts/:id                 the credited member, or an admin
-//   PATCH /api/posts/:id                same; {title?, story?, image?, bike?, pizza?}
+//   PATCH /api/posts/:id                same; {title?, story?, image?, images?, bike?, pizza?}
 //   GET  /api/admin/users               admin; ?page=&pageSize= — by most recent post
 //   GET  /api/admin/users/:uid          admin
 //   PATCH /api/admin/users/:uid         admin; {username?, email?, newsletters?}
@@ -42,8 +42,10 @@ export const STATUS_FOR_CODE = {
   unavailable: 503,
 };
 
-// Base64 of an 8 MB photo plus the text fields.
-export const BODY_LIMIT = "12mb";
+// The main photo and up to IMAGE_MAX_EXTRA more, base64, plus the text
+// fields; Cloud Run stops requests at 32 MB anyway, so clients downscale
+// photos before sending (the contract's IMAGE_MAX_EDGE).
+export const BODY_LIMIT = "32mb";
 
 /**
  * Builds the Express app.

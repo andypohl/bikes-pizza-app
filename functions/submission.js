@@ -4,6 +4,7 @@
 
 import { ValidationError } from "./account.js";
 import { IMAGE_MAX_UPLOAD_BYTES, IMAGE_TYPES, SUBMISSION_FEEDS } from "./contract.js";
+import { parseExtras, parseUpload } from "./uploads.js";
 
 /** Feeds that accept submissions, each with the noun for messages. */
 export const FEEDS = SUBMISSION_FEEDS;
@@ -30,7 +31,8 @@ function text(value, field, { max, required }) {
  *
  * @param {unknown} data
  * @returns {{feed: string, title: string, from: string, description: string,
- *   image: {bytes: Buffer, contentType: string, filename: string}}}
+ *   image: {bytes: Buffer, contentType: string, filename: string},
+ *   images: {bytes: Buffer, contentType: string}[]}}
  */
 export function validateSubmission(data) {
   if (!data || typeof data !== "object" || Array.isArray(data)) {
@@ -47,26 +49,25 @@ export function validateSubmission(data) {
 
   const image = data.image;
   if (!image || typeof image !== "object") throw new ValidationError("A main photo is required.");
-  const extension = IMAGE_TYPES[image.contentType];
-  if (!extension) throw new ValidationError("Photo must be a JPEG, PNG or WebP image.");
-  if (typeof image.data !== "string" || !image.data) {
-    throw new ValidationError("Photo data is missing.");
-  }
-  const bytes = Buffer.from(image.data, "base64");
-  if (bytes.length === 0) throw new ValidationError("Photo data is missing.");
-  if (bytes.length > MAX_IMAGE_BYTES) throw new ValidationError("Photo is too large (8 MB max).");
+  const { bytes, contentType, extension } = parseUpload(image);
+  const images = parseExtras(data.images);
 
   return {
     feed,
     title,
     from,
     description,
-    image: { bytes, contentType: image.contentType, filename: `${feed}-submission.${extension}` },
+    image: { bytes, contentType, filename: `${feed}-submission.${extension}` },
+    images,
   };
 }
 
-/** The Firestore document for a new submission (timestamps added by the caller). */
-export function submissionRecord({ feed, title, from, description }, { uid, email, image }) {
+/**
+ * The Firestore document for a new submission (timestamps added by the
+ * caller). `image` is the main photo as stored for review and `images`
+ * the additional ones, in order (see uploads.js).
+ */
+export function submissionRecord({ feed, title, from, description }, { uid, email, image, images = [] }) {
   return {
     feed,
     title,
@@ -76,6 +77,7 @@ export function submissionRecord({ feed, title, from, description }, { uid, emai
     email,
     status: "pending",
     image,
+    images,
     review: null,
   };
 }
@@ -90,7 +92,7 @@ export function notificationEmail({ kind, feed, title, from, description, userEm
   if (kind === "edit") {
     const changed = Object.entries(changes ?? {})
       .filter(([, value]) => value !== false)
-      .map(([key]) => (key === "image" ? "photo" : key));
+      .map(([key]) => ({ image: "photo", images: "additional photos" })[key] ?? key);
     const lines = [
       `${from} edited their ${noun} post: ${post?.title ?? title}`,
       post?.url ? `Post: ${post.url}` : "",

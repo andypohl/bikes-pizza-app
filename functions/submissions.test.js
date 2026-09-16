@@ -147,6 +147,67 @@ test("createSubmission stores the photos, the record and a download token", asyn
   assert.deepEqual(notified, [["Trek 970", "u1"]]);
 });
 
+test("createSubmission stores additional photos after inspecting each, and serialises them", async () => {
+  const store = memoryStore();
+  const inspected = [];
+  const extra = { data: png, contentType: "image/png" };
+  const PEOPLE = { faces: 0, faceConfidence: 0, persons: 1, personScore: 0.3 };
+  let calls = 0;
+  await createSubmission({ ...body, images: [extra, extra] }, user, {
+    store,
+    processImage,
+    safeSearch: async (bytes) => {
+      inspected.push(bytes.length);
+      return { ok: true, likelihoods: CLEAN, people: ++calls === 3 ? PEOPLE : NOBODY };
+    },
+    notify: async () => true,
+  });
+  assert.equal(inspected.length, 3, "the main photo and both additional ones");
+  const doc = store.docs.get("s1");
+  assert.equal(doc.image.path, "submissions/s1/photo.jpg");
+  assert.deepEqual(
+    doc.images.map((i) => [i.path, i.thumbPath, i.token, i.width, i.people]),
+    [
+      ["submissions/s1/photo-1.jpg", "submissions/s1/thumb-1.jpg", "tok1", 640, NOBODY],
+      ["submissions/s1/photo-2.jpg", "submissions/s1/thumb-2.jpg", "tok1", 640, PEOPLE],
+    ],
+  );
+  assert.equal(store.files.get("submissions/s1/thumb-2.jpg").bytes.toString(), "thumb");
+  assert.equal(store.files.get("submissions/s1/photo-2.jpg").metadata.submissionId, "s1");
+  const item = await getSubmission("s1", { store });
+  assert.equal(item.images.length, 2);
+  assert.deepEqual(item.images[1], {
+    kept: false,
+    width: 640,
+    height: 480,
+    photoUrl: "https://files.test/submissions/s1/photo-2.jpg?token=tok1",
+    thumbUrl: "https://files.test/submissions/s1/thumb-2.jpg?token=tok1",
+    safeSearch: CLEAN,
+    people: PEOPLE,
+  });
+  assert.deepEqual((await getSubmission("s1", { store })).images.length, 2);
+});
+
+test("createSubmission refuses the whole submission, naming the additional photo that failed, and stores nothing", async () => {
+  const store = memoryStore();
+  const extra = { data: png, contentType: "image/png" };
+  let calls = 0;
+  await assert.rejects(
+    createSubmission({ ...body, images: [extra, extra] }, user, {
+      store,
+      processImage,
+      safeSearch: async () => {
+        if (++calls === 3) throw new AppError("invalid-argument", SAFE_SEARCH_MESSAGE);
+        return { ok: true, likelihoods: CLEAN, people: NOBODY };
+      },
+      notify: async () => true,
+    }),
+    (e) => e.code === "invalid-argument" && e.message === "Additional photo 2 failed Google SafeSearch inspection. Please choose a different photo.",
+  );
+  assert.equal(store.docs.size, 0);
+  assert.equal(store.files.size, 0);
+});
+
 test("createSubmission inspects the processed photo and records the result", async () => {
   const store = memoryStore();
   const inspected = [];
@@ -310,6 +371,24 @@ test("submitNext posts the oldest entry as a Firestore post with renditions, and
   assert.match(result.posted.queue.postedAt, /^2026-/);
   assert.equal(result.length, 1);
   assert.equal((await store.queueHead("bikes")).id, "s3");
+});
+
+test("submitNext publishes the additional photos as renditions on the post", async () => {
+  const store = memoryStore();
+  const extra = { data: png, contentType: "image/png" };
+  await createSubmission({ ...body, images: [extra] }, user, { store, processImage, safeSearch, notify: async () => true });
+  await enqueue({ feed: "bikes", id: "s1" }, admin, { store, now: NOW });
+  const posts = memoryPostStore();
+  await submitNext("bikes", { store, posts, siteUrl: "https://example.com", now: NOW });
+  const doc = await posts.get("trek-970-s1");
+  assert.equal(doc.images.length, 1);
+  assert.deepEqual(doc.images[0].sizes, [400, 640]);
+  assert.equal(doc.images[0].version, doc.image.version, "the same bytes make the same version");
+  assert.match(doc.images[0].base, /^https:\/\/files.test\/o\/posts%2Ftrek-970-s1%2F/);
+  const empty = await createSubmission({ ...body, title: "Plain" }, user, { store, processImage, safeSearch, notify: async () => true });
+  await enqueue({ feed: "bikes", id: empty.submissionId }, admin, { store, now: NOW });
+  await submitNext("bikes", { store, posts, siteUrl: "https://example.com", now: NOW });
+  assert.deepEqual((await posts.get(`plain-${empty.submissionId}`)).images, []);
 });
 
 test("submitNext still posts, with the typed name, when the member lookup fails", async () => {

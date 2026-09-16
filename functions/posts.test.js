@@ -11,6 +11,8 @@ import { applyEditSubmission, editable, getPost, largestImageUrl, listMyPosts, p
 import { memoryStore } from "./submissions.test.js";
 
 const image = { base: "https://files.test/o/posts%2Fp1%2Fv1%2F", version: "v1", width: 2000, height: 1500, sizes: [400, 800, 1200], formats: ["webp", "jpg"], blur: "data:x", focus: { x: 0.5, y: 0.5 } };
+const extraA = { ...image, base: "https://files.test/o/posts%2Fp1%2Fea%2F", version: "ea" };
+const extraB = { ...image, base: "https://files.test/o/posts%2Fp1%2Feb%2F", version: "eb", width: 300, height: 200, sizes: [300] };
 
 const bikePost = postDocument({
   slug: "1992-gt-outpost-abc123",
@@ -19,6 +21,7 @@ const bikePost = postDocument({
   publishedAt: "2026-09-01T12:00:00.000Z",
   body: "First.\n\nSecond.",
   image,
+  images: [extraA, extraB],
   details: { brand: "GT", year: "1990s" },
   credit: { uid: "u1", username: "ada_bikes", name: "Ada" },
   source: { system: "submission", id: "s0" },
@@ -70,6 +73,10 @@ test("editable carries the story, the details for its feed, the image and the si
   assert.equal(out.pendingEdit, null);
   assert.equal(out.image.url, "https://files.test/o/posts%2Fp1%2Fv1%2F1200.jpg?alt=media");
   assert.equal(out.image.sizes.length, 3);
+  assert.deepEqual(out.images.map((i) => [i.version, i.url]), [
+    ["ea", "https://files.test/o/posts%2Fp1%2Fea%2F1200.jpg?alt=media"],
+    ["eb", "https://files.test/o/posts%2Fp1%2Feb%2F300.jpg?alt=media"],
+  ]);
   assert.equal("body" in out, false);
   const news = editable(newsPost, siteUrl, { pendingEdit: { id: "s1", createdAt: new Date("2026-09-03T00:00:00Z") } });
   assert.equal(news.url, "https://example.com/news/welcome/");
@@ -207,7 +214,8 @@ test("a member's edit is stored for review and announced; the post is untouched"
   assert.equal(doc.title, "Renamed");
   assert.equal(doc.from, "ada_bikes");
   assert.equal(doc.description, "New story.");
-  assert.deepEqual(doc.changes, { title: "Renamed", story: "New story.", image: true });
+  assert.deepEqual(doc.changes, { title: "Renamed", story: "New story.", image: true, images: false });
+  assert.deepEqual(doc.images, []);
   assert.equal(doc.image.path, "submissions/s1/photo.jpg");
   assert.equal(d.store.files.get("submissions/s1/thumb.jpg").bytes.toString(), "thumb");
   assert.deepEqual(notified, [["edit", "Renamed", "u1"]]);
@@ -221,7 +229,74 @@ test("a member's edit without a new photo keeps the current title and story on t
   assert.equal(doc.title, "1992 GT Outpost");
   assert.equal(doc.description, "First.\n\nSecond.");
   assert.equal(doc.image, null);
-  assert.deepEqual(doc.changes, { bike: { brand: "GT", year: "1980s", color: "", type: "" }, image: false });
+  assert.deepEqual(doc.changes, { bike: { brand: "GT", year: "1980s", color: "", type: "" }, image: false, images: false });
+});
+
+test("validateEdit takes the additional photos as a list of kept versions and new uploads", async () => {
+  const edit = validateEdit({ images: [{ keep: "eb" }, await png()] }, "bikes");
+  assert.deepEqual(edit.images[0], { keep: "eb" });
+  assert.equal(edit.images[1].contentType, "image/png");
+  assert.deepEqual(validateEdit({ images: [] }, "bikes").images, []);
+  assert.throws(() => validateEdit({ images: "x" }, "bikes"), /must be a list/);
+  assert.throws(() => validateEdit({ images: [{ keep: "" }] }, "bikes"), /Additional photo 1 must be a JPEG/);
+  assert.throws(() => validateEdit({ images: Array(5).fill({ keep: "ea" }) }, "bikes"), /At most 4/);
+});
+
+test("an administrator reorders, drops and adds additional photos; only the new one is rendered", async () => {
+  let checks = 0;
+  const d = await deps({ safeSearch: async () => checks++ });
+  const out = await updatePost("1992-gt-outpost-abc123", { images: [await png(), { keep: "eb" }] }, admin, d);
+  assert.equal(checks, 0);
+  assert.equal(out.post.images.length, 2);
+  assert.notEqual(out.post.images[0].version, "ea");
+  assert.deepEqual(out.post.images[0].sizes, [400, 800, 900]);
+  assert.equal(out.post.images[1].version, "eb");
+  assert.equal([...d.posts.files.keys()].filter((k) => k.startsWith("posts/1992-gt-outpost-abc123/")).length, 8, "one photo's renditions");
+  assert.equal((await d.posts.get("1992-gt-outpost-abc123")).image.version, "v1", "the main photo is untouched");
+  await assert.rejects(updatePost("1992-gt-outpost-abc123", { images: [{ keep: "gone" }] }, admin, d), /no longer on the post/);
+  assert.deepEqual((await updatePost("1992-gt-outpost-abc123", { images: [] }, admin, d)).post.images, []);
+});
+
+test("a member's new additional photo is inspected, named on refusal, and held for review with the kept ones", async () => {
+  const seen = [];
+  const d = await deps({
+    safeSearch: async () => {
+      seen.push(1);
+      if (seen.length === 2) throw new AppError("invalid-argument", "Your photo seems to show a person or a face. Please choose a photo of just the bike or the pizza.");
+      return { ok: true, likelihoods: { adult: "VERY_UNLIKELY" }, people: { faces: 0 } };
+    },
+  });
+  await assert.rejects(
+    updatePost("1992-gt-outpost-abc123", { images: [{ keep: "ea" }, await png(), await png()] }, member, d),
+    (e) => e.code === "invalid-argument" && e.message.startsWith("Additional photo 3 seems to show a person"),
+  );
+  assert.equal(d.store.docs.size, 0);
+  assert.equal(d.store.files.size, 0);
+
+  const out = await updatePost("1992-gt-outpost-abc123", { images: [{ keep: "eb" }, await png()] }, member, d);
+  assert.equal(out.status, "pending");
+  const doc = d.store.docs.get("s1");
+  assert.deepEqual(doc.changes, { image: false, images: true });
+  assert.equal(doc.image, null);
+  assert.deepEqual(doc.images[0], {
+    keep: "eb",
+    width: 300,
+    height: 200,
+    photoUrl: "https://files.test/o/posts%2Fp1%2Feb%2F300.jpg?alt=media",
+    thumbUrl: "https://files.test/o/posts%2Fp1%2Feb%2F300.jpg?alt=media",
+  });
+  assert.equal(doc.images[1].path, "submissions/s1/photo-2.jpg");
+  assert.deepEqual(doc.images[1].safeSearch, { adult: "VERY_UNLIKELY" });
+  assert.equal(d.store.files.get("submissions/s1/thumb-2.jpg").bytes.toString(), "thumb");
+  assert.equal((await d.posts.get("1992-gt-outpost-abc123")).images.length, 2, "the post is untouched until review");
+
+  const result = await applyEditSubmission(doc, d);
+  assert.equal(result.postStatus, "published");
+  const stored = await d.posts.get("1992-gt-outpost-abc123");
+  assert.equal(stored.images.length, 2);
+  assert.equal(stored.images[0].version, "eb");
+  assert.deepEqual(stored.images[1].sizes, [400, 800, 900]);
+  assert.equal(stored.image.version, "v1");
 });
 
 test("a member's photo that fails the Vision check is refused before anything is stored", async () => {
