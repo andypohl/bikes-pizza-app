@@ -61,6 +61,9 @@ const service = {
       return { id };
     },
     update: async (id, data, actor) => calls.push(["posts.update", id, data, actor.uid, actor.admin]) && { id, ...data },
+    remove: async (id, admin) => calls.push(["posts.remove", id, admin.uid]) && { removed: id },
+    list: async (query, admin) => calls.push(["posts.list", { ...query }, admin.uid]) && { feed: query.feed ?? "news", posts: [] },
+    create: async (data, admin) => calls.push(["posts.create", data.title, admin.uid]) && { status: "applied", post: { id: "p9" } },
   },
   queue: {
     info: async (feed) => {
@@ -256,4 +259,26 @@ test("posts: members see their own; admins count as admins only with a second fa
   assert.equal(patched.status, 200);
   assert.deepEqual(patched.body, { id: "p1", title: "New" });
   assert.deepEqual(calls.at(-1), ["posts.update", "p1", { title: "New" }, "u1", false]);
+});
+
+test("the admin page's post routes need an admin with a second factor", async () => {
+  calls.length = 0;
+  assert.equal((await call("/api/admin/posts", { token: "member" })).status, 403);
+  assert.equal((await call("/api/admin/posts", { token: "admin" })).status, 403, "one-step admin session");
+  const list = await call("/api/admin/posts?feed=news", { token: "admin2fa" });
+  assert.equal(list.status, 200);
+  assert.deepEqual(list.body, { feed: "news", posts: [] });
+  assert.deepEqual(calls.at(-1), ["posts.list", { feed: "news" }, "a1"]);
+
+  const created = await call("/api/admin/posts", { token: "admin2fa", method: "POST", body: { title: "Hello" } });
+  assert.equal(created.status, 200);
+  assert.deepEqual(created.body, { status: "applied", post: { id: "p9" } });
+  assert.deepEqual(calls.at(-1), ["posts.create", "Hello", "a1"]);
+  assert.equal((await call("/api/admin/posts", { token: "member", method: "POST", body: { title: "Hello" } })).status, 403);
+
+  const removed = await call("/api/posts/p1", { token: "admin2fa", method: "DELETE" });
+  assert.equal(removed.status, 200);
+  assert.deepEqual(removed.body, { removed: "p1" });
+  assert.deepEqual(calls.at(-1), ["posts.remove", "p1", "a1"]);
+  assert.equal((await call("/api/posts/p1", { token: "member", method: "DELETE" })).status, 403);
 });

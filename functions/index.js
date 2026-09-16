@@ -379,6 +379,18 @@ const service = {
       if (result.status === "applied") await rebuildWebsite(`post ${id} edited by admin`);
       return result;
     },
+    // The admin page's news editor: write, list and take down posts.
+    list: (query, admin) => postEditing.listPosts(query, admin, { posts: posts(), siteUrl: siteUrl() }),
+    create: async (data, admin) => {
+      const result = await postEditing.createPost(data, admin, { posts: posts(), processImage, siteUrl: siteUrl(), log: logger.info });
+      await rebuildWebsite(`post ${result.post.id} written by admin`);
+      return result;
+    },
+    remove: async (id, admin) => {
+      const result = await postEditing.removePost(id, admin, { posts: posts(), log: logger.info });
+      await rebuildWebsite(`post ${id} removed by admin`);
+      return result;
+    },
   },
   queue: {
     info: (feed) => subs.queueInfo(feed, { store: store() }),

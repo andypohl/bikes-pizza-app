@@ -464,7 +464,8 @@ targets in `firebase.json` by `.firebaserc` (create the extra sites with
   a CNAME to the site's `web.app` host plus an ACME `TXT` record, both added
   at the DNS provider as plain records (with Cloudflare, the proxy must be
   off for that name so Firebase can issue the certificate).
-- The admin site serves `web/admin/`, the user-administration page, at
+- The admin site serves `web/admin/`, the admin page (news writing and
+  user administration), at
   https://admin.bikes.pizza/ (development: https://admin.bikes-pizza.dev/),
   with the same `/api/**` rewrite. Its custom domain is set up the same way
   as the submissions site's (CNAME to the site's `web.app` host plus the

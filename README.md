@@ -352,9 +352,15 @@ accounts, change their password or request a reset email.
 
 **Admin page**: `web/admin/`, its own Hosting site served at
 https://admin.bikes.pizza/ (https://admin.bikes-pizza.dev/ for the
-development project), for keeping an eye on who has signed up and removing
-stale accounts. Same sign-in rule as the review page (the `admin` claim)
-and the same `/api/` rewrite; the endpoints are under `/api/admin/users`
+development project), with two sections. **News** is where news posts are
+written: a list of the news on the site and a dialog with the title, the
+publish date, an optional photo and the story in Markdown; publishing,
+saving an edit or removing a post rebuilds the website, and the app picks
+the change up from Firestore (the endpoints are `/api/admin/posts` and
+`/api/posts/{id}`, `functions/posts.js`). **Users** is for keeping an eye
+on who has signed up and removing stale accounts. Same sign-in rule as
+the review page (the `admin` claim and a second factor) and the same
+`/api/` rewrite; the user endpoints are under `/api/admin/users`
 (`functions/admin_users.js`). It lists every Firebase user, ordered by
 their most recent post: username, newsletter status, post count and the
 latest post. Opening a user shows the email, how they sign in (Email,

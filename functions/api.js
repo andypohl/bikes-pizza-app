@@ -17,6 +17,9 @@
 //   GET  /api/posts                     verified user; the posts credited to them
 //   GET  /api/posts/:id                 the credited member, or an admin
 //   PATCH /api/posts/:id                same; {title?, story?, image?, images?, bike?, pizza?}
+//   DELETE /api/posts/:id               admin; takes the post off the site
+//   GET  /api/admin/posts               admin; ?feed=news — the feed's posts, newest first
+//   POST /api/admin/posts               admin; {title, story?, storyFormat?, image?, publishedAt?} — writes a news post
 //   GET  /api/admin/users               admin; ?page=&pageSize= — by most recent post
 //   GET  /api/admin/users/:uid          admin
 //   PATCH /api/admin/users/:uid         admin; {username?, email?, newsletters?}
@@ -131,6 +134,9 @@ export function createApi({ verifyToken, service, log = () => {} }) {
     api.get("/posts", wrap((req) => posts.mine(userFromClaims(req.claims))));
     api.get("/posts/:id", wrap((req) => posts.get(req.params.id, actorFromClaims(req.claims))));
     api.patch("/posts/:id", wrap((req) => posts.update(req.params.id, req.body, actorFromClaims(req.claims))));
+    if (posts.remove) api.delete("/posts/:id", wrap((req) => posts.remove(req.params.id, secondFactorAdminFromClaims(req.claims))));
+    if (posts.list) api.get("/admin/posts", wrap((req) => posts.list(req.query, secondFactorAdminFromClaims(req.claims))));
+    if (posts.create) api.post("/admin/posts", wrap((req) => posts.create(req.body, secondFactorAdminFromClaims(req.claims))));
   }
 
   const users = service.users;

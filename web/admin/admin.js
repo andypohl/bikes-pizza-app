@@ -1,8 +1,11 @@
-// User administration (admins only): who has signed up, what they have
+// The admin page (admins only). Users: who has signed up, what they have
 // posted, their newsletter choice; edits, password resets and deletion.
+// News: the news posts on the site, writing a new one (title, publish
+// date, photo, story in Markdown), editing and removing.
 //
-// Talks to the REST API at /api/admin/users (see functions/api.js and
-// functions/admin_users.js) with the signed-in admin's Firebase ID token.
+// Talks to the REST API at /api/admin/users, /api/admin/posts and
+// /api/posts (see functions/api.js, functions/admin_users.js and
+// functions/posts.js) with the signed-in admin's Firebase ID token.
 // Password resets go through Firebase Auth directly, which emails the
 // member its usual reset link.
 //
@@ -66,6 +69,8 @@ async function api(path, { method = "GET", body } = {}) {
 function show(view) {
   $("#app").dataset.state = view;
   for (const s of document.querySelectorAll("[data-view]")) s.hidden = s.dataset.view !== view;
+  // The section tabs belong to the signed-in views only.
+  if (view !== "list" && view !== "news") $("#sections").hidden = true;
 }
 
 function say(text, ok = false) {
@@ -332,9 +337,14 @@ $("#d-reset").addEventListener("click", async () => {
 const confirmDialog = $("#confirm");
 
 function confirmDelete(user) {
+  $("#confirm-text").textContent =
+    `Delete ${user.username || user.email}? Their account and profile go; their posts stay as they are.`;
+  return confirmYesNo();
+}
+
+/** Shows the Yes/No dialog with the text already set; resolves to the answer. */
+function confirmYesNo() {
   return new Promise((resolve) => {
-    $("#confirm-text").textContent =
-      `Delete ${user.username || user.email}? Their account and profile go; their posts stay as they are.`;
     const done = (answer) => {
       $("#confirm-yes").removeEventListener("click", yes);
       $("#confirm-no").removeEventListener("click", no);
@@ -368,6 +378,244 @@ $("#d-delete").addEventListener("click", async () => {
     $("#d-delete").disabled = false;
   }
 });
+
+// ---- news -----------------------------------------------------------------
+
+const MAX_EDGE = 2048; // photos are scaled down before upload, as the website's form does
+
+let section = "users";
+let newsPosts = [];
+let editing = null; // the post open in the news dialog, or null for a new one
+let newsPhoto = null; // {data, contentType} chosen for the dialog, or null
+const newsForm = $("#news-form");
+const newsDialog = $("#news-dialog");
+
+function showSection(next) {
+  section = next;
+  for (const tab of document.querySelectorAll("#sections [data-section]")) {
+    tab.setAttribute("aria-selected", String(tab.dataset.section === next));
+  }
+  $("#heading").textContent = next === "news" ? "News" : "Users";
+  show(next === "news" ? "news" : "list");
+  if (next === "news") loadNews();
+  else load();
+}
+
+async function loadNews() {
+  busy(true);
+  try {
+    const data = await api("/api/admin/posts?feed=news");
+    newsPosts = data.posts;
+    renderNews();
+  } catch (error) {
+    say(describe(error) ?? "Could not load the news.");
+  } finally {
+    busy(false);
+  }
+}
+
+function renderNews() {
+  const body = $("#news-rows");
+  body.replaceChildren();
+  for (const post of newsPosts) {
+    const tr = document.createElement("tr");
+    tr.className = "row";
+    const title = document.createElement("td");
+    title.className = "title";
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "link inline user";
+    open.textContent = post.title;
+    open.addEventListener("click", () => openNews(post));
+    title.append(open);
+    const date = document.createElement("td");
+    date.textContent = when(post.publishedAt);
+    const link = document.createElement("td");
+    const a = document.createElement("a");
+    a.href = post.url;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.textContent = "Open";
+    link.append(a);
+    tr.append(title, date, link);
+    body.append(tr);
+  }
+  $("#news-empty").hidden = newsPosts.length > 0;
+  $("#news-summary").textContent = `${newsPosts.length} news post${newsPosts.length === 1 ? "" : "s"}, newest first.`;
+}
+
+/** An ISO instant as the datetime-local input wants it: local wall-clock time, to the minute. */
+function localInputValue(iso) {
+  const date = iso ? new Date(iso) : new Date();
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/** The photo as JPEG, no larger than MAX_EDGE on its long side, base64 for the API. */
+async function encodePhoto(file) {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Could not read the photo."))), "image/jpeg", 0.88),
+  );
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return { data: btoa(binary), contentType: "image/jpeg" };
+}
+
+function clearNewsStatus() {
+  $("#n-status").textContent = "";
+  $("#n-status").className = "status-line";
+}
+
+function newsSay(text, ok = false) {
+  const line = $("#n-status");
+  line.textContent = text;
+  line.classList.toggle("ok", ok);
+  line.classList.toggle("bad", !ok);
+}
+
+/**
+ * Opens the dialog on a post from the list (fetching it in full, story
+ * included), or empty for a new one.
+ */
+async function openNews(summary) {
+  let post = null;
+  if (summary) {
+    busy(true);
+    try {
+      post = await api(`/api/posts/${encodeURIComponent(summary.id)}`);
+    } catch (error) {
+      say(describe(error) ?? "Could not load that post.");
+      return;
+    } finally {
+      busy(false);
+    }
+  }
+  editing = post;
+  newsPhoto = null;
+  newsForm.reset();
+  $("#n-heading").textContent = post ? "Edit news post" : "Write a news post";
+  $("#n-meta").textContent = post ? `${post.id} · published ${when(post.publishedAt)}` : "Goes live on the site as soon as it is published.";
+  newsForm.title.value = post?.title ?? "";
+  newsForm.publishedAt.value = localInputValue(post?.publishedAt);
+  newsForm.story.value = post?.story ?? "";
+  $("#n-photo").hidden = !post?.image?.url;
+  $("#n-photo-img").src = post?.image?.url ?? "";
+  $("#n-save").textContent = post ? "Save" : "Publish";
+  $("#n-save").disabled = false;
+  $("#n-open").hidden = !post?.url;
+  $("#n-open").href = post?.url ?? "#";
+  $("#n-remove").hidden = !post;
+  clearNewsStatus();
+  newsDialog.showModal();
+  newsForm.title.focus();
+}
+
+$("#news-write").addEventListener("click", () => openNews(null));
+
+newsForm.photo.addEventListener("change", async () => {
+  const file = newsForm.photo.files?.[0];
+  if (!file) return;
+  try {
+    newsPhoto = await encodePhoto(file);
+    $("#n-photo-img").src = URL.createObjectURL(file);
+    $("#n-photo").hidden = false;
+    clearNewsStatus();
+  } catch (error) {
+    newsPhoto = null;
+    newsSay(error.message ?? "Could not read the photo.");
+  }
+});
+
+/** What the dialog holds, in the shape the API takes; for an edit, only what changed. */
+function newsValues() {
+  const title = newsForm.title.value.trim();
+  const story = newsForm.story.value;
+  const local = newsForm.publishedAt.value;
+  const publishedAt = local ? new Date(local).toISOString() : "";
+  if (!editing) {
+    return {
+      title,
+      story,
+      storyFormat: "markdown",
+      ...(publishedAt ? { publishedAt } : {}),
+      ...(newsPhoto ? { image: newsPhoto } : {}),
+    };
+  }
+  const out = {};
+  if (title !== editing.title) out.title = title;
+  if (story !== (editing.story ?? "")) {
+    out.story = story;
+    out.storyFormat = "markdown";
+  }
+  if (publishedAt && publishedAt !== new Date(editing.publishedAt).toISOString()) out.publishedAt = publishedAt;
+  if (newsPhoto) out.image = newsPhoto;
+  return out;
+}
+
+newsForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const values = newsValues();
+  if (!editing && !values.title) return newsSay("Give it a title.");
+  if (editing && !Object.keys(values).length) return newsSay("Nothing changed.");
+  if ("title" in values && !values.title) return newsSay("Give it a title.");
+  $("#n-save").disabled = true;
+  try {
+    if (editing) {
+      const result = await api(`/api/posts/${encodeURIComponent(editing.id)}`, { method: "PATCH", body: values });
+      editing = result.post;
+      newsPhoto = null;
+      newsSay("Saved. The site rebuilds in a minute or two.", true);
+    } else {
+      const result = await api("/api/admin/posts", { method: "POST", body: values });
+      editing = result.post;
+      newsPhoto = null;
+      $("#n-heading").textContent = "Edit news post";
+      $("#n-meta").textContent = `${editing.id} · published ${when(editing.publishedAt)}`;
+      $("#n-save").textContent = "Save";
+      $("#n-open").hidden = false;
+      $("#n-open").href = editing.url;
+      $("#n-remove").hidden = false;
+      newsSay("Published. The site rebuilds in a minute or two.", true);
+    }
+    await loadNews();
+  } catch (error) {
+    newsSay(describe(error) ?? "Could not save the post.");
+  } finally {
+    $("#n-save").disabled = false;
+  }
+});
+
+$("#n-close").addEventListener("click", () => newsDialog.close());
+
+$("#n-remove").addEventListener("click", async () => {
+  if (!editing) return;
+  const post = editing;
+  $("#confirm-text").textContent = `Remove "${post.title}" from the site? It disappears from bikes.pizza and the app at the next build.`;
+  if (!(await confirmYesNo())) return;
+  $("#n-remove").disabled = true;
+  try {
+    await api(`/api/posts/${encodeURIComponent(post.id)}`, { method: "DELETE" });
+    newsDialog.close();
+    say(`Removed "${post.title}".`, true);
+    await loadNews();
+  } catch (error) {
+    newsSay(describe(error) ?? "Could not remove the post.");
+  } finally {
+    $("#n-remove").disabled = false;
+  }
+});
+
+for (const tab of document.querySelectorAll("#sections [data-section]")) {
+  tab.addEventListener("click", () => showSection(tab.dataset.section));
+}
 
 // ---- events ---------------------------------------------------------------
 
@@ -693,7 +941,7 @@ onAuthStateChanged(auth, async (user) => {
     say("Sign in again, with the code from your authenticator app.");
     return;
   }
-  show("list");
+  $("#sections").hidden = false;
   page = 1;
-  load();
+  showSection(section);
 });

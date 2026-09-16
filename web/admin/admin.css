@@ -690,3 +690,65 @@ dialog.confirm .actions button {
   user-select: all;
   word-break: break-all;
 }
+
+/* ---- admin page (news) ------------------------------------------------- */
+
+.news-head {
+  margin-bottom: 1rem;
+}
+
+.news-head p {
+  margin: 0;
+}
+
+.news-head button {
+  width: auto;
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+table.news td.title {
+  white-space: normal;
+  max-width: 28rem;
+}
+
+.news-form textarea {
+  display: block;
+  width: 100%;
+  margin-top: 0.3rem;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--field, #fff);
+  color: inherit;
+  resize: vertical;
+}
+
+.news-form label .muted {
+  font-weight: 400;
+}
+
+.news-form input[type="file"] {
+  padding: 0.4rem 0;
+  border: 0;
+  background: none;
+}
+
+.photo-preview {
+  margin: -0.4rem 0 0.9rem;
+}
+
+.photo-preview img {
+  max-height: 12rem;
+  max-width: 100%;
+  border-radius: 10px;
+}
+
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}

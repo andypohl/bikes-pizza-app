@@ -277,8 +277,8 @@ by its `version`, anything else is a new upload. Leaving a picture out
 drops it; an empty list removes them all; a `version` the post no longer
 has answers `400`. New uploads are treated like a new `image` below.
 
-`storyFormat` may only be sent by an administrator (a member's story is
-always text). `bike` and `pizza` replace the post's details as a whole: send every field,
+`storyFormat` and `publishedAt` (an ISO 8601 instant) may only be sent by
+an administrator (a member's story is always text and keeps its date). `bike` and `pizza` replace the post's details as a whole: send every field,
 with an empty string to clear one. A new `image` or additional picture
 (8 MB max before encoding, 32 MB for the whole request) goes through the
 same pipeline as a submission's photo (rotation fixed, 2048px long edge,
@@ -294,6 +294,39 @@ is `{ "status": "applied", "post": … }` with the post as `GET
 /api/posts/{id}` now reads. Unknown fields, details for the wrong feed, an
 unknown option value or an empty title answer `400`. The website is rebuilt
 once the post changes.
+
+### `DELETE /api/posts/{id}` (admin)
+
+Takes a post off the site: its status becomes `removed`, so the website
+drops it at the next build and the app stops listing it; the document and
+its renditions stay. Returns `{ "removed": "<id>" }`. Needs the second
+factor like the other admin endpoints; a member gets `403`.
+
+### `GET /api/admin/posts` (admin)
+
+The news posts on the site, newest first, for the admin page's News
+section: `{ "feed": "news", "posts": [Post summary, ...] }` (the same
+summary shape as `GET /api/posts`). `?feed=` takes only `news` for now.
+
+### `POST /api/admin/posts` (admin)
+
+Writes a news post and publishes it at once:
+
+```json
+{
+  "title": "…",
+  "story": "Markdown, may be empty",
+  "storyFormat": "markdown" | "text",
+  "image": { "data": "<base64>", "contentType": "…" },
+  "publishedAt": "2026-09-16T10:00:00Z"
+}
+```
+
+Only `title` is required; `storyFormat` defaults to `markdown`,
+`publishedAt` to now, and the photo (not inspected, as with other admin
+uploads) is optional. The slug is made from the title plus a random
+suffix. Returns `{ "status": "applied", "post": … }` as `GET
+/api/posts/{id}` reads it, and the website is rebuilt.
 
 ## Posts in Firestore
 
