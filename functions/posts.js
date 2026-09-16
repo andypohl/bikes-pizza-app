@@ -191,7 +191,7 @@ export async function publishImage(posts, slug, bytes, { focus } = {}) {
  * directly for administrators and on approval for members' edits. Returns
  * the post as it now reads.
  */
-export async function applyEdit(posts, doc, edit, { imageBytes, extras } = {}) {
+export async function applyEdit(posts, doc, edit, { imageBytes, extras, now = new Date() } = {}) {
   let image;
   if (imageBytes) image = await publishImage(posts, doc.slug, imageBytes, { focus: doc.image?.focus });
   let images;
@@ -199,7 +199,8 @@ export async function applyEdit(posts, doc, edit, { imageBytes, extras } = {}) {
     images = [];
     for (const extra of extras) images.push(extra.keep ? keptImage(doc, extra.keep) : await publishImage(posts, doc.slug, extra.bytes));
   }
-  await posts.patch(doc.slug, patchFor(edit, doc, { image, images }));
+  // `changedAt` is what the app's unread counters watch.
+  await posts.patch(doc.slug, { ...patchFor(edit, doc, { image, images }), changedAt: now.toISOString() });
   return posts.get(doc.slug);
 }
 

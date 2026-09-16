@@ -14,7 +14,9 @@ import 'firebase_options_dev.dart';
 import 'data/firestore_post_repository.dart';
 import 'data/post_repository.dart';
 import 'models/post_feed.dart';
+import 'posts/app_badge.dart';
 import 'posts/post_editor.dart';
+import 'posts/unread_tracker.dart';
 import 'screens/news_screen.dart';
 import 'screens/post_list_screen.dart';
 import 'screens/settings_screen.dart';
@@ -43,6 +45,7 @@ Future<Widget> _loadApp() async {
   );
   final settings = await AppSettings.load();
   final cart = await Cart.load();
+  final unread = await UnreadTracker.load();
   final auth = FirebaseAuthService();
   // The REST API (editing posts) signs its requests with the same session.
   final api = ApiClient(baseUrl: ApiConfig.baseUrl, token: auth.idToken);
@@ -62,6 +65,8 @@ Future<Widget> _loadApp() async {
     photos: ImagePickerPhotoPicker(),
     editor: ApiPostEditor(api),
     admin: ApiAdminService(api),
+    unread: unread,
+    badge: PlatformAppBadge(),
   );
 }
 
@@ -79,6 +84,8 @@ class BikesPizzaApp extends StatelessWidget {
     this.photos,
     this.editor,
     this.admin,
+    this.unread,
+    this.badge = const NoAppBadge(),
   });
 
   final AppSettings settings;
@@ -106,6 +113,11 @@ class BikesPizzaApp extends StatelessWidget {
   /// The review and user administration screens for administrators on
   /// tablets; null hides Settings → Admin.
   final AdminService? admin;
+
+  /// Counts the posts not opened since they changed, for the tab counters
+  /// and, through [badge], the app icon; null shows no counters.
+  final UnreadTracker? unread;
+  final AppBadge badge;
 
   static const _seed = Color(0xFF80C6C4); // teal from the app icon
 
@@ -137,6 +149,8 @@ class BikesPizzaApp extends StatelessWidget {
             photos: photos,
             editor: editor,
             admin: admin,
+            unread: unread,
+            badge: badge,
           ),
         ),
       ),
@@ -147,7 +161,9 @@ class BikesPizzaApp extends StatelessWidget {
 /// Root screen: a bottom navigation bar switching between the post feeds
 /// (News, Pizza and Bikes, plus All on tablets), the Store, and Settings.
 /// Each tab keeps its scroll position and loaded data because the pages
-/// live in an [IndexedStack].
+/// live in an [IndexedStack]. The feed tabs carry the count of posts not
+/// opened since they changed, and the app icon their sum; the counts are
+/// refreshed when the app starts and whenever it comes back to the front.
 class HomeShell extends StatefulWidget {
   const HomeShell({
     super.key,
@@ -161,6 +177,8 @@ class HomeShell extends StatefulWidget {
     this.photos,
     this.editor,
     this.admin,
+    this.unread,
+    this.badge = const NoAppBadge(),
   });
 
   final PostRepository repository;
@@ -173,19 +191,75 @@ class HomeShell extends StatefulWidget {
   final PhotoPicker? photos;
   final PostEditor? editor;
   final AdminService? admin;
+  final UnreadTracker? unread;
+  final AppBadge badge;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int _index = 0;
+  int _shownBadge = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    widget.unread?.addListener(_showBadge);
+    _refreshUnread();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    widget.unread?.removeListener(_showBadge);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refreshUnread();
+  }
+
+  Future<void> _refreshUnread() async {
+    final unread = widget.unread;
+    if (unread == null) return;
+    await unread.refresh(widget.repository);
+  }
+
+  /// Puts the unread total on the app icon; the first time there is one,
+  /// asks for the permission that needs (iOS).
+  Future<void> _showBadge() async {
+    final unread = widget.unread;
+    if (unread == null) return;
+    final total = unread.total;
+    if (total == _shownBadge) return;
+    _shownBadge = total;
+    if (total > 0 && !unread.badgeAsked) {
+      await unread.setBadgeAsked();
+      await widget.badge.requestPermission();
+    }
+    await widget.badge.update(total);
+  }
+
+  /// A tab's icon with its unread count, when it has one.
+  Widget _counted(IconData icon, PostFeed feed) {
+    final count = widget.unread?.unreadCount(feed) ?? 0;
+    return Badge.count(
+      key: Key('unread-${feed.name}'),
+      count: count,
+      isLabelVisible: count > 0,
+      child: Icon(icon),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     // Tablets get the "All" tab (bikes and pizza together, as on the
     // website's front page); phones start at News to keep the bar short.
     final tablet = isTablet(context);
+    final newsIndex = tablet ? 1 : 0;
     final pages = <Widget>[
       if (tablet)
         PostListScreen(
@@ -194,12 +268,15 @@ class _HomeShellState extends State<HomeShell> {
           auth: widget.auth,
           photos: widget.photos,
           editor: widget.editor,
+          unread: widget.unread,
         ),
       NewsScreen(
         repository: widget.repository,
         auth: widget.auth,
         photos: widget.photos,
         editor: widget.editor,
+        unread: widget.unread,
+        active: _index.clamp(0, tablet ? 5 : 4) == newsIndex,
       ),
       PostListScreen(
         feed: PostFeed.pizza,
@@ -209,6 +286,7 @@ class _HomeShellState extends State<HomeShell> {
         photos: widget.photos,
         members: widget.members,
         editor: widget.editor,
+        unread: widget.unread,
       ),
       PostListScreen(
         feed: PostFeed.bikes,
@@ -218,6 +296,7 @@ class _HomeShellState extends State<HomeShell> {
         photos: widget.photos,
         members: widget.members,
         editor: widget.editor,
+        unread: widget.unread,
       ),
       StoreScreen(
         repository: widget.store,
@@ -238,42 +317,45 @@ class _HomeShellState extends State<HomeShell> {
 
     return Scaffold(
       body: IndexedStack(index: index, children: pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: [
-          if (tablet)
-            const NavigationDestination(
-              icon: Icon(Icons.grid_view_outlined),
-              selectedIcon: Icon(Icons.grid_view),
-              label: 'All',
+      bottomNavigationBar: ListenableBuilder(
+        listenable: widget.unread ?? ValueNotifier<void>(null),
+        builder: (context, _) => NavigationBar(
+          selectedIndex: index,
+          onDestinationSelected: (i) => setState(() => _index = i),
+          destinations: [
+            if (tablet)
+              NavigationDestination(
+                icon: _counted(Icons.grid_view_outlined, PostFeed.all),
+                selectedIcon: _counted(Icons.grid_view, PostFeed.all),
+                label: 'All',
+              ),
+            NavigationDestination(
+              icon: _counted(Icons.newspaper_outlined, PostFeed.news),
+              selectedIcon: _counted(Icons.newspaper, PostFeed.news),
+              label: 'News',
             ),
-          const NavigationDestination(
-            icon: Icon(Icons.newspaper_outlined),
-            selectedIcon: Icon(Icons.newspaper),
-            label: 'News',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.local_pizza_outlined),
-            selectedIcon: Icon(Icons.local_pizza),
-            label: 'Pizza',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.pedal_bike_outlined),
-            selectedIcon: Icon(Icons.pedal_bike),
-            label: 'Bikes',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.storefront_outlined),
-            selectedIcon: Icon(Icons.storefront),
-            label: 'Store',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
+            NavigationDestination(
+              icon: _counted(Icons.local_pizza_outlined, PostFeed.pizza),
+              selectedIcon: _counted(Icons.local_pizza, PostFeed.pizza),
+              label: 'Pizza',
+            ),
+            NavigationDestination(
+              icon: _counted(Icons.pedal_bike_outlined, PostFeed.bikes),
+              selectedIcon: _counted(Icons.pedal_bike, PostFeed.bikes),
+              label: 'Bikes',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.storefront_outlined),
+              selectedIcon: Icon(Icons.storefront),
+              label: 'Store',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.settings_outlined),
+              selectedIcon: Icon(Icons.settings),
+              label: 'Settings',
+            ),
+          ],
+        ),
       ),
     );
   }

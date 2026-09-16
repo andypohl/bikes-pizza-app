@@ -8,6 +8,7 @@ import '../data/post_repository.dart';
 import '../models/post.dart';
 import '../models/post_feed.dart';
 import '../screens/post_list_screen.dart';
+import 'unread_dot.dart';
 
 /// A post laid out in full: hero image, its additional pictures when it
 /// has any (each opening a full-screen viewer), title, date, its
@@ -17,10 +18,18 @@ import '../screens/post_list_screen.dart';
 /// their own scroll view. With a [repository], the submitter's username
 /// opens the list of everything they have posted.
 class PostArticle extends StatelessWidget {
-  const PostArticle({super.key, required this.post, this.repository});
+  const PostArticle({
+    super.key,
+    required this.post,
+    this.repository,
+    this.unread = false,
+  });
 
   final Post post;
   final PostRepository? repository;
+
+  /// Puts the blue unread dot before the title.
+  final bool unread;
 
   /// The photo is never taller than this, on any screen; the website caps
   /// its article images at the same height.
@@ -160,7 +169,23 @@ class PostArticle extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(post.title, style: theme.textTheme.headlineSmall),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (unread)
+                    const Padding(
+                      key: Key('unread-dot'),
+                      padding: EdgeInsets.only(top: 11, right: 8),
+                      child: UnreadDot(),
+                    ),
+                  Expanded(
+                    child: Text(
+                      post.title,
+                      style: theme.textTheme.headlineSmall,
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 6),
               Text(
                 _dateFormat.format(post.publishedAt.toLocal()),

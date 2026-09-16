@@ -227,6 +227,64 @@ void main() {
     );
   });
 
+  test(
+    'fetchChanges asks for feed and change time of posts changed since',
+    () async {
+      late http.Request seen;
+      final client = MockClient((request) async {
+        seen = request;
+        return http.Response(
+          jsonEncode([
+            {
+              'document': {
+                'name': 'projects/p/databases/(default)/documents/posts/a',
+                'fields': {
+                  'feed': {'stringValue': 'bikes'},
+                  'changedAt': {'stringValue': '2026-09-05T12:00:00.000Z'},
+                },
+              },
+            },
+            {
+              'document': {
+                'name': 'projects/p/databases/(default)/documents/posts/broken',
+                'fields': {
+                  'feed': {'stringValue': 'bikes'},
+                },
+              },
+            },
+            {'readTime': '2026-09-06T00:00:00.000Z'},
+          ]),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final changes = await repo(client)
+          .fetchChanges(since: DateTime.utc(2026, 9, 1));
+      expect(changes.length, 1);
+      expect(changes.single.id, 'a');
+      expect(changes.single.feed, 'bikes');
+      expect(changes.single.changedAt, DateTime.utc(2026, 9, 5, 12));
+
+      final query = (jsonDecode(seen.body) as Map)['structuredQuery'] as Map;
+      expect(query['select'], {
+        'fields': [
+          {'fieldPath': 'feed'},
+          {'fieldPath': 'changedAt'},
+        ],
+      });
+      final filters =
+          (query['where'] as Map)['compositeFilter']['filters'] as List;
+      expect(filters[1], {
+        'fieldFilter': {
+          'field': {'fieldPath': 'changedAt'},
+          'op': 'GREATER_THAN',
+          'value': {'stringValue': '2026-09-01T00:00:00.000Z'},
+        },
+      });
+      expect(query['limit'], FirestorePostRepository.changesLimit);
+    },
+  );
+
   test('a news post may have no photo', () async {
     final client = MockClient(
       (_) async => http.Response(

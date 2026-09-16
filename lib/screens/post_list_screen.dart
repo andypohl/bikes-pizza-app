@@ -6,6 +6,7 @@ import '../data/post_repository.dart';
 import '../models/post.dart';
 import '../models/post_feed.dart';
 import '../posts/post_editor.dart';
+import '../posts/unread_tracker.dart';
 import '../submissions/photo_picker.dart';
 import '../submissions/submission_service.dart';
 import '../widgets/edit_post_button.dart';
@@ -25,7 +26,9 @@ import 'submit_screen.dart';
 /// Feeds that take submissions show a "Submit …" bar under the list to
 /// signed-in members when [auth], [submissions] and [photos] are all given.
 /// With [auth], [editor] and [photos], an open post offers an Edit button
-/// to the member who posted it and to administrators.
+/// to the member who posted it and to administrators. With [unread],
+/// posts not opened since they changed carry a blue dot, and opening one
+/// marks it read.
 class PostListScreen extends StatefulWidget {
   const PostListScreen({
     super.key,
@@ -37,10 +40,12 @@ class PostListScreen extends StatefulWidget {
     this.members,
     this.editor,
     this.credit,
+    this.unread,
   });
 
   final PostFeed feed;
   final PostRepository repository;
+  final UnreadTracker? unread;
   final AuthService? auth;
   final SubmissionService? submissions;
   final PhotoPicker? photos;
@@ -151,6 +156,7 @@ class _PostListScreenState extends State<PostListScreen> {
   }
 
   void _openPost(Post post) {
+    widget.unread?.markRead(post);
     if (isLandscapeTablet(context)) {
       setState(() => _selected = post);
       return;
@@ -290,27 +296,32 @@ class _PostListScreenState extends State<PostListScreen> {
       );
     }
 
+    final unread = widget.unread;
     return RefreshIndicator(
       onRefresh: _refresh,
-      child: ListView.separated(
-        controller: _scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: _posts.length + (_hasMore ? 1 : 0),
-        separatorBuilder: (_, _) => const Divider(height: 1, indent: 16),
-        itemBuilder: (context, index) {
-          if (index >= _posts.length) {
-            return const Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(child: CircularProgressIndicator()),
+      child: ListenableBuilder(
+        listenable: unread ?? ValueNotifier<void>(null),
+        builder: (context, _) => ListView.separated(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          itemCount: _posts.length + (_hasMore ? 1 : 0),
+          separatorBuilder: (_, _) => const Divider(height: 1, indent: 16),
+          itemBuilder: (context, index) {
+            if (index >= _posts.length) {
+              return const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final post = _posts[index];
+            return PostTile(
+              post: post,
+              selected: split && post.id == _selected?.id,
+              unread: unread?.isUnread(post) ?? false,
+              onTap: () => _openPost(post),
             );
-          }
-          final post = _posts[index];
-          return PostTile(
-            post: post,
-            selected: split && post.id == _selected?.id,
-            onTap: () => _openPost(post),
-          );
-        },
+          },
+        ),
       ),
     );
   }

@@ -18,7 +18,9 @@ import 'package:bikes_pizza/data/post_repository.dart';
 import 'package:bikes_pizza/main.dart';
 import 'package:bikes_pizza/models/post.dart';
 import 'package:bikes_pizza/models/post_feed.dart';
+import 'package:bikes_pizza/posts/app_badge.dart';
 import 'package:bikes_pizza/posts/post_editor.dart';
+import 'package:bikes_pizza/posts/unread_tracker.dart';
 import 'package:bikes_pizza/screens/edit_post_screen.dart';
 import 'package:bikes_pizza/screens/news_screen.dart';
 import 'package:bikes_pizza/screens/post_detail_screen.dart';
@@ -68,6 +70,34 @@ class FakePostRepository implements PostRepository {
           ];
     return PostPage(posts: page == 1 ? posts : [], hasMore: false);
   }
+
+  /// What the unread counters see: every post of every feed (news pages
+  /// included) changed after [since], each once.
+  @override
+  Future<List<PostChange>> fetchChanges({required DateTime since}) async {
+    final seen = <String>{};
+    return [
+      for (final list in [...byFeed.values, ...?newsPages])
+        for (final p in list)
+          if (p.changedAt.isAfter(since) && seen.add(p.id))
+            PostChange(id: p.id, feed: p.feed, changedAt: p.changedAt),
+    ];
+  }
+}
+
+/// Records what the app put on its icon.
+class FakeAppBadge implements AppBadge {
+  final updates = <int>[];
+  int permissionRequests = 0;
+
+  @override
+  Future<bool> requestPermission() async {
+    permissionRequests++;
+    return true;
+  }
+
+  @override
+  Future<void> update(int count) async => updates.add(count);
 }
 
 /// In-memory auth that accepts one known credential pair.
@@ -777,9 +807,11 @@ Post _post(
   BikeDetails? bike,
   PizzaDetails? pizza,
   List<PostImage> images = const [],
+  DateTime? changedAt,
 }) => Post(
   id: title,
   images: images,
+  changedAt: changedAt,
   feed: bike != null
       ? 'bikes'
       : pizza != null
@@ -891,6 +923,8 @@ void main() {
     List<Post>? news,
     List<List<Post>>? newsPages,
     Size size = const Size(800, 1200),
+    UnreadTracker? unread,
+    AppBadge badge = const NoAppBadge(),
   }) async {
     useSize(tester, size);
     auth = FakeAuthService();
@@ -934,11 +968,71 @@ void main() {
         photos: photos,
         editor: editor,
         admin: admin,
+        unread: unread,
+        badge: badge,
       ),
     );
     await tester.pumpAndSettle();
     return repo;
   }
+
+  testWidgets('unread posts are counted on the tabs and dotted in lists', (
+    tester,
+  ) async {
+    // A baseline before every post: all of them are unread.
+    final unread = UnreadTracker(baseline: DateTime(2020));
+    final badge = FakeAppBadge();
+    await pumpApp(tester, unread: unread, badge: badge);
+
+    // The fake posts on All are news-feed posts, so All (bikes and pizza)
+    // shows their sum and News the two of its own; the icon has all four.
+    int count(String feed) {
+      final badge = tester.widget<Badge>(find.byKey(Key('unread-$feed')).first);
+      return badge.isLabelVisible ? int.parse((badge.label as Text).data!) : 0;
+    }
+
+    expect(count('all'), 2);
+    expect(count('news'), 2);
+    expect(count('pizza'), 1);
+    expect(count('bikes'), 1);
+    expect(badge.updates.last, 4);
+    expect(badge.permissionRequests, 1);
+
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('unread-dot')), findsOneWidget);
+
+    // Opening a post reads it: the dot, the tab's count and the icon drop.
+    await tester.tap(find.text('Detroit style'));
+    await tester.pumpAndSettle();
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('unread-dot')), findsNothing);
+    expect(count('pizza'), 0);
+    expect(badge.updates.last, 3);
+    expect(badge.permissionRequests, 1);
+
+    // News articles read themselves after a moment on screen.
+    await tester.tap(find.text('News'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('unread-dot')), findsOneWidget);
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('unread-dot')), findsNothing);
+    expect(count('news'), 1); // "Newest post" is not on the News tab
+    expect(badge.updates.last, 2);
+  });
+
+  testWidgets('without a tracker there are no counters', (tester) async {
+    await pumpApp(tester);
+    expect(find.byKey(const Key('unread-dot')), findsNothing);
+    expect(
+      tester
+          .widget<Badge>(find.byKey(const Key('unread-pizza')).first)
+          .isLabelVisible,
+      isFalse,
+    );
+  });
 
   testWidgets('shows six bottom navigation destinations, All first', (
     tester,
