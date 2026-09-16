@@ -27,9 +27,10 @@ and Android package name, `com.pizzapredator.bikes_pizza` (the app was born
 as Pizza Predator and used `…pizzaPredator` / `…pizza_predator` until
 September 2026; those registrations and the API keys Firebase created for
 them were removed the same month). The development project's
-registrations are managed by Pulumi (`infra/index.ts`, config `iosBundleId`, `androidPackageName`,
-`androidSha1Hashes`, `androidSha256Hashes`); production's were made by hand
-with the same values.
+registrations are managed by Pulumi (`infra/index.ts`, config
+`iosBundleId`, `androidPackageName`, `androidSha1Hashes`,
+`androidSha256Hashes`); production's were made by hand with the same
+values.
 Production's config lives at `lib/firebase_options.dart`,
 `android/app/google-services.json` and `ios/Runner/GoogleService-Info.plist`;
 development's at `lib/firebase_options_dev.dart`,
