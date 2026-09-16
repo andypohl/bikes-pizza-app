@@ -328,6 +328,16 @@ uploads) is optional. The slug is made from the title plus a random
 suffix. Returns `{ "status": "applied", "post": … }` as `GET
 /api/posts/{id}` reads it, and the website is rebuilt.
 
+### `POST /api/admin/uploads` (admin)
+
+Stores a picture for use inside a story (the news editor's image button):
+body `{ "image": { "data": "<base64>", "contentType": "…" } }`, up to 8 MB
+before encoding. The picture is normalized like any upload (rotation
+fixed, 2048px long edge, JPEG), kept under `posts/inline/` in Cloud
+Storage where it is public and cached like the renditions, and answered
+as `{ "url", "width", "height" }` for the Markdown `![alt](url)`. Not
+inspected, as with other admin uploads.
+
 ## Posts in Firestore
 
 Published posts live in Firestore at `posts/{slug}` and are readable by

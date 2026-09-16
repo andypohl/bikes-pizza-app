@@ -7,7 +7,7 @@ import { ValidationError } from "./account.js";
 import { AppError } from "./errors.js";
 import { memoryPostStore } from "./fakes.js";
 import { postDocument } from "./post.js";
-import { applyEditSubmission, createPost, editable, getPost, largestImageUrl, listMyPosts, listPosts, patchFor, publishImage, removePost, updatePost, validateEdit, validateNewPost } from "./posts.js";
+import { applyEditSubmission, createPost, editable, getPost, largestImageUrl, listMyPosts, listPosts, patchFor, publishImage, removePost, updatePost, uploadImage, validateEdit, validateNewPost } from "./posts.js";
 import { memoryStore } from "./submissions.test.js";
 
 const image = { base: "https://files.test/o/posts%2Fp1%2Fv1%2F", version: "v1", width: 2000, height: 1500, sizes: [400, 800, 1200], formats: ["webp", "jpg"], blur: "data:x", focus: { x: 0.5, y: 0.5 } };
@@ -414,4 +414,17 @@ test("removePost takes a post off the site and out of the lists", async () => {
   await assert.rejects(getPost("welcome", admin, d), (e) => e.code === "not-found");
   await assert.rejects(removePost("1992-gt-outpost-abc123", member, d), (e) => e.code === "permission-denied");
   await assert.rejects(removePost("missing", admin, d), (e) => e.code === "not-found");
+});
+
+test("uploadImage stores a normalised picture for a story and answers its URL", async () => {
+  const d = await deps();
+  const out = await uploadImage({ image: await png() }, admin, d);
+  assert.match(out.url, /^https:\/\/files.test\/o\/posts%2Finline%2F[0-9a-f-]{36}\.jpg\?alt=media$/);
+  assert.equal(out.width, 900);
+  assert.equal(out.height, 600);
+  const [path, file] = [...d.posts.files.entries()].find(([k]) => k.startsWith("posts/inline/"));
+  assert.match(path, /\.jpg$/);
+  assert.equal(file.contentType, "image/jpeg");
+  await assert.rejects(uploadImage({ image: await png() }, member, d), (e) => e.code === "permission-denied");
+  await assert.rejects(uploadImage({}, admin, d), ValidationError);
 });

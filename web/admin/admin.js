@@ -387,8 +387,53 @@ let section = "users";
 let newsPosts = [];
 let editing = null; // the post open in the news dialog, or null for a new one
 let newsPhoto = null; // {data, contentType} chosen for the dialog, or null
+let storyEditor = null; // the Toast UI editor, made on the first open
 const newsForm = $("#news-form");
 const newsDialog = $("#news-dialog");
+
+/**
+ * The story editor: WYSIWYG over Markdown, with only the tools the site
+ * renders (functions/markdown.js sanitises the rest away). Pictures
+ * dropped or pasted in go through the upload endpoint and come back as
+ * public URLs. Without the library (blocked CDN), the plain textarea
+ * stands in.
+ */
+function ensureStoryEditor() {
+  if (storyEditor || !window.toastui?.Editor) {
+    newsForm.story.hidden = Boolean(storyEditor);
+    return storyEditor;
+  }
+  storyEditor = new window.toastui.Editor({
+    el: $("#n-editor"),
+    height: "420px",
+    initialEditType: "wysiwyg",
+    previewStyle: "tab",
+    usageStatistics: false,
+    toolbarItems: [["heading", "bold", "italic"], ["hr", "quote"], ["ul", "ol"], ["link", "image"], ["code", "codeblock"]],
+    hooks: {
+      addImageBlobHook: async (blob, callback) => {
+        try {
+          const image = await encodePhoto(blob);
+          const { url } = await api("/api/admin/uploads", { method: "POST", body: { image } });
+          callback(url, blob.name?.replace(/\.[a-z0-9]+$/i, "") ?? "");
+        } catch (error) {
+          newsSay(describe(error) ?? "Could not upload that picture.");
+        }
+      },
+    },
+  });
+  newsForm.story.hidden = true;
+  return storyEditor;
+}
+
+function storyValue() {
+  return storyEditor ? storyEditor.getMarkdown() : newsForm.story.value;
+}
+
+function setStory(markdown) {
+  newsForm.story.value = markdown;
+  if (storyEditor) storyEditor.setMarkdown(markdown, false);
+}
 
 function showSection(next) {
   section = next;
@@ -505,7 +550,8 @@ async function openNews(summary) {
   $("#n-meta").textContent = post ? `${post.id} · published ${when(post.publishedAt)}` : "Goes live on the site as soon as it is published.";
   newsForm.title.value = post?.title ?? "";
   newsForm.publishedAt.value = localInputValue(post?.publishedAt);
-  newsForm.story.value = post?.story ?? "";
+  ensureStoryEditor();
+  setStory(post?.story ?? "");
   $("#n-photo").hidden = !post?.image?.url;
   $("#n-photo-img").src = post?.image?.url ?? "";
   $("#n-save").textContent = post ? "Save" : "Publish";
@@ -537,7 +583,7 @@ newsForm.photo.addEventListener("change", async () => {
 /** What the dialog holds, in the shape the API takes; for an edit, only what changed. */
 function newsValues() {
   const title = newsForm.title.value.trim();
-  const story = newsForm.story.value;
+  const story = storyValue();
   const local = newsForm.publishedAt.value;
   const publishedAt = local ? new Date(local).toISOString() : "";
   if (!editing) {

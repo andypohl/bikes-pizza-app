@@ -8,9 +8,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://uicdn.toast.com/editor/3.2.2/toastui-editor.min.css" />
     <link rel="stylesheet" href="/admin.css" />
     <!-- Renders the authenticator QR code during two-factor setup. -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
+    <!-- The news editor: WYSIWYG over Markdown (Toast UI Editor, MIT). -->
+    <script src="https://uicdn.toast.com/editor/3.2.2/toastui-editor-all.min.js" defer></script>
   </head>
   <body class="wide">
     <main class="card review admin" id="app" data-state="loading">
@@ -129,7 +132,7 @@
         <p class="muted small" id="news-empty" hidden>No news posts yet.</p>
       </section>
 
-      <dialog id="news-dialog" class="detail-dialog">
+      <dialog id="news-dialog" class="detail-dialog wide-dialog">
         <form id="news-form" class="detail news-form" novalidate>
           <h2 id="n-heading">Write a news post</h2>
           <p class="muted small" id="n-meta"></p>
@@ -139,10 +142,11 @@
             <input type="file" name="photo" accept="image/*" />
           </label>
           <div class="photo-preview" id="n-photo" hidden><img id="n-photo-img" alt="" /></div>
-          <label>Story
-            <span class="muted">(Markdown: blank line between paragraphs, <code>##</code> headings, <code>[links](https://…)</code>, <code>-</code> lists)</span>
-            <textarea name="story" rows="14" maxlength="10000" spellcheck="true"></textarea>
-          </label>
+          <div class="story-field">
+            <span class="field-label">Story <span class="muted">(headings, bold and italic, links, lists, quotes, code and pictures are what the site shows; switch to Markdown at the bottom right to see the source)</span></span>
+            <div id="n-editor"></div>
+            <textarea name="story" rows="14" maxlength="10000" spellcheck="true" hidden></textarea>
+          </div>
           <p class="status-line" id="n-status" role="status"></p>
           <div class="actions spread">
             <div class="actions">

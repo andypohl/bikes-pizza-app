@@ -407,3 +407,19 @@ export async function removePost(slug, actor, { posts, now = new Date(), log = (
   log("post removed", { slug: doc.slug, by: actor.uid });
   return { removed: doc.slug };
 }
+
+/**
+ * Stores a picture for use inside a story (the news editor's image
+ * button): normalised like any upload, kept under posts/inline/ where it
+ * is public, and answered with its URL for the Markdown. Administrators
+ * only; not inspected, as with their other uploads.
+ */
+export async function uploadImage(data, actor, { posts, processImage, log = () => {} }) {
+  if (!actor.admin) throw new AppError("permission-denied", "Only administrators can upload pictures.");
+  const { bytes } = parseUpload(data?.image);
+  const { full } = await processImage(bytes);
+  const name = `${randomUUID()}.jpg`;
+  const url = await posts.putInline(name, full.bytes, "image/jpeg");
+  log("inline picture stored", { name, by: actor.uid });
+  return { url, width: full.width, height: full.height };
+}

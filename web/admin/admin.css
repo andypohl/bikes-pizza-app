@@ -187,7 +187,8 @@ button.apple {
   border-color: var(--ink);
 }
 
-button.link {
+/* Not the news editor's own "link" toolbar button, which shares the class name. */
+button.link:not(.toastui-editor-toolbar-icons) {
   display: block;
   width: 100%;
   background: none;
@@ -745,6 +746,37 @@ table.news td.title {
   max-height: 12rem;
   max-width: 100%;
   border-radius: 10px;
+}
+
+.story-field {
+  margin-bottom: 0.9rem;
+}
+
+.story-field .field-label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+
+.story-field .muted {
+  font-weight: 400;
+}
+
+#n-editor .toastui-editor-defaultUI {
+  border-radius: 10px;
+  border-color: var(--line);
+}
+
+#n-editor .toastui-editor-defaultUI .ProseMirror,
+#n-editor .toastui-editor-md-container .toastui-editor {
+  font: inherit;
+  font-size: 0.95rem;
+}
+
+.detail-dialog.wide-dialog {
+  width: min(56rem, calc(100vw - 2rem));
+  max-width: min(56rem, calc(100vw - 2rem));
 }
 
 .link-btn {

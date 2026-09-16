@@ -354,7 +354,10 @@ accounts, change their password or request a reset email.
 https://admin.bikes.pizza/ (https://admin.bikes-pizza.dev/ for the
 development project), with two sections. **News** is where news posts are
 written: a list of the news on the site and a dialog with the title, the
-publish date, an optional photo and the story in Markdown; publishing,
+publish date, an optional photo and the story in a WYSIWYG editor over
+Markdown (Toast UI Editor, loaded from the Toast UI CDN; its toolbar offers only
+what the site renders, and pictures dropped into the story are uploaded
+through `/api/admin/uploads` to `posts/inline/` in Storage); publishing,
 saving an edit or removing a post rebuilds the website, and the app picks
 the change up from Firestore (the endpoints are `/api/admin/posts` and
 `/api/posts/{id}`, `functions/posts.js`). **Users** is for keeping an eye
