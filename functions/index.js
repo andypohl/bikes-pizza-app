@@ -386,6 +386,7 @@ const service = {
       await rebuildWebsite(`post ${result.post.id} written by admin`);
       return result;
     },
+    upload: (data, admin) => postEditing.uploadImage(data, admin, { posts: posts(), processImage, log: logger.info }),
     remove: async (id, admin) => {
       const result = await postEditing.removePost(id, admin, { posts: posts(), log: logger.info });
       await rebuildWebsite(`post ${id} removed by admin`);

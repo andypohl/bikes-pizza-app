@@ -67,6 +67,16 @@ export function firestorePostStore(db, bucket) {
       });
     },
 
+    /**
+     * Stores a picture used inside a story (posts/inline/{name}), public
+     * like the renditions, and returns its URL.
+     */
+    async putInline(name, bytes, contentType) {
+      const path = `posts/inline/${name}`;
+      await bucket.file(path).save(bytes, { contentType, resumable: false, metadata: { cacheControl: RENDITION_CACHE } });
+      return `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(path)}?alt=media`;
+    },
+
     /** The URL prefix a client appends a rendition's file name to. */
     renditionBase(slug, version) {
       const dir = encodeURIComponent(`${renditionPath(slug, version, "")}`);

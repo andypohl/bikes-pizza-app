@@ -53,6 +53,10 @@ export function memoryPostStore() {
     async putRendition(slug, version, { name, bytes, contentType }) {
       files.set(`posts/${slug}/${version}/${name}`, { bytes, contentType });
     },
+    async putInline(name, bytes, contentType) {
+      files.set(`posts/inline/${name}`, { bytes, contentType });
+      return `https://files.test/o/posts%2Finline%2F${name}?alt=media`;
+    },
     renditionBase(slug, version) {
       return `https://files.test/o/posts%2F${slug}%2F${version}%2F`;
     },

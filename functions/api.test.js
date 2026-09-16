@@ -64,6 +64,7 @@ const service = {
     remove: async (id, admin) => calls.push(["posts.remove", id, admin.uid]) && { removed: id },
     list: async (query, admin) => calls.push(["posts.list", { ...query }, admin.uid]) && { feed: query.feed ?? "news", posts: [] },
     create: async (data, admin) => calls.push(["posts.create", data.title, admin.uid]) && { status: "applied", post: { id: "p9" } },
+    upload: async (data, admin) => calls.push(["posts.upload", Object.keys(data), admin.uid]) && { url: "https://files.test/x.jpg", width: 1, height: 1 },
   },
   queue: {
     info: async (feed) => {
@@ -275,6 +276,12 @@ test("the admin page's post routes need an admin with a second factor", async ()
   assert.deepEqual(created.body, { status: "applied", post: { id: "p9" } });
   assert.deepEqual(calls.at(-1), ["posts.create", "Hello", "a1"]);
   assert.equal((await call("/api/admin/posts", { token: "member", method: "POST", body: { title: "Hello" } })).status, 403);
+
+  const upload = await call("/api/admin/uploads", { token: "admin2fa", method: "POST", body: { image: { data: "AA==", contentType: "image/png" } } });
+  assert.equal(upload.status, 200);
+  assert.equal(upload.body.url, "https://files.test/x.jpg");
+  assert.deepEqual(calls.at(-1), ["posts.upload", ["image"], "a1"]);
+  assert.equal((await call("/api/admin/uploads", { token: "admin", method: "POST", body: {} })).status, 403);
 
   const removed = await call("/api/posts/p1", { token: "admin2fa", method: "DELETE" });
   assert.equal(removed.status, 200);
