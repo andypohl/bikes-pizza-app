@@ -9,12 +9,17 @@
 // Members write their story as plain text (`bodyFormat: "text"`); a story
 // an administrator wrote in Markdown is reported as formatted, and a member
 // who saves a new story over it turns it back into plain text.
+//
+// Administrators also write posts here: news, from the admin page
+// (createPost), and can take a post off the site (removePost).
+
+import { randomUUID } from "node:crypto";
 
 import { ValidationError } from "./account.js";
-import { BIKE_COLORS_VALUES, BIKE_TYPES_VALUES, BIKE_YEARS_VALUES, PIZZA_STYLES_VALUES } from "./contract.js";
+import { ARTICLE_FEEDS, BIKE_COLORS_VALUES, BIKE_TYPES_VALUES, BIKE_YEARS_VALUES, PIZZA_STYLES_VALUES } from "./contract.js";
 import { AppError } from "./errors.js";
 import { BODY_FORMATS } from "./markdown.js";
-import { DETAIL_FIELDS, bodyPatch, detailsFor, imageField, publicPost } from "./post.js";
+import { DETAIL_FIELDS, bodyPatch, detailsFor, imageField, postDocument, publicPost, slugFor } from "./post.js";
 import { renditionUrl } from "./post_store.js";
 import { makeRenditions } from "./renditions.js";
 import { extraLabel, parseExtras, parseUpload, preparePhoto, storeExtra, storePhoto } from "./uploads.js";
@@ -113,13 +118,20 @@ function choice(value, field, allowed) {
   return value;
 }
 
+/** An ISO 8601 instant, as `publishedAt` is stored; refuses anything Date cannot read. */
+function instant(value, field) {
+  if (typeof value !== "string" || Number.isNaN(Date.parse(value))) throw new ValidationError(`${field} must be a date and time.`);
+  return new Date(value).toISOString();
+}
+
 /**
  * Checks an edit request. Only the fields present are changed; `bike` and
  * `pizza` replace the post's details as a whole (an empty value clears
  * that detail), and `images` replaces the additional pictures as a whole:
  * the list in its new order, each entry a picture kept (`{keep:
- * <version>}`) or a new upload. `storyFormat` may only come from an
- * administrator; the caller enforces that. Returns the validated fields.
+ * <version>}`) or a new upload. `storyFormat` and `publishedAt` may only
+ * come from an administrator; the caller enforces that. Returns the
+ * validated fields.
  */
 export function validateEdit(data, feed) {
   if (!data || typeof data !== "object" || Array.isArray(data)) throw new ValidationError("Nothing to change.");
@@ -135,6 +147,7 @@ export function validateEdit(data, feed) {
     edit.image = { bytes, contentType };
   }
   if ("images" in data) edit.images = parseExtras(data.images ?? [], { keep: true });
+  if ("publishedAt" in data) edit.publishedAt = instant(data.publishedAt, "Publish date");
   if ("bike" in data) {
     if (feed !== "bikes") throw new ValidationError("Only bike posts have bike details.");
     const bike = data.bike ?? {};
@@ -169,6 +182,7 @@ export function patchFor(edit, doc, { image, images } = {}) {
   });
   if (image) patch.image = image;
   if (images) patch.images = images;
+  if (edit.publishedAt !== undefined) patch.publishedAt = edit.publishedAt;
   const feedDetails = doc.feed === "bikes" ? edit.bike : doc.feed === "pizza" ? edit.pizza : undefined;
   if (feedDetails !== undefined) patch.details = detailsFor(doc.feed, feedDetails);
   return patch;
@@ -231,6 +245,7 @@ export async function updatePost(slug, data, actor, deps) {
     return { status: "applied", post: editable(updated, siteUrl) };
   }
   if (edit.storyFormat) throw new ValidationError("Only administrators can set the story format.");
+  if (edit.publishedAt) throw new ValidationError("Only administrators can change the publish date.");
 
   const pending = await store.pendingEdit(doc.slug);
   if (pending) throw new AppError("failed-precondition", "An edit of this post is already waiting for review.");
@@ -315,4 +330,80 @@ export async function applyEditSubmission(data, { store, posts, siteUrl }) {
   }
   const updated = await applyEdit(posts, doc, edit, { imageBytes, extras });
   return { postId: updated.slug, postUrl: publicPost(updated, siteUrl).url, postStatus: "published" };
+}
+
+/** The feeds an administrator writes posts in from the admin page. */
+export const WRITABLE_FEEDS = ARTICLE_FEEDS;
+
+/**
+ * Checks a request to write a post: a news article with a title, a
+ * Markdown story (may be empty), an optional main photo and an optional
+ * publish date (default: now). Returns the validated fields.
+ */
+export function validateNewPost(data, { now = new Date() } = {}) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) throw new ValidationError("Nothing to post.");
+  const feed = data.feed ?? WRITABLE_FEEDS[0];
+  if (!WRITABLE_FEEDS.includes(feed)) throw new ValidationError("Only news posts can be written here.");
+  const post = {
+    feed,
+    title: text(data.title, "Title", { max: MAX_TITLE, required: true }),
+    story: text(data.story ?? "", "Story", { max: MAX_STORY, required: false }),
+    storyFormat: data.storyFormat ?? "markdown",
+    publishedAt: data.publishedAt === undefined || data.publishedAt === null || data.publishedAt === "" ? now.toISOString() : instant(data.publishedAt, "Publish date"),
+  };
+  if (!BODY_FORMATS.includes(post.storyFormat)) throw new ValidationError("Unknown story format.");
+  if (data.image !== undefined && data.image !== null) {
+    const { bytes, contentType } = parseUpload(data.image);
+    post.image = { bytes, contentType };
+  }
+  return post;
+}
+
+/**
+ * Writes a post for an administrator (the admin page's news editor) and
+ * answers `{status: "applied", post}` like an edit does. The slug comes
+ * from the title plus a random suffix, so two posts may share a title.
+ */
+export async function createPost(data, actor, { posts, processImage, siteUrl, now = new Date(), log = () => {} }) {
+  if (!actor.admin) throw new AppError("permission-denied", "Only administrators can write posts.");
+  const post = validateNewPost(data, { now });
+  const slug = slugFor(post.title, post.feed, randomUUID());
+  let image = null;
+  if (post.image) image = await publishImage(posts, slug, (await processImage(post.image.bytes)).full.bytes);
+  const doc = postDocument({
+    slug,
+    feed: post.feed,
+    title: post.title,
+    publishedAt: post.publishedAt,
+    body: post.story,
+    bodyFormat: post.storyFormat,
+    image,
+    credit: null,
+    source: { system: "admin", id: actor.uid },
+  });
+  await posts.create(slug, doc);
+  log("post written", { slug, feed: post.feed, by: actor.uid });
+  return { status: "applied", post: editable(await posts.get(slug), siteUrl) };
+}
+
+/** A feed's published posts as the admin page lists them, newest first. */
+export async function listPosts(query, actor, { posts, siteUrl }) {
+  if (!actor.admin) throw new AppError("permission-denied", "Only administrators can list posts.");
+  const feed = query?.feed ?? WRITABLE_FEEDS[0];
+  if (!WRITABLE_FEEDS.includes(feed)) throw new ValidationError("Only news posts are listed here.");
+  const docs = await posts.listByFeed(feed);
+  return { feed, posts: docs.map((doc) => ({ ...publicPost(doc, siteUrl), image: doc.image ? { ...doc.image, url: largestImageUrl(doc.image) } : null })) };
+}
+
+/**
+ * Takes a post off the site for an administrator: its status becomes
+ * `removed`, so the website drops it at the next build and the app no
+ * longer lists it; the document and its renditions stay.
+ */
+export async function removePost(slug, actor, { posts, now = new Date(), log = () => {} }) {
+  if (!actor.admin) throw new AppError("permission-denied", "Only administrators can remove posts.");
+  const doc = await load(slug, actor, posts);
+  await posts.patch(doc.slug, { status: "removed", changedAt: now.toISOString() });
+  log("post removed", { slug: doc.slug, by: actor.uid });
+  return { removed: doc.slug };
 }

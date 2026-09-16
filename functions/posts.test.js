@@ -7,7 +7,7 @@ import { ValidationError } from "./account.js";
 import { AppError } from "./errors.js";
 import { memoryPostStore } from "./fakes.js";
 import { postDocument } from "./post.js";
-import { applyEditSubmission, editable, getPost, largestImageUrl, listMyPosts, patchFor, publishImage, updatePost, validateEdit } from "./posts.js";
+import { applyEditSubmission, createPost, editable, getPost, largestImageUrl, listMyPosts, listPosts, patchFor, publishImage, removePost, updatePost, validateEdit, validateNewPost } from "./posts.js";
 import { memoryStore } from "./submissions.test.js";
 
 const image = { base: "https://files.test/o/posts%2Fp1%2Fv1%2F", version: "v1", width: 2000, height: 1500, sizes: [400, 800, 1200], formats: ["webp", "jpg"], blur: "data:x", focus: { x: 0.5, y: 0.5 } };
@@ -339,4 +339,79 @@ test("applyEditSubmission writes a reviewed edit, photo included, to the post", 
   assert.notEqual(stored.image.version, "v1");
   assert.equal(stored.html, "<p>First.</p><p>Second.</p>");
   await assert.rejects(applyEditSubmission({ ...d.store.docs.get("s1"), post: { id: "gone" } }, d), (e) => e.code === "not-found");
+});
+
+test("validateNewPost takes a news post with defaults, and refuses other feeds and bad dates", async () => {
+  const now = new Date("2026-09-16T10:00:00Z");
+  const post = validateNewPost({ title: "  Hello  ", story: "# Hi" }, { now });
+  assert.deepEqual(post, { feed: "news", title: "Hello", story: "# Hi", storyFormat: "markdown", publishedAt: "2026-09-16T10:00:00.000Z" });
+  assert.equal(validateNewPost({ title: "T", publishedAt: "2026-09-01T08:00:00Z" }).publishedAt, "2026-09-01T08:00:00.000Z");
+  assert.equal(validateNewPost({ title: "T", storyFormat: "text" }).storyFormat, "text");
+  assert.equal(validateNewPost({ title: "T", image: await png() }).image.contentType, "image/png");
+  assert.throws(() => validateNewPost({ title: "" }), /Title is required/);
+  assert.throws(() => validateNewPost({ title: "T", feed: "bikes" }), /Only news posts/);
+  assert.throws(() => validateNewPost({ title: "T", publishedAt: "yesterday" }), /Publish date/);
+  assert.throws(() => validateNewPost({ title: "T", storyFormat: "html" }), /Unknown story format/);
+  assert.throws(() => validateNewPost({ title: "T", image: { data: "x", contentType: "image/gif" } }), /JPEG/);
+});
+
+test("createPost writes a news post for an administrator, with its photo rendered", async () => {
+  const logs = [];
+  const d = await deps({ log: (...args) => logs.push(args) });
+  const now = new Date("2026-09-16T10:00:00Z");
+  const out = await createPost({ title: "Big news", story: "## Hello\n\nWorld", image: await png() }, admin, { ...d, now });
+  assert.equal(out.status, "applied");
+  assert.match(out.post.id, /^big-news-[a-z0-9]{6}$/);
+  assert.equal(out.post.url, `https://example.com/news/${out.post.id}/`);
+  assert.equal(out.post.storyHasFormatting, true);
+  assert.deepEqual(out.post.image.sizes, [400, 800, 900]);
+  const doc = await d.posts.get(out.post.id);
+  assert.equal(doc.feed, "news");
+  assert.equal(doc.status, "published");
+  assert.equal(doc.publishedAt, "2026-09-16T10:00:00.000Z");
+  assert.equal(doc.changedAt, "2026-09-16T10:00:00.000Z");
+  assert.equal(doc.html, "<h2>Hello</h2>\n<p>World</p>");
+  assert.equal(doc.summary, "Hello World");
+  assert.equal(doc.credit, null);
+  assert.deepEqual(doc.source, { system: "admin", id: "a1" });
+  assert.equal(logs.at(-1)[0], "post written");
+
+  const plain = await createPost({ title: "No photo" }, admin, { ...d, now });
+  assert.equal(plain.post.image, null);
+  assert.equal((await d.posts.get(plain.post.id)).html, "");
+
+  await assert.rejects(createPost({ title: "Nope" }, member, d), (e) => e.code === "permission-denied");
+  await assert.rejects(createPost({ title: "" }, admin, d), ValidationError);
+});
+
+test("listPosts gives an administrator the news, newest first", async () => {
+  const d = await deps();
+  await createPost({ title: "Second", publishedAt: "2026-09-10T00:00:00Z" }, admin, d);
+  const out = await listPosts({}, admin, d);
+  assert.equal(out.feed, "news");
+  assert.deepEqual(out.posts.map((p) => p.title), ["Second", "Welcome"]);
+  assert.equal(out.posts[1].url, "https://example.com/news/welcome/");
+  await assert.rejects(listPosts({ feed: "bikes" }, admin, d), /Only news posts/);
+  await assert.rejects(listPosts({}, member, d), (e) => e.code === "permission-denied");
+});
+
+test("an administrator changes the publish date; a member may not", async () => {
+  const d = await deps();
+  const out = await updatePost("welcome", { publishedAt: "2026-01-02T03:04:05Z" }, admin, d);
+  assert.equal(out.post.publishedAt, "2026-01-02T03:04:05.000Z");
+  await assert.rejects(updatePost("1992-gt-outpost-abc123", { publishedAt: "2026-01-02T03:04:05Z" }, member, d), /Only administrators can change the publish date/);
+  await assert.rejects(updatePost("welcome", { publishedAt: "soon" }, admin, d), /Publish date/);
+});
+
+test("removePost takes a post off the site and out of the lists", async () => {
+  const d = await deps();
+  const now = new Date("2026-09-16T10:00:00Z");
+  assert.deepEqual(await removePost("welcome", admin, { ...d, now }), { removed: "welcome" });
+  const doc = await d.posts.get("welcome");
+  assert.equal(doc.status, "removed");
+  assert.equal(doc.changedAt, "2026-09-16T10:00:00.000Z");
+  assert.deepEqual((await listPosts({}, admin, d)).posts, []);
+  await assert.rejects(getPost("welcome", admin, d), (e) => e.code === "not-found");
+  await assert.rejects(removePost("1992-gt-outpost-abc123", member, d), (e) => e.code === "permission-denied");
+  await assert.rejects(removePost("missing", admin, d), (e) => e.code === "not-found");
 });

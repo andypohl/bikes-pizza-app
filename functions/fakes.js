@@ -34,6 +34,9 @@ export function memoryPostStore() {
     async listByUid(uid) {
       return sorted([...docs.entries()].filter(([, d]) => d.status === "published" && d.credit?.uid === uid).map(([slug, d]) => ({ ...d, slug })));
     },
+    async listByFeed(feed, { limit = 200 } = {}) {
+      return sorted([...docs.entries()].filter(([, d]) => d.status === "published" && d.feed === feed).map(([slug, d]) => ({ ...d, slug }))).slice(0, limit);
+    },
     async listCredited() {
       return sorted([...docs.entries()].filter(([, d]) => d.status === "published" && d.credit?.uid).map(([slug, d]) => ({ ...d, slug })));
     },

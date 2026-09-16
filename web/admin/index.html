@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex" />
-    <title>bikes.pizza users</title>
+    <title>bikes.pizza admin</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300&display=swap" rel="stylesheet" />
@@ -21,12 +21,17 @@
           <a id="submissions-link" href="https://submissions.bikes.pizza/">Submissions</a>
           <a href="https://bikes.pizza/account/">Account</a>
         </nav>
-        <h1>Users</h1>
+        <h1 id="heading">Admin</h1>
         <div class="who" id="who" hidden>
           <span id="who-email"></span>
           <button type="button" class="link inline" id="signout">Sign out</button>
         </div>
       </header>
+
+      <nav class="tabs" role="tablist" id="sections" hidden>
+        <button type="button" role="tab" data-section="users" aria-selected="true">Users</button>
+        <button type="button" role="tab" data-section="news" aria-selected="false">News</button>
+      </nav>
 
       <section data-view="loading"><p class="muted">Loading…</p></section>
 
@@ -103,6 +108,54 @@
           <button type="button" class="secondary small-btn" id="next">Next</button>
         </div>
       </section>
+
+      <section data-view="news" hidden>
+        <div class="actions spread news-head">
+          <p class="muted small" id="news-summary"></p>
+          <button type="button" class="primary" id="news-write">Write a news post</button>
+        </div>
+        <div class="table-wrap">
+          <table class="users news">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Published</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="news-rows"></tbody>
+          </table>
+        </div>
+        <p class="muted small" id="news-empty" hidden>No news posts yet.</p>
+      </section>
+
+      <dialog id="news-dialog" class="detail-dialog">
+        <form id="news-form" class="detail news-form" novalidate>
+          <h2 id="n-heading">Write a news post</h2>
+          <p class="muted small" id="n-meta"></p>
+          <label>Title <input type="text" name="title" maxlength="255" required autocomplete="off" /></label>
+          <label>Publish date <input type="datetime-local" name="publishedAt" /></label>
+          <label>Photo <span class="muted">(optional)</span>
+            <input type="file" name="photo" accept="image/*" />
+          </label>
+          <div class="photo-preview" id="n-photo" hidden><img id="n-photo-img" alt="" /></div>
+          <label>Story
+            <span class="muted">(Markdown: blank line between paragraphs, <code>##</code> headings, <code>[links](https://…)</code>, <code>-</code> lists)</span>
+            <textarea name="story" rows="14" maxlength="10000" spellcheck="true"></textarea>
+          </label>
+          <p class="status-line" id="n-status" role="status"></p>
+          <div class="actions spread">
+            <div class="actions">
+              <button type="submit" class="primary" id="n-save">Publish</button>
+              <button type="button" class="secondary" id="n-close">Close</button>
+            </div>
+            <div class="actions">
+              <a class="secondary small-btn link-btn" id="n-open" target="_blank" rel="noopener" hidden>Open on the site</a>
+              <button type="button" class="secondary delete" id="n-remove" hidden>Remove post</button>
+            </div>
+          </div>
+        </form>
+      </dialog>
 
       <dialog id="detail" class="detail-dialog">
         <form id="detail-form" class="detail" novalidate>

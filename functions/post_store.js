@@ -37,6 +37,12 @@ export function firestorePostStore(db, bucket) {
       return snap.docs.map(item);
     },
 
+    /** A feed's published posts, newest first, at most `limit`. */
+    async listByFeed(feed, { limit = 200 } = {}) {
+      const snap = await col.where("status", "==", "published").where("feed", "==", feed).orderBy("publishedAt", "desc").limit(limit).get();
+      return snap.docs.map(item);
+    },
+
     /** Every published post with a credit, newest first (the users page groups them). */
     async listCredited() {
       const snap = await col.where("status", "==", "published").orderBy("publishedAt", "desc").get();
