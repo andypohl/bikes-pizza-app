@@ -1,5 +1,5 @@
 {
-  "name": "pizza-predator-functions",
+  "name": "bikes-pizza-functions",
   "private": true,
   "description": "Cloud Functions for the bikes.pizza app",
   "type": "module",
