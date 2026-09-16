@@ -5,7 +5,9 @@ import '../auth/auth_service.dart';
 import '../auth/session_expiry.dart';
 import '../models/post_feed.dart';
 import '../submissions/photo_picker.dart';
+import '../submissions/photo_source_sheet.dart';
 import '../submissions/submission_service.dart';
+import '../widgets/additional_pictures_field.dart';
 
 /// Form where a member submits their own bike or pizza. On success the
 /// submission is stored for review (and the reviewer emailed); the member
@@ -38,6 +40,7 @@ class _SubmitScreenState extends State<SubmitScreen> {
   final _from = TextEditingController();
   final _description = TextEditingController();
   SubmissionPhoto? _photo;
+  final _extras = <SubmissionPhoto>[];
   bool _photoMissing = false;
   bool _sending = false;
   SubmissionResult? _result;
@@ -68,28 +71,7 @@ class _SubmitScreenState extends State<SubmitScreen> {
   }
 
   Future<void> _pickPhoto() async {
-    final source = await showModalBottomSheet<PhotoSource>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              key: const Key('photo-camera'),
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Take a photo'),
-              onTap: () => Navigator.pop(context, PhotoSource.camera),
-            ),
-            ListTile(
-              key: const Key('photo-library'),
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose from library'),
-              onTap: () => Navigator.pop(context, PhotoSource.library),
-            ),
-          ],
-        ),
-      ),
-    );
+    final source = await choosePhotoSource(context);
     if (source == null) return;
     final photo = await widget.photos.pick(source);
     if (photo == null || !mounted) return;
@@ -97,6 +79,14 @@ class _SubmitScreenState extends State<SubmitScreen> {
       _photo = photo;
       _photoMissing = false;
     });
+  }
+
+  Future<void> _addPicture() async {
+    final source = await choosePhotoSource(context);
+    if (source == null) return;
+    final photo = await widget.photos.pick(source);
+    if (photo == null || !mounted) return;
+    setState(() => _extras.add(photo));
   }
 
   Future<void> _submit() async {
@@ -115,6 +105,7 @@ class _SubmitScreenState extends State<SubmitScreen> {
           from: _from.text.trim(),
           description: _description.text.trim(),
           photo: photo,
+          extras: List.of(_extras),
         ),
       );
       if (mounted) setState(() => _result = result);
@@ -182,6 +173,15 @@ class _SubmitScreenState extends State<SubmitScreen> {
                 ),
               ),
             ),
+          const SizedBox(height: 20),
+          AdditionalPicturesField(
+            pictures: [
+              for (final extra in _extras) PictureThumb.memory(extra.bytes),
+            ],
+            onAdd: _addPicture,
+            onRemove: (i) => setState(() => _extras.removeAt(i)),
+            enabled: !_sending,
+          ),
           const SizedBox(height: 20),
           TextFormField(
             key: const Key('title'),

@@ -506,6 +506,19 @@ class _SubmissionDetailState extends State<SubmissionDetail> {
             ),
           ),
         ],
+        if (s.pictures.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text('Additional pictures', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 8),
+          Wrap(
+            key: const Key('submission-pictures'),
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final picture in s.pictures) _PictureCard(picture: picture),
+            ],
+          ),
+        ],
         const SizedBox(height: 12),
         Text(
           s.description.isEmpty ? '(no description)' : s.description,
@@ -589,6 +602,61 @@ class _SubmissionDetailState extends State<SubmissionDetail> {
         ],
         const SizedBox(height: 24),
       ],
+    );
+  }
+}
+
+/// One additional picture on a submission: its thumbnail (opening the
+/// full size outside the app) over what Vision saw in it, or a note that
+/// the post already has it.
+class _PictureCard extends StatelessWidget {
+  const _PictureCard({required this.picture});
+
+  final SubmissionPicture picture;
+
+  static const double width = 132;
+
+  String _pretty(String? v) =>
+      (v ?? 'unknown').toLowerCase().replaceAll('_', ' ');
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final safeSearch = picture.safeSearch;
+    final people = picture.people;
+    final lines = picture.kept
+        ? const ['Already on the post']
+        : [
+            if (safeSearch != null)
+              'adult ${_pretty(safeSearch['adult'])} · '
+                  'racy ${_pretty(safeSearch['racy'])} · '
+                  'violence ${_pretty(safeSearch['violence'])}',
+            if (people != null) 'People: ${people.summary}',
+          ];
+    final url = picture.photoUrl;
+    return SizedBox(
+      width: width,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: url == null ? null : () => PostArticle.open(url),
+            child: PostThumbnail(
+              imageUrl: picture.thumbUrl ?? url,
+              width: width,
+              height: width * 3 / 4,
+            ),
+          ),
+          const SizedBox(height: 4),
+          for (final line in lines)
+            Text(
+              line,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

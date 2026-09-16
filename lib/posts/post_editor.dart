@@ -50,6 +50,7 @@ class EditablePost {
     required this.url,
     required this.publishedAt,
     this.image,
+    this.images = const [],
     this.story = '',
     this.storyHasFormatting = false,
     this.bike,
@@ -63,6 +64,9 @@ class EditablePost {
   final String? url;
   final DateTime publishedAt;
   final PostImage? image;
+
+  /// The additional pictures, in order.
+  final List<PostImage> images;
 
   /// The body as plain text, one paragraph per blank line.
   final String story;
@@ -92,6 +96,10 @@ class EditablePost {
       url: summary.url,
       publishedAt: summary.publishedAt,
       image: summary.image,
+      images: [
+        if (json['images'] is List)
+          for (final item in json['images'] as List) ?PostImage.fromJson(item),
+      ],
       story: json['story'] as String? ?? '',
       storyHasFormatting: json['storyHasFormatting'] == true,
       bike: bike is Map ? BikeDetails.fromJson(bike) : null,
@@ -125,14 +133,41 @@ class EditOutcome {
   }
 }
 
+/// One entry of an edit's additional pictures: a picture the post keeps
+/// (sent back by its rendition version) or a new one chosen on the device.
+sealed class AdditionalPicture {
+  const AdditionalPicture();
+}
+
+class KeptPicture extends AdditionalPicture {
+  const KeptPicture(this.image);
+
+  final PostImage image;
+}
+
+class NewPicture extends AdditionalPicture {
+  const NewPicture(this.photo);
+
+  final SubmissionPhoto photo;
+}
+
 /// The changes to send: only the fields set are changed. [bike] and
-/// [pizza] replace the post's details as a whole.
+/// [pizza] replace the post's details as a whole, and [pictures] the
+/// additional pictures as a whole, in the order given.
 class PostEdit {
-  const PostEdit({this.title, this.story, this.photo, this.bike, this.pizza});
+  const PostEdit({
+    this.title,
+    this.story,
+    this.photo,
+    this.pictures,
+    this.bike,
+    this.pizza,
+  });
 
   final String? title;
   final String? story;
   final SubmissionPhoto? photo;
+  final List<AdditionalPicture>? pictures;
   final BikeDetails? bike;
   final PizzaDetails? pizza;
 
@@ -140,17 +175,27 @@ class PostEdit {
       title == null &&
       story == null &&
       photo == null &&
+      pictures == null &&
       bike == null &&
       pizza == null;
+
+  static Map<String, String> _upload(SubmissionPhoto photo) => {
+    'data': base64Encode(photo.bytes),
+    'contentType': photo.contentType,
+  };
 
   Map<String, Object?> toJson() => {
     if (title != null) 'title': title,
     if (story != null) 'story': story,
-    if (photo != null)
-      'image': {
-        'data': base64Encode(photo!.bytes),
-        'contentType': photo!.contentType,
-      },
+    if (photo != null) 'image': _upload(photo!),
+    if (pictures != null)
+      'images': [
+        for (final picture in pictures!)
+          switch (picture) {
+            KeptPicture(:final image) => {'keep': image.version},
+            NewPicture(:final photo) => _upload(photo),
+          },
+      ],
     if (bike != null)
       'bike': {
         'brand': bike!.brand ?? '',

@@ -88,13 +88,14 @@ account page share one origin and one Firebase session. See
 ## Member submissions
 
 The Submit Pizza / Submit Bike form (`lib/screens/submit_screen.dart`) asks
-for a main photo (camera or library, scaled to 2048px on the device), a
+for a main photo (camera or library, scaled to 2048px on the device), up
+to four additional pictures ("Additional pictures", the same picker), a
 title, who it is from, and a description or story. Submitting calls the
-`submitPost` Cloud Function, which normalises the photo (rotation, 2048px
-long edge, JPEG), checks it with Google Cloud Vision (SafeSearch, then
+`submitPost` Cloud Function, which normalises each photo (rotation, 2048px
+long edge, JPEG), checks each with Google Cloud Vision (SafeSearch, then
 face detection and object localisation so that photos of people are
-refused; a photo that fails is refused with a message and nothing is
-stored), makes a thumbnail, stores both in Cloud Storage under
+refused; a photo that fails is refused with a message naming which one,
+and nothing is stored), makes thumbnails, stores them in Cloud Storage under
 `submissions/{id}/`, writes a `submissions/{id}` document in Firestore with
 status `pending`, and emails a configured address with a link to the review
 page. Nothing reaches the blog at this point.

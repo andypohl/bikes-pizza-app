@@ -41,13 +41,19 @@ class Submission {
     required this.from,
     required this.description,
     required this.photo,
+    this.extras = const [],
   });
 
   final PostFeed feed;
   final String title;
   final String from;
   final String description;
+
+  /// The main photo.
   final SubmissionPhoto photo;
+
+  /// Additional pictures, in order (at most `imageMaxExtra`).
+  final List<SubmissionPhoto> extras;
 }
 
 class SubmissionResult {
@@ -64,6 +70,12 @@ class SubmissionResult {
 abstract class SubmissionService {
   Future<SubmissionResult> submit(Submission submission);
 }
+
+Map<String, String> _encode(SubmissionPhoto photo) => {
+  'data': base64Encode(photo.bytes),
+  'contentType': photo.contentType,
+  'filename': photo.filename,
+};
 
 /// [SubmissionService] backed by the `submitPost` Cloud Function.
 class CloudFunctionsSubmissionService implements SubmissionService {
@@ -86,11 +98,8 @@ class CloudFunctionsSubmissionService implements SubmissionService {
             'title': submission.title,
             'from': submission.from,
             'description': submission.description,
-            'image': {
-              'data': base64Encode(submission.photo.bytes),
-              'contentType': submission.photo.contentType,
-              'filename': submission.photo.filename,
-            },
+            'image': _encode(submission.photo),
+            'images': [for (final extra in submission.extras) _encode(extra)],
           });
       return SubmissionResult(
         submissionId: result.data['submissionId'] as String? ?? '',

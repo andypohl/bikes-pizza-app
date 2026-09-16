@@ -97,7 +97,7 @@ class _EditPostButtonState extends State<EditPostButton> {
   }
 }
 
-/// [post] as it reads after [saved] was applied: the title, story, photo
+/// [post] as it reads after [saved] was applied: the title, story, photos
 /// and details from the server, everything else as before. A story that
 /// still has formatting was not changed, so its HTML is kept.
 Post postAfterEdit(Post post, EditablePost saved) => post.copyWith(
@@ -105,6 +105,7 @@ Post postAfterEdit(Post post, EditablePost saved) => post.copyWith(
   summary: Post.summarize(saved.story),
   html: saved.storyHasFormatting ? null : plainTextToHtml(saved.story),
   image: saved.image,
+  images: saved.images,
   bike: saved.bike,
   pizza: saved.pizza,
   clearBike: saved.bike?.isEmpty ?? false,

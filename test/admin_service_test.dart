@@ -30,6 +30,29 @@ final _submission = <String, Object?>{
     'violence': 'VERY_UNLIKELY',
   },
   'people': {'faces': 0, 'faceConfidence': 0, 'persons': 1, 'personScore': 0.2},
+  'images': [
+    {
+      'kept': false,
+      'width': 1600,
+      'height': 1200,
+      'photoUrl': 'https://f/photo-1',
+      'thumbUrl': 'https://f/thumb-1',
+      'safeSearch': {'adult': 'UNLIKELY'},
+      'people': {
+        'faces': 1,
+        'faceConfidence': 0.4,
+        'persons': 0,
+        'personScore': 0,
+      },
+    },
+    {
+      'kept': true,
+      'photoUrl': 'https://f/kept',
+      'thumbUrl': 'https://f/kept-thumb',
+      'safeSearch': null,
+      'people': null,
+    },
+  ],
   'queue': null,
   'review': null,
 };
@@ -95,6 +118,13 @@ void main() {
     expect(post.people?.summary, '1 person (0.2)');
     expect(post.safeSearch?['adult'], 'VERY_UNLIKELY');
     expect(post.isPending, isTrue);
+    expect(post.pictures.length, 2);
+    expect(post.pictures[0].kept, isFalse);
+    expect(post.pictures[0].thumbUrl, 'https://f/thumb-1');
+    expect(post.pictures[0].safeSearch, {'adult': 'UNLIKELY'});
+    expect(post.pictures[0].people?.summary, '1 face (0.4)');
+    expect(post.pictures[1].kept, isTrue);
+    expect(post.pictures[1].people, isNull);
 
     final edit = page.items[1];
     expect(edit.isEdit, isTrue);
