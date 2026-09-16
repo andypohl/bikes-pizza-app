@@ -85,6 +85,24 @@ the account page (`web/public/`) into `dist/account/` so the site and the
 account page share one origin and one Firebase session. See
 `site/README.md`.
 
+## Unread posts
+
+The News, Pizza and Bikes tabs (and All on tablets) show how many of
+their posts have not been opened since they were published or last
+edited, each such post carries a blue dot, and the app icon shows the sum
+of the tabs. `lib/posts/unread_tracker.dart` keeps the state on the
+device: a baseline (first run of the app, moved forward as posts are
+read) and, for the posts after it, when each was last opened. The counts
+come from one Firestore query for posts whose `changedAt` (set by the
+functions on publish and on every edit) is after the baseline, run when
+the app starts and whenever it comes back to the front. Opening a post
+from a list marks it read; a news article is read once it has been on
+screen for a few seconds. The icon badge goes through
+`lib/posts/app_badge.dart` (the app_badge_plus plugin, plus a small
+channel in the iOS app delegate that asks for the badge permission the
+first time there is something to show). There is no push: the numbers
+refresh when the app runs.
+
 ## Member submissions
 
 The Submit Pizza / Submit Bike form (`lib/screens/submit_screen.dart`) asks

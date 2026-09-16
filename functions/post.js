@@ -3,6 +3,7 @@
 // when an edit is applied. Pure: the store is injected by the callers.
 //
 //   slug, feed, title, publishedAt (ISO), status: "published",
+//   changedAt (ISO),                when the post was published or last edited
 //   summary,                       one line for lists
 //   body, bodyFormat,              as written ("text" | "markdown")
 //   html,                          rendered from body at write time
@@ -91,6 +92,7 @@ export function postDocument({ slug, feed, title, publishedAt, body = "", bodyFo
     feed,
     title,
     publishedAt: publishedAt instanceof Date ? publishedAt.toISOString() : publishedAt,
+    changedAt: publishedAt instanceof Date ? publishedAt.toISOString() : publishedAt,
     status,
     summary: summary.trim() || summarize(bodyToText(body, bodyFormat)),
     body,

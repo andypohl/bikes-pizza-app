@@ -199,6 +199,7 @@ class Post {
     required this.title,
     required this.url,
     required this.publishedAt,
+    DateTime? changedAt,
     this.summary = '',
     this.html = '',
     this.image,
@@ -206,7 +207,7 @@ class Post {
     this.credit,
     this.bike,
     this.pizza,
-  });
+  }) : changedAt = changedAt ?? publishedAt;
 
   /// The slug: the document id, the edit endpoints' id and the last part
   /// of the post's URL.
@@ -220,6 +221,10 @@ class Post {
   /// Canonical URL of the post on the website.
   final String url;
   final DateTime publishedAt;
+
+  /// When the post was published or last edited; a post is unread until
+  /// it has been opened since then (see UnreadTracker).
+  final DateTime changedAt;
 
   /// One line of plain text, safe to show in a list.
   final String summary;
@@ -269,6 +274,7 @@ class Post {
     title: title ?? this.title,
     url: url,
     publishedAt: publishedAt,
+    changedAt: changedAt,
     summary: summary ?? this.summary,
     html: html ?? this.html,
     image: image ?? this.image,
@@ -301,6 +307,7 @@ class Post {
       publishedAt:
           DateTime.tryParse(json['publishedAt'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
+      changedAt: DateTime.tryParse(json['changedAt'] as String? ?? ''),
       summary: json['summary'] as String? ?? '',
       html: json['html'] as String? ?? '',
       image: PostImage.fromJson(json['image']),

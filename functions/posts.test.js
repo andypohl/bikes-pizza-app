@@ -175,6 +175,7 @@ test("an administrator's new photo is normalised and stored as renditions, with 
   const d = await deps({ safeSearch: async () => checks++ });
   const out = await updatePost("1992-gt-outpost-abc123", { image: await png() }, admin, d);
   assert.equal(checks, 0);
+  assert.equal((await d.posts.get("1992-gt-outpost-abc123")).changedAt > bikePost.changedAt, true, "an edit moves changedAt");
   assert.notEqual(out.post.image.version, "v1");
   assert.deepEqual(out.post.image.sizes, [400, 800, 900]);
   assert.equal([...d.posts.files.keys()].some((k) => k.includes("/tile.webp")), true);

@@ -52,6 +52,12 @@ test("postDocument renders the body and derives a summary", () => {
   assert.throws(() => postDocument({ slug: "s", feed: "news", title: "" }), /needs a slug/);
 });
 
+test("postDocument stamps changedAt with the publication time", () => {
+  const doc = postDocument({ slug: "s", feed: "bikes", title: "T", publishedAt: new Date("2026-09-01T12:00:00Z") });
+  assert.equal(doc.changedAt, "2026-09-01T12:00:00.000Z");
+  assert.equal(postDocument({ slug: "s", feed: "bikes", title: "T", publishedAt: "2026-09-02T00:00:00.000Z" }).changedAt, "2026-09-02T00:00:00.000Z");
+});
+
 test("bodyPatch re-renders only when the body changes", () => {
   assert.deepEqual(bodyPatch({ title: "New" }), { title: "New" });
   const patch = bodyPatch({ body: "Plain.", bodyFormat: "text" });

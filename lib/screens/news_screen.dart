@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
@@ -6,6 +8,7 @@ import '../data/post_repository.dart';
 import '../models/post.dart';
 import '../models/post_feed.dart';
 import '../posts/post_editor.dart';
+import '../posts/unread_tracker.dart';
 import '../submissions/photo_picker.dart';
 import '../widgets/edit_post_button.dart';
 import '../widgets/post_article.dart';
@@ -17,8 +20,10 @@ import '../widgets/status_message.dart';
 /// back up fetches it again, so a long history never piles up in memory.
 ///
 /// With [auth], [editor] and [photos], each article offers an Edit button
-/// to administrators (news is written in the Studio, so no member is
-/// credited).
+/// to administrators (news is written by the editors, so no member is
+/// credited). With [unread], an article not read since it changed carries
+/// a blue dot and counts as read once it has been on screen for a moment
+/// while the tab is [active].
 class NewsScreen extends StatefulWidget {
   const NewsScreen({
     super.key,
@@ -27,12 +32,19 @@ class NewsScreen extends StatefulWidget {
     this.auth,
     this.editor,
     this.photos,
+    this.unread,
+    this.active = true,
   });
 
   final PostRepository repository;
   final AuthService? auth;
   final PostEditor? editor;
   final PhotoPicker? photos;
+  final UnreadTracker? unread;
+
+  /// Whether this tab is the one showing; articles are only marked read
+  /// while it is.
+  final bool active;
 
   /// How many pages of articles to keep loaded at once.
   final int maxPages;
@@ -250,67 +262,123 @@ class _NewsScreenState extends State<NewsScreen> {
 
     // Keyed items let the list keep what is on screen in place when a page
     // is dropped from, or put back at, the top.
+    final unread = widget.unread;
     return RefreshIndicator(
       onRefresh: _refresh,
-      child: ListView.builder(
-        controller: _scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: _items.length + (_hasMore ? 1 : 0),
-        findChildIndexCallback: (key) =>
-            key is ValueKey<String> ? _indexById[key.value] : null,
-        itemBuilder: (context, index) {
-          if (index >= _items.length) {
-            return const Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(child: CircularProgressIndicator()),
+      child: ListenableBuilder(
+        listenable: unread ?? ValueNotifier<void>(null),
+        builder: (context, _) => ListView.builder(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          itemCount: _items.length + (_hasMore ? 1 : 0),
+          findChildIndexCallback: (key) =>
+              key is ValueKey<String> ? _indexById[key.value] : null,
+          itemBuilder: (context, index) {
+            if (index >= _items.length) {
+              return const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final post = _items[index];
+            return _NewsItem(
+              key: ValueKey(post.id),
+              post: post,
+              repository: widget.repository,
+              auth: widget.auth,
+              editor: widget.editor,
+              photos: widget.photos,
+              onChanged: _replace,
+              unread: unread,
+              active: widget.active,
             );
-          }
-          final post = _items[index];
-          return _NewsItem(
-            key: ValueKey(post.id),
-            post: post,
-            repository: widget.repository,
-            auth: widget.auth,
-            editor: widget.editor,
-            photos: widget.photos,
-            onChanged: _replace,
-          );
-        },
+          },
+        ),
       ),
     );
   }
 }
 
 /// One article in the feed, with a rule under it and a button to open it
-/// on bikes.pizza.
-class _NewsItem extends StatelessWidget {
+/// on bikes.pizza. An unread article is marked read once it has been on
+/// screen for [readAfter] while the tab is active.
+class _NewsItem extends StatefulWidget {
   const _NewsItem({
     super.key,
     required this.post,
     required this.repository,
     required this.onChanged,
+    required this.active,
     this.auth,
     this.editor,
     this.photos,
+    this.unread,
   });
 
   final Post post;
   final PostRepository repository;
   final ValueChanged<Post> onChanged;
+  final bool active;
   final AuthService? auth;
   final PostEditor? editor;
   final PhotoPicker? photos;
+  final UnreadTracker? unread;
+
+  static const readAfter = Duration(seconds: 3);
+
+  @override
+  State<_NewsItem> createState() => _NewsItemState();
+}
+
+class _NewsItemState extends State<_NewsItem> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _watch();
+  }
+
+  @override
+  void didUpdateWidget(_NewsItem old) {
+    super.didUpdateWidget(old);
+    if (old.active != widget.active || old.post != widget.post) _watch();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  /// Starts (or stops) the clock towards marking the article read.
+  void _watch() {
+    _timer?.cancel();
+    _timer = null;
+    final unread = widget.unread;
+    if (!widget.active || unread == null || !unread.isUnread(widget.post)) {
+      return;
+    }
+    _timer = Timer(_NewsItem.readAfter, () {
+      if (mounted) unread.markRead(widget.post);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final auth = this.auth;
-    final editor = this.editor;
-    final photos = this.photos;
+    final post = widget.post;
+    final auth = widget.auth;
+    final editor = widget.editor;
+    final photos = widget.photos;
     final editable = auth != null && editor != null && photos != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        PostArticle(post: post, repository: repository),
+        PostArticle(
+          post: post,
+          repository: widget.repository,
+          unread: widget.unread?.isUnread(post) ?? false,
+        ),
         if (post.url.isNotEmpty || editable)
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
@@ -328,7 +396,7 @@ class _NewsItem extends StatelessWidget {
                     auth: auth,
                     editor: editor,
                     photos: photos,
-                    onSaved: onChanged,
+                    onSaved: widget.onChanged,
                     asTextButton: true,
                   ),
               ],

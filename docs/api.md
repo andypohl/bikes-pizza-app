@@ -305,6 +305,8 @@ API above is only for editing.
 
 ```
 slug, feed, title, publishedAt (ISO), status: "published",
+changedAt (ISO),           when the post was published or last edited; the
+                           app's unread counters watch it
 summary,                   one line for lists
 body, bodyFormat,          as written: "text" | "markdown"
 html,                      rendered from body when it was written
