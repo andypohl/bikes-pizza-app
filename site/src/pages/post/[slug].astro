@@ -5,6 +5,7 @@ import {
   detailSpecs,
   categoryOf,
   creditOf,
+  focusPosition,
   memberPath,
   previewUrl,
   renditionUrl,
@@ -41,6 +42,16 @@ const { src, srcset } = responsive(post.image);
 const largeSrc = renditionUrl(post.image, `${widthUpTo(post.image)}.webp`);
 const ogImage = previewUrl(post.image);
 const specs = detailSpecs(post);
+// The additional pictures, shown as tiles under the main photo; each opens
+// in the same zoom overlay as the main one.
+const extras = post.images.map((image, i) => ({
+  ...responsive(image),
+  large: renditionUrl(image, `${widthUpTo(image)}.webp`),
+  alt: `${post.title}, picture ${i + 2}`,
+  width: image.width,
+  height: image.height,
+  position: focusPosition(image),
+}));
 ---
 
 <Layout title={`${post.title} | bikes.pizza`} description={summaryOf(post)} image={ogImage}>
@@ -59,23 +70,49 @@ const specs = detailSpecs(post);
     </a>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-12 items-start">
-      <div
-        class="lg:col-span-2 overflow-hidden rounded-lg max-h-[85vh] flex items-center justify-center bg-transparent"
-        transition:name={`post-${post.id}`}
-      >
-        <button type="button" class="zoom-trigger" popovertarget="image-zoom" aria-label={`View larger: ${post.title}`}>
-          <img
-            src={src}
-            srcset={srcset}
-            sizes="(min-width: 1024px) 66vw, 100vw"
-            alt={post.title}
-            width={post.image.width}
-            height={post.image.height}
-            loading="eager"
-            decoding="async"
-            class="w-auto h-auto object-contain max-h-[85vh] max-w-full"
-          />
-        </button>
+      <div class="lg:col-span-2">
+        <div
+          class="overflow-hidden rounded-lg max-h-[85vh] flex items-center justify-center bg-transparent"
+          transition:name={`post-${post.id}`}
+        >
+          <button type="button" class="zoom-trigger" popovertarget="image-zoom" data-large={largeSrc} aria-label={`View larger: ${post.title}`}>
+            <img
+              src={src}
+              srcset={srcset}
+              sizes="(min-width: 1024px) 66vw, 100vw"
+              alt={post.title}
+              width={post.image.width}
+              height={post.image.height}
+              loading="eager"
+              decoding="async"
+              class="w-auto h-auto object-contain max-h-[85vh] max-w-full"
+            />
+          </button>
+        </div>
+        {
+          extras.length > 0 && (
+            <ul class="mt-4 grid grid-cols-3 sm:grid-cols-4 gap-3" aria-label="More pictures">
+              {extras.map((extra) => (
+                <li>
+                  <button type="button" class="zoom-trigger w-full" popovertarget="image-zoom" data-large={extra.large} aria-label={`View larger: ${extra.alt}`}>
+                    <img
+                      src={extra.src}
+                      srcset={extra.srcset}
+                      sizes="(min-width: 1024px) 16vw, 30vw"
+                      alt={extra.alt}
+                      width={extra.width}
+                      height={extra.height}
+                      loading="lazy"
+                      decoding="async"
+                      class="w-full aspect-[4/3] object-cover rounded-lg"
+                      style={`object-position: ${extra.position}`}
+                    />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )
+        }
       </div>
 
       <div class="lg:col-span-1 py-4 lg:sticky lg:top-8">
@@ -147,6 +184,23 @@ const specs = detailSpecs(post);
     <img src={largeSrc} alt={post.title} loading="lazy" />
   </button>
 </div>
+
+<script>
+  // Every picture on the page shares the one zoom overlay: a click puts
+  // the clicked picture's largest rendition in it before the popover
+  // opens. Wired on every page load, as the site swaps pages in place.
+  function wire() {
+    const zoom = document.querySelector<HTMLImageElement>('#image-zoom img');
+    if (!zoom) return;
+    for (const trigger of document.querySelectorAll<HTMLButtonElement>('.zoom-trigger[data-large]')) {
+      trigger.addEventListener('click', () => {
+        zoom.src = trigger.dataset.large!;
+        zoom.alt = trigger.querySelector('img')?.alt ?? '';
+      });
+    }
+  }
+  document.addEventListener('astro:page-load', wire);
+</script>
 
 <style>
   .zoom-trigger {

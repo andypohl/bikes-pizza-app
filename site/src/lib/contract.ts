@@ -184,6 +184,10 @@ export const IMAGE_MAX_EDGE = 2048;
 
 export const IMAGE_MAX_UPLOAD_BYTES = 8388608;
 
+/** How many additional photos a bike or pizza post may carry besides its main one. */
+
+export const IMAGE_MAX_EXTRA = 4;
+
 export const IMAGE_TYPES: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",

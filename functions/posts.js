@@ -1,5 +1,5 @@
 // Editing published posts from the app. The member a post is credited to
-// (`credit.uid`) may ask for changes to its title, photo, story and
+// (`credit.uid`) may ask for changes to its title, photos, story and
 // structured details; the request is stored as a submission of kind `edit`
 // for review, like a new post, and applied when a reviewer approves it
 // (submissions.js). An administrator who signed in with their second
@@ -11,12 +11,13 @@
 // who saves a new story over it turns it back into plain text.
 
 import { ValidationError } from "./account.js";
-import { BIKE_COLORS_VALUES, BIKE_TYPES_VALUES, BIKE_YEARS_VALUES, IMAGE_MAX_UPLOAD_BYTES, IMAGE_TYPES, PIZZA_STYLES_VALUES } from "./contract.js";
+import { BIKE_COLORS_VALUES, BIKE_TYPES_VALUES, BIKE_YEARS_VALUES, PIZZA_STYLES_VALUES } from "./contract.js";
 import { AppError } from "./errors.js";
 import { BODY_FORMATS } from "./markdown.js";
 import { DETAIL_FIELDS, bodyPatch, detailsFor, imageField, publicPost } from "./post.js";
 import { renditionUrl } from "./post_store.js";
 import { makeRenditions } from "./renditions.js";
+import { extraLabel, parseExtras, parseUpload, preparePhoto, storeExtra, storePhoto } from "./uploads.js";
 
 const MAX_TITLE = 255;
 const MAX_STORY = 10_000;
@@ -31,6 +32,23 @@ export function largestImageUrl(image) {
   return renditionUrl(image.base, `${image.sizes[image.sizes.length - 1]}.jpg`);
 }
 
+/** The JPEG rendition that fits `max` pixels wide: the widest no wider, else the smallest. */
+export function renditionFor(image, max) {
+  if (!image?.base || !image.sizes?.length) return null;
+  const fitting = image.sizes.filter((w) => w <= max);
+  return renditionUrl(image.base, `${fitting.length ? fitting[fitting.length - 1] : image.sizes[0]}.jpg`);
+}
+
+/** A post's additional pictures, each with a plain URL, for the editor. */
+const extraImages = (doc) => (doc.images ?? []).map((image) => ({ ...image, url: largestImageUrl(image) }));
+
+/** The picture a post already has with this rendition version, or a 400 telling the client it is gone. */
+function keptImage(doc, version) {
+  const kept = (doc.images ?? []).find((image) => image.version === version);
+  if (!kept) throw new ValidationError("One of the additional photos is no longer on the post.");
+  return kept;
+}
+
 function details(stored, fields) {
   const out = {};
   for (const field of fields) out[field] = typeof stored?.[field] === "string" ? stored[field] : "";
@@ -43,6 +61,7 @@ export function editable(doc, siteUrl, { pendingEdit = null } = {}) {
   return {
     ...pub,
     image: doc.image ? { ...doc.image, url: largestImageUrl(doc.image) } : null,
+    images: extraImages(doc),
     story: doc.body ?? "",
     storyFormat: doc.bodyFormat ?? "text",
     storyHasFormatting: doc.bodyFormat === "markdown",
@@ -97,8 +116,10 @@ function choice(value, field, allowed) {
 /**
  * Checks an edit request. Only the fields present are changed; `bike` and
  * `pizza` replace the post's details as a whole (an empty value clears
- * that detail). `storyFormat` may only come from an administrator; the
- * caller enforces that. Returns the validated fields.
+ * that detail), and `images` replaces the additional pictures as a whole:
+ * the list in its new order, each entry a picture kept (`{keep:
+ * <version>}`) or a new upload. `storyFormat` may only come from an
+ * administrator; the caller enforces that. Returns the validated fields.
  */
 export function validateEdit(data, feed) {
   if (!data || typeof data !== "object" || Array.isArray(data)) throw new ValidationError("Nothing to change.");
@@ -110,16 +131,10 @@ export function validateEdit(data, feed) {
     edit.storyFormat = data.storyFormat;
   }
   if ("image" in data) {
-    const image = data.image;
-    if (!image || typeof image !== "object") throw new ValidationError("Photo data is missing.");
-    const extension = IMAGE_TYPES[image.contentType];
-    if (!extension) throw new ValidationError("Photo must be a JPEG, PNG or WebP image.");
-    if (typeof image.data !== "string" || !image.data) throw new ValidationError("Photo data is missing.");
-    const bytes = Buffer.from(image.data, "base64");
-    if (bytes.length === 0) throw new ValidationError("Photo data is missing.");
-    if (bytes.length > IMAGE_MAX_UPLOAD_BYTES) throw new ValidationError("Photo is too large (8 MB max).");
-    edit.image = { bytes, contentType: image.contentType };
+    const { bytes, contentType } = parseUpload(data.image);
+    edit.image = { bytes, contentType };
   }
+  if ("images" in data) edit.images = parseExtras(data.images ?? [], { keep: true });
   if ("bike" in data) {
     if (feed !== "bikes") throw new ValidationError("Only bike posts have bike details.");
     const bike = data.bike ?? {};
@@ -146,13 +161,14 @@ export function validateEdit(data, feed) {
  * without an explicit format is plain text (what members write); the
  * title alone leaves the body untouched.
  */
-export function patchFor(edit, doc, { image } = {}) {
+export function patchFor(edit, doc, { image, images } = {}) {
   const patch = bodyPatch({
     title: edit.title,
     body: edit.story,
     bodyFormat: edit.story === undefined ? undefined : (edit.storyFormat ?? "text"),
   });
   if (image) patch.image = image;
+  if (images) patch.images = images;
   const feedDetails = doc.feed === "bikes" ? edit.bike : doc.feed === "pizza" ? edit.pizza : undefined;
   if (feedDetails !== undefined) patch.details = detailsFor(doc.feed, feedDetails);
   return patch;
@@ -169,21 +185,28 @@ export async function publishImage(posts, slug, bytes, { focus } = {}) {
 }
 
 /**
- * Writes an edit to the post: new renditions if there is a new photo
- * (`imageBytes`), then the patch. Used directly for administrators and on
- * approval for members' edits. Returns the post as it now reads.
+ * Writes an edit to the post: new renditions if there is a new main photo
+ * (`imageBytes`) and for each new additional picture (`extras`: the new
+ * list, each entry `{keep: <version>}` or `{bytes}`), then the patch. Used
+ * directly for administrators and on approval for members' edits. Returns
+ * the post as it now reads.
  */
-export async function applyEdit(posts, doc, edit, { imageBytes } = {}) {
+export async function applyEdit(posts, doc, edit, { imageBytes, extras } = {}) {
   let image;
   if (imageBytes) image = await publishImage(posts, doc.slug, imageBytes, { focus: doc.image?.focus });
-  await posts.patch(doc.slug, patchFor(edit, doc, { image }));
+  let images;
+  if (extras) {
+    images = [];
+    for (const extra of extras) images.push(extra.keep ? keptImage(doc, extra.keep) : await publishImage(posts, doc.slug, extra.bytes));
+  }
+  await posts.patch(doc.slug, patchFor(edit, doc, { image, images }));
   return posts.get(doc.slug);
 }
 
 /**
  * Handles an edit request. An administrator's edit is applied at once and
- * answers `{status: "applied", post}`. A member's is checked (a new photo
- * goes through the same pipeline and Vision checks as a submission),
+ * answers `{status: "applied", post}`. A member's is checked (new photos
+ * go through the same pipeline and Vision checks as a submission),
  * stored as a pending submission of kind `edit` and announced to the
  * reviewer, answering `{status: "pending", submissionId, notified}`; the
  * post itself does not change until a reviewer applies it. One pending
@@ -197,7 +220,12 @@ export async function updatePost(slug, data, actor, deps) {
   if (actor.admin) {
     let imageBytes;
     if (edit.image) imageBytes = (await processImage(edit.image.bytes)).full.bytes;
-    const updated = await applyEdit(posts, doc, edit, { imageBytes });
+    let extras;
+    if (edit.images) {
+      extras = [];
+      for (const extra of edit.images) extras.push(extra.keep ? extra : { bytes: (await processImage(extra.bytes)).full.bytes });
+    }
+    const updated = await applyEdit(posts, doc, edit, { imageBytes, extras });
     log("post edited", { slug: doc.slug, by: actor.uid, fields: Object.keys(edit) });
     return { status: "applied", post: editable(updated, siteUrl) };
   }
@@ -206,25 +234,27 @@ export async function updatePost(slug, data, actor, deps) {
   const pending = await store.pendingEdit(doc.slug);
   if (pending) throw new AppError("failed-precondition", "An edit of this post is already waiting for review.");
 
-  let image = null;
+  // Every new photo is inspected before any is stored, so a refused one
+  // leaves nothing behind.
+  const pipeline = { processImage, safeSearch };
+  const main = edit.image ? await preparePhoto(edit.image.bytes, pipeline) : null;
+  const prepared = [];
+  for (const [i, extra] of (edit.images ?? []).entries()) {
+    prepared.push(extra.keep ? keptImage(doc, extra.keep) : await preparePhoto(extra.bytes, pipeline, extraLabel(i)));
+  }
   const submissionId = store.newId();
-  if (edit.image) {
-    const { full, thumb } = await processImage(edit.image.bytes);
-    await safeSearch(full.bytes);
-    const token = store.newToken();
-    image = {
-      path: `submissions/${submissionId}/photo.jpg`,
-      thumbPath: `submissions/${submissionId}/thumb.jpg`,
-      contentType: "image/jpeg",
-      width: full.width,
-      height: full.height,
-      token,
-    };
-    const options = {
-      contentType: "image/jpeg",
-      metadata: { submissionId, uid: actor.uid, firebaseStorageDownloadTokens: token },
-    };
-    await Promise.all([store.putImage(image.path, full.bytes, options), store.putImage(image.thumbPath, thumb.bytes, options)]);
+  const ids = { id: submissionId, uid: actor.uid };
+  const image = main ? await storePhoto(store, main, ids) : null;
+  let images = null;
+  if (edit.images) {
+    images = [];
+    for (const [i, entry] of prepared.entries()) {
+      images.push(
+        entry.version
+          ? { keep: entry.version, width: entry.width, height: entry.height, photoUrl: renditionFor(entry, 1200), thumbUrl: renditionFor(entry, 400) }
+          : await storeExtra(store, entry, { ...ids, index: i + 1 }),
+      );
+    }
   }
 
   let from = doc.credit?.username || doc.credit?.name || "";
@@ -238,6 +268,7 @@ export async function updatePost(slug, data, actor, deps) {
   const changes = {};
   for (const key of ["title", "story", "bike", "pizza"]) if (edit[key] !== undefined) changes[key] = edit[key];
   changes.image = Boolean(edit.image);
+  changes.images = Boolean(edit.images);
   const record = {
     kind: "edit",
     post: {
@@ -246,7 +277,7 @@ export async function updatePost(slug, data, actor, deps) {
       title: doc.title ?? "",
       feed: doc.feed,
       url: publicPost(doc, siteUrl).url,
-      imageUrl: doc.image ? renditionUrl(doc.image.base, "800.jpg") : null,
+      imageUrl: renditionFor(doc.image, 800),
     },
     feed: doc.feed,
     title: edit.title ?? doc.title ?? "",
@@ -257,6 +288,7 @@ export async function updatePost(slug, data, actor, deps) {
     email: actor.email,
     status: "pending",
     image,
+    images: images ?? [],
     review: null,
   };
   await store.create(submissionId, record);
@@ -273,8 +305,13 @@ export async function updatePost(slug, data, actor, deps) {
 export async function applyEditSubmission(data, { store, posts, siteUrl }) {
   const doc = await posts.get(data.post?.slug ?? data.post?.id);
   if (!doc) throw new AppError("not-found", "The post this edit is for no longer exists.");
-  const { image: _image, ...edit } = data.changes ?? {};
+  const { image: _image, images: withImages, ...edit } = data.changes ?? {};
   const imageBytes = data.image?.path ? await store.readImage(data.image.path) : undefined;
-  const updated = await applyEdit(posts, doc, edit, { imageBytes });
+  let extras;
+  if (withImages) {
+    extras = [];
+    for (const extra of data.images ?? []) extras.push(extra.keep ? { keep: extra.keep } : { bytes: await store.readImage(extra.path) });
+  }
+  const updated = await applyEdit(posts, doc, edit, { imageBytes, extras });
   return { postId: updated.slug, postUrl: publicPost(updated, siteUrl).url, postStatus: "published" };
 }

@@ -10,6 +10,7 @@
   "image": {
     "maxEdge": 2048,
     "maxUploadBytes": 8388608,
+    "maxExtra": 4,
     "types": {
       "image/jpeg": "jpg",
       "image/png": "png",

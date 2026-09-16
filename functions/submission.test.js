@@ -53,8 +53,22 @@ test("submissionRecord shapes a pending document", () => {
     email: "a@b.c",
     status: "pending",
     image,
+    images: [],
     review: null,
   });
+});
+
+test("validateSubmission decodes additional photos and caps them", () => {
+  const extra = { data: png, contentType: "image/png" };
+  assert.deepEqual(validateSubmission(good).images, []);
+  const s = validateSubmission({ ...good, images: [extra, { ...extra, contentType: "image/jpeg" }] });
+  assert.equal(s.images.length, 2);
+  assert.equal(s.images[0].bytes.length, 8);
+  assert.equal(s.images[1].contentType, "image/jpeg");
+  assert.throws(() => validateSubmission({ ...good, images: extra }), /must be a list/);
+  assert.throws(() => validateSubmission({ ...good, images: [extra, extra, extra, extra, extra] }), /At most 4 additional photos/);
+  assert.throws(() => validateSubmission({ ...good, images: [extra, { data: png, contentType: "image/gif" }] }), /Additional photo 2 must be a JPEG/);
+  assert.throws(() => validateSubmission({ ...good, images: [{ data: "", contentType: "image/png" }] }), /Additional photo 1 data is missing/);
 });
 
 test("notificationEmail names the submitter and links the review page", () => {
@@ -114,6 +128,20 @@ test("sendMail posts a Mailgun message with basic auth and reply-to", async () =
     sendMail({ apiKey: "k", domain: "d", from: "a", to: "b", subject: "s", text: "t" }, failing),
     /Mailgun 401: Forbidden/,
   );
+});
+
+test("notificationEmail names additional photos among the changes", () => {
+  const { text } = notificationEmail({
+    kind: "edit",
+    feed: "bikes",
+    title: "T",
+    from: "Ada",
+    description: "",
+    userEmail: "a@b.c",
+    post: { title: "T", url: "https://x/post/t/" },
+    changes: { image: false, images: true },
+  });
+  assert.match(text, /Changed: additional photos/);
 });
 
 test("notificationEmail describes an edit and what changed", () => {

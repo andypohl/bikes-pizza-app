@@ -135,3 +135,6 @@ String postPath(String feed, String slug) =>
 const imageMaxEdge = 2048;
 
 const imageMaxUploadBytes = 8388608;
+
+/// How many additional photos a bike or pizza post may carry besides its main one.
+const imageMaxExtra = 4;

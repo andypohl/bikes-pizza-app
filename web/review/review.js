@@ -81,7 +81,7 @@ const FEED_LABEL = { pizza: "Pizza", bikes: "Bike", news: "News" };
 // "publish"; there is no queue for it.
 const isEdit = (d) => d.kind === "edit";
 const feedLabel = (d) => `${isEdit(d) ? "Edit · " : ""}${FEED_LABEL[d.feed] ?? d.feed}`;
-const CHANGE_LABEL = { title: "title", story: "story", image: "photo", bike: "bike details", pizza: "pizza style" };
+const CHANGE_LABEL = { title: "title", story: "story", image: "photo", images: "additional pictures", bike: "bike details", pizza: "pizza style" };
 const FEEDS = ["bikes", "pizza"];
 
 function at(iso) {
@@ -163,7 +163,7 @@ function render() {
     const d = row;
     const cells = [
       d.image.thumbUrl || d.post?.imageUrl
-        ? Object.assign(document.createElement("img"), { src: d.image.thumbUrl || `${d.post.imageUrl}?w=160&h=120&fit=crop&auto=format`, alt: "" })
+        ? Object.assign(document.createElement("img"), { src: d.image.thumbUrl || d.post.imageUrl, alt: "" })
         : "",
       feedLabel(d),
       d.title,
@@ -205,6 +205,32 @@ function setFilter(next) {
 
 // ---- detail dialog --------------------------------------------------------
 
+const pretty = (v) => (v ?? "unknown").toLowerCase().replace("_", " ");
+
+function safeSearchText(ss) {
+  return `SafeSearch: adult ${pretty(ss.adult)} · racy ${pretty(ss.racy)} · violence ${pretty(ss.violence)}`;
+}
+
+function peopleText(people) {
+  const seen = [];
+  if (people.faces) seen.push(`${people.faces} face${people.faces === 1 ? "" : "s"} (${people.faceConfidence})`);
+  if (people.persons) seen.push(`${people.persons} person${people.persons === 1 ? "" : "s"} (${people.personScore})`);
+  return `People: ${seen.length ? seen.join(" · ") : "none seen"}`;
+}
+
+/** One additional picture: its thumbnail (opening the full size) and what Vision saw, or that the post keeps it. */
+function extraItem(extra, i) {
+  const li = document.createElement("li");
+  const link = Object.assign(document.createElement("a"), { href: extra.photoUrl || "#", target: "_blank", rel: "noopener" });
+  link.append(Object.assign(document.createElement("img"), { src: extra.thumbUrl || extra.photoUrl || "", alt: `Additional picture ${i + 1}` }));
+  const note = Object.assign(document.createElement("p"), { className: "muted small" });
+  note.textContent = extra.kept
+    ? "Already on the post"
+    : [extra.safeSearch && safeSearchText(extra.safeSearch), extra.people && peopleText(extra.people)].filter(Boolean).join(" · ");
+  li.append(link, note);
+  return li;
+}
+
 function openDetail(row) {
   current = row;
   const d = row;
@@ -220,25 +246,18 @@ function openDetail(row) {
     $("#d-changes").textContent = changed.length ? changed.join(", ") : "nothing";
   }
   $("#d-description").textContent = d.description || "(no description)";
-  const ss = d.safeSearch;
-  $("#d-safesearch").hidden = !ss;
-  if (ss) {
-    const pretty = (v) => (v ?? "unknown").toLowerCase().replace("_", " ");
-    $("#d-safesearch").textContent = `SafeSearch: adult ${pretty(ss.adult)} · racy ${pretty(ss.racy)} · violence ${pretty(ss.violence)}`;
-  }
-  const people = d.people;
-  $("#d-people").hidden = !people;
-  if (people) {
-    const seen = [];
-    if (people.faces) seen.push(`${people.faces} face${people.faces === 1 ? "" : "s"} (${people.faceConfidence})`);
-    if (people.persons) seen.push(`${people.persons} person${people.persons === 1 ? "" : "s"} (${people.personScore})`);
-    $("#d-people").textContent = `People: ${seen.length ? seen.join(" · ") : "none seen"}`;
-  }
+  $("#d-safesearch").hidden = !d.safeSearch;
+  if (d.safeSearch) $("#d-safesearch").textContent = safeSearchText(d.safeSearch);
+  $("#d-people").hidden = !d.people;
+  if (d.people) $("#d-people").textContent = peopleText(d.people);
   // An edit without a new photo shows the post's current one.
-  const full = d.image.photoUrl || (isEdit(d) && d.post?.imageUrl ? `${d.post.imageUrl}?w=1200&auto=format` : null);
+  const full = d.image.photoUrl || (isEdit(d) && d.post?.imageUrl ? d.post.imageUrl : null);
   $("#d-image").src = full || d.image.thumbUrl || "";
   $("#d-image").hidden = !full && !d.image.thumbUrl;
   $("#d-image-link").href = full || "#";
+  const extras = d.images ?? [];
+  $("#d-extras").hidden = extras.length === 0;
+  $("#d-extras-list").replaceChildren(...extras.map(extraItem));
   const pending = d.status === "pending";
   $("#d-actions").hidden = !pending;
   $("#d-publish").textContent = isEdit(d) ? "Apply edit" : "Queue to post";

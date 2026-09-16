@@ -7,6 +7,7 @@
 //   body, bodyFormat,              as written ("text" | "markdown")
 //   html,                          rendered from body at write time
 //   image: null | { base, version, width, height, sizes, blur, focus, formats }
+//   images: [ same shape, ... ]      additional pictures, in order (bikes and pizzas)
 //   details: null | { brand, year, color, type } | { style }
 //   credit: null | { uid, username, name }
 //   source: null | { system, id, url }
@@ -82,7 +83,7 @@ export function imageField(renditions, base) {
  * A complete post document from its parts. The body is rendered here; the
  * summary is the typed one or the start of the body.
  */
-export function postDocument({ slug, feed, title, publishedAt, body = "", bodyFormat = "text", summary = "", image = null, details = null, credit = null, source = null, status = "published" }) {
+export function postDocument({ slug, feed, title, publishedAt, body = "", bodyFormat = "text", summary = "", image = null, images = [], details = null, credit = null, source = null, status = "published" }) {
   if (!slug || !feed || !title || !publishedAt) throw new Error("a post needs a slug, feed, title and publishedAt");
   const html = renderBody(body, bodyFormat);
   return {
@@ -96,6 +97,7 @@ export function postDocument({ slug, feed, title, publishedAt, body = "", bodyFo
     bodyFormat,
     html,
     image,
+    images,
     details: detailsFor(feed, details),
     credit,
     source,
@@ -126,6 +128,7 @@ export function publicPost(doc, siteUrl) {
     url: postUrl(siteUrl, doc.feed, doc.slug),
     summary: doc.summary ?? "",
     image: doc.image ?? null,
+    images: doc.images ?? [],
     details: doc.details ?? null,
     credit: doc.credit ?? null,
     gallery: GALLERY_FEEDS.includes(doc.feed),
