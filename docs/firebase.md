@@ -25,10 +25,9 @@ the intended shape and have not been created yet.
 Both projects register the same iOS bundle ID, `com.pizzapredator.bikesPizza`,
 and Android package name, `com.pizzapredator.bikes_pizza` (the app was born
 as Pizza Predator and used `…pizzaPredator` / `…pizza_predator` until
-September 2026; those registrations, and the API keys Firebase created for
-them, are still in both projects and can be deleted once nothing else uses
-them). The development project's registrations are managed by Pulumi
-(`infra/index.ts`, config `iosBundleId`, `androidPackageName`,
+September 2026; those registrations and the API keys Firebase created for
+them were removed the same month). The development project's
+registrations are managed by Pulumi (`infra/index.ts`, config `iosBundleId`, `androidPackageName`,
 `androidSha1Hashes`, `androidSha256Hashes`); production's were made by hand
 with the same values.
 Production's config lives at `lib/firebase_options.dart`,
@@ -78,9 +77,7 @@ API:
 Registering a new iOS or Android app makes Firebase create another key for
 that platform, unrestricted; apply the same restrictions to it (the API
 Keys API `keys.patch` with `updateMask=restrictions`, keeping the
-`apiTargets` Firebase set). The keys of the old `pizzaPredator` /
-`pizza_predator` registrations keep their old restrictions and stop
-mattering once those registrations are deleted.
+`apiTargets` Firebase set).
 
 To review or change these, open Google Cloud console, APIs & Services,
 Credentials, for the Firebase project, or use the API Keys API with an
@@ -611,11 +608,10 @@ steps that remain are in Apple Developer and Play Console:
   App ID of both the Services ID (`com.pizzapredator.web`, whose website
   URLs list both projects' `firebaseapp.com` domains and their
   `/__/auth/handler` return URLs) and the Sign in with Apple key. The old
-  App ID stays until the cleanup below.
+  App ID `com.pizzapredator.pizzaPredator` can be deleted in the portal
+  once no provisioning profile references it.
 - Play Console: after the first upload, register the Play App Signing
   key's SHA-1 and SHA-256 on the Android app in both Firebase projects
   (development through the Pulumi config lists, production with
   `firebase apps:android:sha:create`) and on the production Android API
   key's restrictions.
-- When the new builds are proven, delete the old `pizzaPredator` and
-  `pizza_predator` registrations and their API keys in both projects.

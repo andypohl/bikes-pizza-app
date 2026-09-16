@@ -2,7 +2,7 @@
 # infra/README.md ("Importing prod") before any `pulumi up` on it.
 config:
   bikes-pizza:projectId: pizzapredator-a445e
-  bikes-pizza:displayName: PizzaPredator
+  bikes-pizza:displayName: bikes-pizza
   bikes-pizza:billingAccount: 016876-3824C1-561384
   bikes-pizza:region: us-central1
   bikes-pizza:domain: bikes.pizza
