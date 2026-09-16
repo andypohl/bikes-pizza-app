@@ -64,6 +64,7 @@ class AdminSubmission {
     this.submitterEmail,
     this.photoUrl,
     this.thumbUrl,
+    this.pictures = const [],
     this.post,
     this.changes,
     this.safeSearch,
@@ -84,11 +85,16 @@ class AdminSubmission {
   final String? photoUrl;
   final String? thumbUrl;
 
+  /// The additional pictures, in order: new uploads held for review and,
+  /// on an edit, the pictures the post keeps.
+  final List<SubmissionPicture> pictures;
+
   /// The post an edit is for.
   final EditedPost? post;
 
-  /// What an edit changes: `title`, `story`, `bike`, `pizza` (new values)
-  /// and `image` (true for a new photo).
+  /// What an edit changes: `title`, `story`, `bike`, `pizza` (new values),
+  /// `image` (true for a new main photo) and `images` (true when the
+  /// additional pictures change).
   final Map<String, Object?>? changes;
 
   final Map<String, String>? safeSearch;
@@ -111,6 +117,7 @@ class AdminSubmission {
     'title': 'title',
     'story': 'story',
     'image': 'photo',
+    'images': 'additional pictures',
     'bike': 'bike details',
     'pizza': 'pizza style',
   };
@@ -135,6 +142,7 @@ class AdminSubmission {
 
   factory AdminSubmission.fromJson(Map<String, dynamic> json) {
     final image = json['image'];
+    final images = json['images'];
     final post = json['post'];
     final changes = json['changes'];
     final safeSearch = json['safeSearch'];
@@ -154,6 +162,11 @@ class AdminSubmission {
       submitterEmail: submittedBy is Map ? _string(submittedBy['email']) : null,
       photoUrl: image is Map ? _string(image['photoUrl']) : null,
       thumbUrl: image is Map ? _string(image['thumbUrl']) : null,
+      pictures: [
+        if (images is List)
+          for (final item in images.whereType<Map<String, dynamic>>())
+            SubmissionPicture.fromJson(item),
+      ],
       post: post is Map<String, dynamic> ? EditedPost.fromJson(post) : null,
       changes: changes is Map<String, dynamic> ? changes : null,
       safeSearch: safeSearch is Map
@@ -168,6 +181,43 @@ class AdminSubmission {
       queue: queue is Map<String, dynamic> ? QueueEntry.fromJson(queue) : null,
       review: review is Map<String, dynamic>
           ? ReviewRecord.fromJson(review)
+          : null,
+    );
+  }
+}
+
+/// An additional picture on a submission: a new upload with what Vision
+/// saw in it, or ([kept]) a picture an edited post already has.
+class SubmissionPicture {
+  const SubmissionPicture({
+    required this.kept,
+    this.photoUrl,
+    this.thumbUrl,
+    this.safeSearch,
+    this.people,
+  });
+
+  final bool kept;
+  final String? photoUrl;
+  final String? thumbUrl;
+  final Map<String, String>? safeSearch;
+  final PeopleSeen? people;
+
+  factory SubmissionPicture.fromJson(Map<String, dynamic> json) {
+    final safeSearch = json['safeSearch'];
+    final people = json['people'];
+    return SubmissionPicture(
+      kept: json['kept'] == true,
+      photoUrl: _string(json['photoUrl']),
+      thumbUrl: _string(json['thumbUrl']),
+      safeSearch: safeSearch is Map
+          ? {
+              for (final e in safeSearch.entries)
+                if (e.value is String) e.key as String: e.value as String,
+            }
+          : null,
+      people: people is Map<String, dynamic>
+          ? PeopleSeen.fromJson(people)
           : null,
     );
   }

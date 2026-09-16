@@ -9,8 +9,10 @@ import '../models/post.dart';
 import '../models/post_feed.dart';
 import '../screens/post_list_screen.dart';
 
-/// A post laid out in full: hero image, title, date, its structured details
-/// when it has any, the rendered HTML body and who submitted it. Not
+/// A post laid out in full: hero image, its additional pictures when it
+/// has any (each opening a full-screen viewer), title, date, its
+/// structured details when it has any, the rendered HTML body and who
+/// submitted it. Not
 /// scrollable itself; the post screen and the news reader each put it in
 /// their own scroll view. With a [repository], the submitter's username
 /// opens the list of everything they have posted.
@@ -152,6 +154,7 @@ class PostArticle extends StatelessWidget {
               ),
             ),
           ),
+        if (post.images.isNotEmpty) _MorePictures(post: post),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
           child: Column(
@@ -180,6 +183,117 @@ class PostArticle extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// The additional pictures as a row of thumbnails under the main photo;
+/// tapping one opens the viewer at that picture.
+class _MorePictures extends StatelessWidget {
+  const _MorePictures({required this.post});
+
+  final Post post;
+
+  static const double thumbHeight = 84;
+
+  void _open(BuildContext context, int index) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _PictureViewer(post: post, index: index),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      key: const Key('more-pictures'),
+      height: thumbHeight + 12,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+        scrollDirection: Axis.horizontal,
+        itemCount: post.images.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final image = post.images[i];
+          return InkWell(
+            key: Key('more-picture-$i'),
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => _open(context, i),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: SizedBox(
+                width: thumbHeight * 4 / 3,
+                height: thumbHeight,
+                child: CachedNetworkImage(
+                  imageUrl: image.url(400),
+                  fit: BoxFit.cover,
+                  alignment: Alignment(
+                    image.focusX * 2 - 1,
+                    image.focusY * 2 - 1,
+                  ),
+                  memCacheWidth: (thumbHeight * 4).round(),
+                  errorWidget: (_, _, _) => const SizedBox.shrink(),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// The additional pictures full screen, one per page, pinch-to-zoom.
+class _PictureViewer extends StatefulWidget {
+  const _PictureViewer({required this.post, required this.index});
+
+  final Post post;
+  final int index;
+
+  @override
+  State<_PictureViewer> createState() => _PictureViewerState();
+}
+
+class _PictureViewerState extends State<_PictureViewer> {
+  late final _controller = PageController(initialPage: widget.index);
+  late int _page = widget.index;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final images = widget.post.images;
+    return Dialog.fullscreen(
+      key: const Key('picture-viewer'),
+      backgroundColor: Colors.black,
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          leading: const CloseButton(),
+          title: Text('${_page + 1} of ${images.length}'),
+        ),
+        body: PageView.builder(
+          controller: _controller,
+          itemCount: images.length,
+          onPageChanged: (page) => setState(() => _page = page),
+          itemBuilder: (context, i) => InteractiveViewer(
+            maxScale: 4,
+            child: Center(
+              child: CachedNetworkImage(
+                imageUrl: images[i].largestUrl,
+                fit: BoxFit.contain,
+                errorWidget: (_, _, _) => const SizedBox.shrink(),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

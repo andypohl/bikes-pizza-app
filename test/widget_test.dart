@@ -456,6 +456,15 @@ class FakePostEditor implements PostEditor {
       url: was.url,
       publishedAt: was.publishedAt,
       story: edit.story ?? was.story,
+      images: edit.pictures == null
+          ? was.images
+          : [
+              for (final picture in edit.pictures!)
+                switch (picture) {
+                  KeptPicture(:final image) => image,
+                  NewPicture() => _image('https://example.com/new/'),
+                },
+            ],
       bike: edit.bike ?? was.bike,
       pizza: edit.pizza ?? was.pizza,
     );
@@ -486,6 +495,21 @@ class FakeAdminService implements AdminService {
       description: 'A fine bike.',
       status: 'pending',
       submitterEmail: 'ada@example.com',
+      pictures: [
+        SubmissionPicture(
+          kept: false,
+          thumbUrl: 'https://f/t1',
+          photoUrl: 'https://f/p1',
+          safeSearch: {'adult': 'VERY_UNLIKELY', 'racy': 'UNLIKELY'},
+          people: PeopleSeen(
+            faces: 0,
+            faceConfidence: 0,
+            persons: 0,
+            personScore: 0,
+          ),
+        ),
+        SubmissionPicture(kept: true, thumbUrl: 'https://f/t2'),
+      ],
     ),
     const AdminSubmission(
       id: 'e1',
@@ -752,8 +776,10 @@ Post _post(
   PostCredit? credit,
   BikeDetails? bike,
   PizzaDetails? pizza,
+  List<PostImage> images = const [],
 }) => Post(
   id: title,
+  images: images,
   feed: bike != null
       ? 'bikes'
       : pizza != null
@@ -773,8 +799,13 @@ const _ada = PostCredit(uid: 'g1', username: 'ada_bikes');
 
 /// A 16:9 photo with renditions at [base], as the functions would record
 /// it. (The news feed test's scroll distances assume this height.)
-PostImage _image(String base) =>
-    PostImage(base: base, width: 1600, height: 900, sizes: const [400, 800]);
+PostImage _image(String base) => PostImage(
+  base: base,
+  version: base,
+  width: 1600,
+  height: 900,
+  sizes: const [400, 800],
+);
 
 EditablePost _editable(
   String id, {
@@ -784,8 +815,10 @@ EditablePost _editable(
   bool formatted = false,
   String? pendingEditId,
   BikeDetails? bike = const BikeDetails(brand: 'GT', year: '1990s'),
+  List<PostImage> images = const [],
 }) => EditablePost(
   id: id,
+  images: images,
   title: title,
   feed: feed,
   url: 'https://example.com/$title/',
@@ -2322,6 +2355,57 @@ void main() {
     expect(find.text('Submit Pizza'), findsOneWidget); // back on the list
   });
 
+  testWidgets('additional pictures are added, removed and sent along', (
+    tester,
+  ) async {
+    await openSubmitForm(tester, 'Bikes');
+    await tester.tap(find.byKey(const Key('pick-photo')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('photo-library')));
+    await tester.pumpAndSettle();
+
+    Future<void> add() async {
+      await tester.ensureVisible(find.byKey(const Key('add-picture')));
+      await tester.tap(find.byKey(const Key('add-picture')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('photo-camera')));
+      await tester.pumpAndSettle();
+    }
+
+    expect(find.byKey(const Key('picture-0')), findsNothing);
+    await add();
+    await add();
+    expect(find.byKey(const Key('picture-1')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('remove-picture-0')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('picture-0')), findsOneWidget);
+    expect(find.byKey(const Key('picture-1')), findsNothing);
+
+    // Four is the most; the button then says so and stops.
+    await add();
+    await add();
+    await add();
+    expect(find.text('No more than 4'), findsOneWidget);
+    expect(
+      tester
+          .widget<OutlinedButton>(find.byKey(const Key('add-picture')))
+          .onPressed,
+      isNull,
+    );
+
+    await tester.enterText(find.byKey(const Key('title')), 'Trek');
+    await tester.enterText(find.byKey(const Key('from')), 'Andy');
+    await scrollToSubmit(tester);
+    await tester.tap(find.byKey(const Key('submit')));
+    await tester.pumpAndSettle();
+
+    final sent = submissions.submissions.single;
+    expect(sent.extras.length, 4);
+    expect(sent.extras.first.contentType, 'image/png');
+    expect(find.text('Thanks!'), findsOneWidget);
+  });
+
   testWidgets(
     'an expired session on submit signs out and returns to the list',
     (tester) async {
@@ -2618,6 +2702,88 @@ void main() {
     expect(edit.bike?.color, '');
   });
 
+  testWidgets('the editor keeps, drops and adds additional pictures', (
+    tester,
+  ) async {
+    editor.posts['Newest post'] = _editable(
+      'Newest post',
+      images: [_image('https://a/'), _image('https://b/')],
+    );
+    await openPostAsMember(tester, 'Newest post');
+    await tester.tap(find.byKey(const Key('edit-post')));
+    await tester.pumpAndSettle();
+
+    // The post's pictures are shown; untouched, there is nothing to send.
+    expect(find.byKey(const Key('picture-1')), findsOneWidget);
+    expect(
+      tester.widget<FilledButton>(find.byKey(const Key('save'))).onPressed,
+      isNull,
+    );
+
+    await tester.tap(find.byKey(const Key('remove-picture-0')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('add-picture')));
+    await tester.tap(find.byKey(const Key('add-picture')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('photo-library')));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byKey(const Key('save')));
+    await tester.tap(find.byKey(const Key('save')));
+    await tester.pumpAndSettle();
+
+    final (_, edit) = editor.saved.single;
+    expect(edit.title, isNull);
+    expect(edit.photo, isNull);
+    final pictures = edit.pictures!;
+    expect(pictures.length, 2);
+    expect((pictures[0] as KeptPicture).image.version, 'https://b/');
+    expect(pictures[1], isA<NewPicture>());
+    expect(find.text('Thanks!'), findsOneWidget);
+  });
+
+  testWidgets('a post shows its additional pictures and opens a viewer', (
+    tester,
+  ) async {
+    final post = _post(
+      'Two more',
+      DateTime(2026, 1, 1),
+      bike: const BikeDetails(brand: 'GT'),
+      images: [_image('https://a/'), _image('https://b/')],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(child: PostArticle(post: post)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('more-pictures')), findsOneWidget);
+    expect(find.byKey(const Key('more-picture-1')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('more-picture-1')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('picture-viewer')), findsOneWidget);
+    expect(find.text('2 of 2'), findsOneWidget);
+
+    await tester.tap(find.byType(CloseButton));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('picture-viewer')), findsNothing);
+
+    // A post without any has no strip.
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: PostArticle(post: _post('Plain', DateTime(2026, 1, 1))),
+          ),
+        ),
+      ),
+    );
+    expect(find.byKey(const Key('more-pictures')), findsNothing);
+  });
+
   testWidgets('an administrator\'s edit is applied and shown at once', (
     tester,
   ) async {
@@ -2762,6 +2928,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('A fine bike.'), findsOneWidget);
     expect(find.text('Queue to post'), findsOneWidget);
+    // The additional pictures, each with what Vision saw or a kept note.
+    expect(find.text('Additional pictures'), findsOneWidget);
+    expect(find.textContaining('adult very unlikely'), findsOneWidget);
+    expect(find.text('People: none seen'), findsOneWidget);
+    expect(find.text('Already on the post'), findsOneWidget);
     expect(find.byKey(const Key('review-draft')), findsNothing);
     await tester.enterText(find.byKey(const Key('review-note')), 'lovely');
     await tester.tap(find.byKey(const Key('review-publish')));

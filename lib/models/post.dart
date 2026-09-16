@@ -9,12 +9,17 @@ class PostImage {
     required this.width,
     required this.height,
     required this.sizes,
+    this.version = '',
     this.blur,
     this.focusX = 0.5,
     this.focusY = 0.5,
   });
 
   final String base;
+
+  /// Names this photo's renditions (a hash of the photo); an edit sends
+  /// it back to keep an additional picture.
+  final String version;
 
   /// Of the original, after rotation.
   final int width;
@@ -61,6 +66,7 @@ class PostImage {
     final focus = json['focus'];
     return PostImage(
       base: base,
+      version: json['version'] as String? ?? '',
       width: (json['width'] as num?)?.toInt() ?? 0,
       height: (json['height'] as num?)?.toInt() ?? 0,
       sizes: sizes,
@@ -196,6 +202,7 @@ class Post {
     this.summary = '',
     this.html = '',
     this.image,
+    this.images = const [],
     this.credit,
     this.bike,
     this.pizza,
@@ -223,6 +230,9 @@ class Post {
   /// The photo, if the post has one (every bike and pizza does).
   final PostImage? image;
 
+  /// Additional pictures, in order; empty for most posts.
+  final List<PostImage> images;
+
   /// The member the post is credited to, when it came from a submission.
   final PostCredit? credit;
 
@@ -248,6 +258,7 @@ class Post {
     String? summary,
     String? html,
     PostImage? image,
+    List<PostImage>? images,
     BikeDetails? bike,
     PizzaDetails? pizza,
     bool clearBike = false,
@@ -261,6 +272,7 @@ class Post {
     summary: summary ?? this.summary,
     html: html ?? this.html,
     image: image ?? this.image,
+    images: images ?? this.images,
     credit: credit,
     bike: clearBike ? null : bike ?? this.bike,
     pizza: clearPizza ? null : pizza ?? this.pizza,
@@ -292,6 +304,10 @@ class Post {
       summary: json['summary'] as String? ?? '',
       html: json['html'] as String? ?? '',
       image: PostImage.fromJson(json['image']),
+      images: [
+        if (json['images'] is List)
+          for (final item in json['images'] as List) ?PostImage.fromJson(item),
+      ],
       credit: PostCredit.fromJson(json['credit']),
       bike: bike == null || bike.isEmpty ? null : bike,
       pizza: pizza == null || pizza.isEmpty ? null : pizza,

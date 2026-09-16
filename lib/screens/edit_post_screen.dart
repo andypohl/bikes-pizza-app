@@ -8,9 +8,11 @@ import '../contract.dart';
 import '../models/post.dart';
 import '../posts/post_editor.dart';
 import '../submissions/photo_picker.dart';
+import '../submissions/photo_source_sheet.dart';
 import '../submissions/submission_service.dart';
+import '../widgets/additional_pictures_field.dart';
 
-/// Edits a published post: its photo, title, story and structured details.
+/// Edits a published post: its photos, title, story and structured details.
 /// Only what changed is sent. A member's changes go to bikes.pizza for
 /// review (the screen then thanks them); an administrator's are applied
 /// at once and the screen pops with the post as it now reads.
@@ -43,6 +45,10 @@ class _EditPostScreenState extends State<EditPostScreen> {
   String _type = '';
   String _style = '';
   SubmissionPhoto? _photo;
+
+  /// The additional pictures as the form shows them: the post's, minus
+  /// any removed, plus any chosen here, in order.
+  var _pictures = <AdditionalPicture>[];
 
   EditablePost? _post;
   String? _error;
@@ -91,6 +97,7 @@ class _EditPostScreenState extends State<EditPostScreen> {
         _color = post.bike?.color ?? '';
         _type = post.bike?.type ?? '';
         _style = post.pizza?.style ?? '';
+        _pictures = [for (final image in post.images) KeptPicture(image)];
       });
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -129,9 +136,21 @@ class _EditPostScreenState extends State<EditPostScreen> {
       title: title != post.title ? title : null,
       story: story != post.story ? story : null,
       photo: _photo,
+      pictures: _picturesChanged(post) ? List.of(_pictures) : null,
       bike: bike,
       pizza: pizza,
     );
+  }
+
+  /// Whether the additional pictures differ from the post's: one added,
+  /// removed or reordered.
+  bool _picturesChanged(EditablePost post) {
+    if (_pictures.length != post.images.length) return true;
+    for (final (i, picture) in _pictures.indexed) {
+      if (picture is! KeptPicture) return true;
+      if (picture.image.version != post.images[i].version) return true;
+    }
+    return false;
   }
 
   /// Members wait for a pending edit to be reviewed; administrators edit
@@ -139,32 +158,19 @@ class _EditPostScreenState extends State<EditPostScreen> {
   bool get _locked => !_admin && (_post?.hasPendingEdit ?? false);
 
   Future<void> _pickPhoto() async {
-    final source = await showModalBottomSheet<PhotoSource>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              key: const Key('photo-camera'),
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Take a photo'),
-              onTap: () => Navigator.pop(context, PhotoSource.camera),
-            ),
-            ListTile(
-              key: const Key('photo-library'),
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose from library'),
-              onTap: () => Navigator.pop(context, PhotoSource.library),
-            ),
-          ],
-        ),
-      ),
-    );
+    final source = await choosePhotoSource(context);
     if (source == null) return;
     final photo = await widget.photos.pick(source);
     if (photo == null || !mounted) return;
     setState(() => _photo = photo);
+  }
+
+  Future<void> _addPicture() async {
+    final source = await choosePhotoSource(context);
+    if (source == null) return;
+    final photo = await widget.photos.pick(source);
+    if (photo == null || !mounted) return;
+    setState(() => _pictures.add(NewPicture(photo)));
   }
 
   Future<void> _save() async {
@@ -281,6 +287,25 @@ class _EditPostScreenState extends State<EditPostScreen> {
             icon: const Icon(Icons.photo_camera_back_outlined),
             label: Text(photo == null ? 'Change photo' : 'Choose another'),
           ),
+          if (galleryFeeds.contains(post.feed)) ...[
+            const SizedBox(height: 20),
+            AdditionalPicturesField(
+              pictures: [
+                for (final picture in _pictures)
+                  switch (picture) {
+                    KeptPicture(:final image) => PictureThumb.network(
+                      image.url(400),
+                    ),
+                    NewPicture(:final photo) => PictureThumb.memory(
+                      photo.bytes,
+                    ),
+                  },
+              ],
+              onAdd: _addPicture,
+              onRemove: (i) => setState(() => _pictures.removeAt(i)),
+              enabled: !busy,
+            ),
+          ],
           const SizedBox(height: 20),
           TextFormField(
             key: const Key('title'),

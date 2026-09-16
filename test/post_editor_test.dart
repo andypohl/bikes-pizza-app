@@ -26,6 +26,16 @@ const _editable = {
     'focus': {'x': 0.5, 'y': 0.5},
     'url': 'https://files.example.com/o/posts%2Fa%2Fv1%2F2000.jpg?alt=media',
   },
+  'images': [
+    {
+      'base': 'https://files.example.com/o/posts%2Fa%2Fe1%2F',
+      'version': 'e1',
+      'width': 1200,
+      'height': 900,
+      'sizes': [400, 800, 1200],
+      'url': 'https://files.example.com/o/posts%2Fa%2Fe1%2F1200.jpg?alt=media',
+    },
+  ],
   'story': 'First.\n\nSecond.',
   'storyHasFormatting': false,
   'bike': {'brand': 'GT', 'year': '1990s', 'color': '', 'type': ''},
@@ -100,6 +110,16 @@ void main() {
     expect(post.bike?.year, '1990s');
     expect(post.pizza, isNull);
     expect(post.hasPendingEdit, isFalse);
+    expect(post.images.length, 1);
+    expect(post.images.single.version, 'e1');
+    expect(
+      post.images.single.url(400),
+      'https://files.example.com/o/posts%2Fa%2Fe1%2F400.webp?alt=media',
+    );
+    expect(
+      EditablePost.fromJson({..._editable, 'images': null}).images,
+      isEmpty,
+    );
 
     final pending = EditablePost.fromJson({
       ..._editable,
@@ -158,6 +178,26 @@ void main() {
       'bike': {'brand': 'GT', 'year': '1980s', 'color': '', 'type': ''},
       'pizza': {'style': 'detroit'},
     });
+
+    // The additional pictures go as the whole list: kept ones by version,
+    // new ones as uploads.
+    final kept = EditablePost.fromJson(_editable).images.single;
+    await e.save(
+      'p1',
+      PostEdit(pictures: [KeptPicture(kept), NewPicture(photo)]),
+    );
+    expect(bodies[2], {
+      'images': [
+        {'keep': 'e1'},
+        {
+          'data': base64Encode([1, 2, 3]),
+          'contentType': 'image/png',
+        },
+      ],
+    });
+    await e.save('p1', const PostEdit(pictures: []));
+    expect(bodies[3], {'images': <Object>[]});
+    expect(const PostEdit(pictures: []).isEmpty, isFalse);
     expect(const PostEdit().isEmpty, isTrue);
   });
 }
