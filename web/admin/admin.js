@@ -395,8 +395,8 @@ const newsDialog = $("#news-dialog");
  * The story editor: WYSIWYG over Markdown, with only the tools the site
  * renders (functions/markdown.js sanitises the rest away). Pictures
  * dropped or pasted in go through the upload endpoint and come back as
- * public URLs. Without the library (blocked CDN), the plain textarea
- * stands in.
+ * public URLs. Without the library (a copy of Toast UI Editor 3.2.2 in
+ * vendor/), the plain textarea stands in.
  */
 function ensureStoryEditor() {
   if (storyEditor || !window.toastui?.Editor) {

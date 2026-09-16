@@ -355,7 +355,8 @@ https://admin.bikes.pizza/ (https://admin.bikes-pizza.dev/ for the
 development project), with two sections. **News** is where news posts are
 written: a list of the news on the site and a dialog with the title, the
 publish date, an optional photo and the story in a WYSIWYG editor over
-Markdown (Toast UI Editor, loaded from the Toast UI CDN; its toolbar offers only
+Markdown (Toast UI Editor 3.2.2, MIT, a copy under `web/admin/vendor/`
+with its license; its toolbar offers only
 what the site renders, and pictures dropped into the story are uploaded
 through `/api/admin/uploads` to `posts/inline/` in Storage); publishing,
 saving an edit or removing a post rebuilds the website, and the app picks
