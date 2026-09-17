@@ -1,0 +1,59 @@
+---
+// The comments under a bike or pizza post. The page carries the count
+// from build time and this shell; scripts/comments.ts takes over once the
+// Firebase session is known: signed-out readers get "Sign in to read the
+// comments", signed-in members the live thread from the API with a
+// composer (docs/community-design.md). A post whose author switched
+// comments off says so.
+import type { GalleryPost } from '../lib/posts';
+
+interface Props {
+  post: GalleryPost;
+}
+
+const { post } = Astro.props;
+const count = post.commentCount;
+---
+
+<section
+  id="comments"
+  class="mt-10 pt-8 border-t border-line"
+  data-comments
+  data-post={post.id}
+  data-author={post.credit?.uid ?? ''}
+  data-count={count}
+  data-enabled={post.commentsEnabled ? 'true' : 'false'}
+  aria-label="Comments"
+>
+  <h2 class="text-lg font-light tracking-wide text-ink mb-3">{count} comment{count === 1 ? '' : 's'}</h2>
+  {
+    post.commentsEnabled ? (
+      <p class="text-sm font-light text-muted">Sign in to read the comments.</p>
+    ) : (
+      <p class="text-sm font-light text-muted">Comments are off for this post.</p>
+    )
+  }
+</section>
+
+<script>
+  import { wireComments } from '../scripts/comments';
+
+  wireComments();
+  document.addEventListener('astro:page-load', wireComments);
+</script>
+
+<style is:global>
+  #comments .comment-body p {
+    margin-bottom: 0.5rem;
+  }
+  #comments .comment-body p:last-child {
+    margin-bottom: 0;
+  }
+  #comments .comment-body a {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+  #comments .comment-body strong {
+    font-weight: 600;
+  }
+</style>

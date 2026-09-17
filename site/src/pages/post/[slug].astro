@@ -1,5 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import Comments from '../../components/Comments.astro';
 import PostGrid from '../../components/PostGrid.astro';
 import {
   detailSpecs,
@@ -157,6 +158,8 @@ const extras = post.images.map((image, i) => ({
             </div>
           )
         }
+
+        <Comments post={post} />
       </div>
     </div>
 

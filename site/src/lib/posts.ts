@@ -66,6 +66,10 @@ export interface Post {
   /** Bike or pizza details as stored option values (`brand`, `year`, `color`, `type`; `style`), or null. */
   details: Record<string, string> | null;
   credit: Credit | null;
+  /** Published comments at build time; the page fetches the live thread. */
+  commentCount: number;
+  /** False when the post's author switched comments off. */
+  commentsEnabled: boolean;
 }
 
 /** A post in the gallery: not news, and always with a photo. */
@@ -105,6 +109,8 @@ function toPost(doc: Document): Post {
     images: Array.isArray(doc.images) ? doc.images.map(toImage).filter((image): image is PostImage => image !== null) : [],
     details: details ? Object.fromEntries(Object.entries(details).map(([k, v]) => [k, str(v)])) : null,
     credit: credit ? { uid: str(credit.uid), username: str(credit.username), name: str(credit.name) } : null,
+    commentCount: num(doc.commentCount),
+    commentsEnabled: doc.commentsEnabled !== false,
   };
 }
 
