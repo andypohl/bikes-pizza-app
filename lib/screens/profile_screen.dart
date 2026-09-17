@@ -5,6 +5,8 @@ import '../api/api_client.dart';
 import '../auth/auth_service.dart';
 import '../contract.dart';
 import '../data/post_repository.dart';
+import '../auth/session_expiry.dart';
+import '../messages/thread_service.dart';
 import '../models/post.dart';
 import '../models/post_feed.dart';
 import '../posts/comment_service.dart';
@@ -12,6 +14,7 @@ import '../posts/profile_service.dart';
 import '../posts/reaction_service.dart';
 import '../widgets/status_message.dart';
 import 'post_list_screen.dart';
+import 'thread_screen.dart';
 
 /// A member's profile, reached by tapping their username: when they
 /// joined, the location they chose to share, and how many pizzas and
@@ -26,6 +29,7 @@ class ProfileScreen extends StatefulWidget {
     this.auth,
     this.reactions,
     this.comments,
+    this.threads,
   });
 
   final String username;
@@ -34,6 +38,9 @@ class ProfileScreen extends StatefulWidget {
   final AuthService? auth;
   final ReactionService? reactions;
   final CommentService? comments;
+
+  /// With [auth], offers Message when the member takes them.
+  final ThreadService? threads;
 
   static final _dateFormat = DateFormat.yMMMMd();
 
@@ -67,6 +74,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) setState(() => _profile = profile);
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
+    }
+  }
+
+  Future<void> _message(PublicProfile profile) async {
+    final threads = widget.threads;
+    final auth = widget.auth;
+    if (threads == null || auth == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    try {
+      final thread = await threads.open(profile.username);
+      if (!mounted) return;
+      await navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              ThreadScreen(thread: thread, service: threads, auth: auth),
+        ),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      if (e.sessionExpired) return handleSessionExpired(context, auth);
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
     }
   }
 
@@ -154,6 +183,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ],
           ),
+          if (profile.messages &&
+              widget.threads != null &&
+              widget.auth?.currentUser != null) ...[
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              key: const Key('profile-message'),
+              onPressed: () => _message(profile),
+              icon: const Icon(Icons.mail_outline),
+              label: const Text('Message'),
+            ),
+          ],
           const SizedBox(height: 24),
           for (final feed in [PostFeed.pizza, PostFeed.bikes])
             Card(
