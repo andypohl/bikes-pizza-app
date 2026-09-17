@@ -40,6 +40,7 @@ class ThreadScreen extends StatefulWidget {
 
 class _ThreadScreenState extends State<ThreadScreen> {
   StreamSubscription<List<Message>>? _messages;
+  StreamSubscription<Thread?>? _threadUpdates;
   List<Message> _list = const [];
   int _limit = ThreadScreen.pageSize;
   bool _loaded = false;
@@ -58,6 +59,9 @@ class _ThreadScreenState extends State<ThreadScreen> {
     super.initState();
     _text.addListener(() => setState(() {}));
     _listen();
+    _threadUpdates = widget.service.thread(_thread.id).listen((thread) {
+      if (mounted && thread != null) setState(() => _thread = thread);
+    }, onError: (_) {});
     if (!_thread.gone) widget.service.markSeen(_thread.id).catchError((_) {});
   }
 
@@ -92,6 +96,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
   @override
   void dispose() {
     _messages?.cancel();
+    _threadUpdates?.cancel();
     _text.dispose();
     _focus.dispose();
     super.dispose();
@@ -288,6 +293,81 @@ class _ThreadScreenState extends State<ThreadScreen> {
     }
   }
 
+  Future<void> _askEmail() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Continue in email?'),
+        content: Text(
+          '${_thread.otherUsername} will be asked to agree. If they do, '
+          'the conversation so far is emailed to them, and replying goes '
+          'to you: your email address will be shown to them.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const Key('email-ask-confirm'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Ask'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await widget.service.requestEmail(_thread.id);
+    } on ApiException catch (error) {
+      await _fail(error);
+    }
+  }
+
+  Future<void> _agreeEmail() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Continue in email?'),
+        content: Text(
+          'The conversation so far will be emailed to you, with '
+          '${_thread.otherUsername}\'s address as the reply address. When '
+          'you reply, they will see your email address. The conversation '
+          'here ends; you can always start a new one.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            key: const Key('email-agree-confirm'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Agree'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await widget.service.agreeEmail(_thread.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Sent. Check your email.')));
+    } on ApiException catch (error) {
+      await _fail(error);
+    }
+  }
+
+  Future<void> _withdrawEmail() async {
+    try {
+      await widget.service.withdrawEmail(_thread.id);
+    } on ApiException catch (error) {
+      await _fail(error);
+    }
+  }
+
   Future<void> _report() async {
     final reason = await showDialog<String>(
       context: context,
@@ -374,7 +454,56 @@ class _ThreadScreenState extends State<ThreadScreen> {
                         'the menu to keep talking.'
                   : 'This conversation is closed.',
             )
-          else
+          else ...[
+            if (thread.emailRequestBy == _uid)
+              _EmailCard(
+                key: const Key('email-waiting'),
+                text:
+                    'Waiting for ${thread.otherUsername} to agree to '
+                    'continue in email.',
+                actions: [
+                  TextButton(
+                    key: const Key('email-cancel'),
+                    onPressed: _withdrawEmail,
+                    child: const Text('Cancel'),
+                  ),
+                ],
+              )
+            else if (thread.emailRequestBy != null)
+              _EmailCard(
+                key: const Key('email-request'),
+                text:
+                    '${thread.otherUsername} would like to continue this '
+                    'conversation by email. Agreeing shares your email '
+                    'address with them.',
+                actions: [
+                  TextButton(
+                    key: const Key('email-decline'),
+                    onPressed: _withdrawEmail,
+                    child: const Text('Not now'),
+                  ),
+                  FilledButton(
+                    key: const Key('email-agree'),
+                    onPressed: _agreeEmail,
+                    child: const Text('Agree'),
+                  ),
+                ],
+              )
+            else if (_list.any(
+              (m) => !m.isEvent && m.conversation == thread.conversation,
+            ))
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  key: const Key('email-ask'),
+                  onPressed: _askEmail,
+                  icon: const Icon(Icons.alternate_email, size: 16),
+                  label: const Text('Continue this conversation in email'),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ),
             _Composer(
               controller: _text,
               focus: _focus,
@@ -389,6 +518,7 @@ class _ThreadScreenState extends State<ThreadScreen> {
               onLink: _link,
               onSend: _send,
             ),
+          ],
           if (closed) SizedBox(height: MediaQuery.paddingOf(context).bottom),
         ],
       ),
@@ -533,6 +663,32 @@ class _MessageList extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// The continue-by-email request as a card above the composer.
+class _EmailCard extends StatelessWidget {
+  const _EmailCard({super.key, required this.text, required this.actions});
+
+  final String text;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(text, style: theme.textTheme.bodyMedium),
+            Row(mainAxisAlignment: MainAxisAlignment.end, children: actions),
+          ],
+        ),
+      ),
     );
   }
 }

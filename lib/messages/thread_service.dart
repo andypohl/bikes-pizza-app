@@ -21,6 +21,7 @@ class Thread {
     this.blockedByMe = false,
     this.gone = false,
     this.conversation = 1,
+    this.emailRequestBy,
   });
 
   final String id;
@@ -35,6 +36,10 @@ class Thread {
   final bool blockedByMe;
   final bool gone;
   final int conversation;
+
+  /// Who asked to continue the current conversation by email, while the
+  /// request waits; null otherwise.
+  final String? emailRequestBy;
 
   /// From the API's shape, or a Firestore document's, for [uid].
   factory Thread.fromJson(Map<String, dynamic> json, {required String uid}) {
@@ -57,6 +62,7 @@ class Thread {
     final last = json['last'];
     final unread = json['unread'];
     final blockedBy = json['blockedBy'];
+    final request = json['emailRequest'];
     return Thread(
       id: json['id'] as String? ?? '',
       otherUid: otherUid,
@@ -74,6 +80,7 @@ class Thread {
           (blockedBy is List && blockedBy.contains(uid)),
       gone: json['gone'] == true,
       conversation: (json['conversation'] as num?)?.toInt() ?? 1,
+      emailRequestBy: request is Map ? request['by'] as String? : null,
     );
   }
 }
@@ -160,6 +167,10 @@ abstract class ThreadService {
   /// The newest [limit] entries of a thread, oldest first, live.
   Stream<List<Message>> messages(String threadId, {int limit = 50});
 
+  /// One thread as it changes (unread counts, blocks, an email request),
+  /// live; null once it no longer exists.
+  Stream<Thread?> thread(String threadId);
+
   /// The thread with [username], created if there is none.
   Future<Thread> open(String username);
 
@@ -176,6 +187,16 @@ abstract class ThreadService {
   Future<void> block(String username, {required bool on});
 
   Future<List<BlockedMember>> blocks();
+
+  /// Asks the other member to continue the current conversation by email.
+  Future<void> requestEmail(String threadId);
+
+  /// Takes the request back, or declines the other member's.
+  Future<void> withdrawEmail(String threadId);
+
+  /// Agrees to the other member's request: the email goes out and the
+  /// conversation ends.
+  Future<void> agreeEmail(String threadId);
 }
 
 /// [ThreadService] over the REST API for the writes and Firestore for the
@@ -222,6 +243,20 @@ class LiveThreadService implements ThreadService {
                 ?Message.fromJson({...doc.data(), 'id': doc.id}),
             ],
           );
+
+  @override
+  Stream<Thread?> thread(String threadId) {
+    final uid = _uid;
+    return _firestore
+        .collection('threads')
+        .doc(threadId)
+        .snapshots()
+        .map(
+          (snap) => snap.exists
+              ? Thread.fromJson({...?snap.data(), 'id': snap.id}, uid: uid)
+              : null,
+        );
+  }
 
   String _thread(String id) => '/threads/${Uri.encodeComponent(id)}';
 
@@ -282,6 +317,18 @@ class LiveThreadService implements ThreadService {
       await _api.delete(path);
     }
   }
+
+  @override
+  Future<void> requestEmail(String threadId) =>
+      _api.post('${_thread(threadId)}/email');
+
+  @override
+  Future<void> withdrawEmail(String threadId) =>
+      _api.delete('${_thread(threadId)}/email');
+
+  @override
+  Future<void> agreeEmail(String threadId) =>
+      _api.post('${_thread(threadId)}/email/agree');
 
   @override
   Future<List<BlockedMember>> blocks() async {
