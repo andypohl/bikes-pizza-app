@@ -513,6 +513,96 @@ table.users th {
   font-size: 0.8rem;
 }
 
+/* ---- comments ---- */
+
+.comment-queues {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.comment-queues button,
+table.comments td.acts button {
+  display: inline-block;
+  width: auto;
+  margin: 0;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.85rem;
+}
+
+.comment-queues button[aria-pressed="true"] {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+table.comments td {
+  white-space: normal;
+  vertical-align: top;
+}
+
+table.comments td.text {
+  min-width: 18rem;
+  max-width: 30rem;
+}
+
+table.comments .by {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 0.2rem;
+}
+
+table.comments .body p {
+  margin: 0 0 0.3rem;
+}
+
+table.comments .flag {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: #fff3e0;
+  color: #b26a00;
+  margin: 0 0.3rem 0.3rem 0;
+  white-space: nowrap;
+}
+
+table.comments .flag.bad {
+  background: #fdecea;
+  color: #b3261e;
+}
+
+table.comments .flag.ok {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+table.comments td.acts {
+  white-space: nowrap;
+}
+
+table.comments td.acts button + button {
+  margin-left: 0.4rem;
+}
+
+.words-head {
+  margin: 2rem 0 0.25rem;
+  font-size: 1.1rem;
+}
+
+.words textarea {
+  display: block;
+  width: 100%;
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  margin-top: 0.3rem;
+  resize: vertical;
+}
+
 table.users td.post {
   white-space: normal;
   max-width: 24rem;

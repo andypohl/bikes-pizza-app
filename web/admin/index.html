@@ -34,6 +34,7 @@
       <nav class="tabs" role="tablist" id="sections" hidden>
         <button type="button" role="tab" data-section="users" aria-selected="true">Users</button>
         <button type="button" role="tab" data-section="news" aria-selected="false">News</button>
+        <button type="button" role="tab" data-section="comments" aria-selected="false">Comments</button>
       </nav>
 
       <section data-view="loading"><p class="muted">Loading…</p></section>
@@ -130,6 +131,43 @@
           </table>
         </div>
         <p class="muted small" id="news-empty" hidden>No news posts yet.</p>
+      </section>
+
+      <section data-view="comments" hidden>
+        <nav class="queues comment-queues" aria-label="Queues">
+          <button type="button" class="secondary small-btn" data-queue="pending" aria-pressed="true">Waiting for review</button>
+          <button type="button" class="secondary small-btn" data-queue="reported" aria-pressed="false">Reported</button>
+          <button type="button" class="secondary small-btn" data-queue="recent" aria-pressed="false">Recent</button>
+        </nav>
+        <p class="muted small" id="comments-summary"></p>
+        <div class="table-wrap">
+          <table class="users comments">
+            <thead>
+              <tr>
+                <th>Comment</th>
+                <th>Post</th>
+                <th>Screening</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="comment-rows"></tbody>
+          </table>
+        </div>
+        <p class="muted small" id="comments-empty" hidden>Nothing here.</p>
+
+        <h2 class="words-head">Word lists</h2>
+        <p class="muted small">
+          One word or phrase per line, matched as whole words whatever the case. A <strong>banned</strong> word
+          refuses the comment outright (the member is told only that it can't be posted); a
+          <strong>suspicious</strong> word holds it here for review. Google's moderation scores run
+          alongside: strong toxicity is refused, milder toxicity or politics is held.
+        </p>
+        <form id="words-form" class="words" novalidate>
+          <label>Banned <textarea name="banned" rows="8" spellcheck="false"></textarea></label>
+          <label>Suspicious <textarea name="suspicious" rows="8" spellcheck="false"></textarea></label>
+          <p class="status-line" id="words-status" role="status"></p>
+          <button type="submit" class="primary" id="words-save">Save word lists</button>
+        </form>
       </section>
 
       <dialog id="news-dialog" class="detail-dialog wide-dialog">

@@ -1,11 +1,14 @@
 // The admin page (admins only). Users: who has signed up, what they have
 // posted, their newsletter choice; edits, password resets and deletion.
 // News: the news posts on the site, writing a new one (title, publish
-// date, photo, story in Markdown), editing and removing.
+// date, photo, story in Markdown), editing and removing. Comments: the
+// review queues (held by screening, reported, recent) with Approve and
+// Remove, and the banned and suspicious word lists.
 //
-// Talks to the REST API at /api/admin/users, /api/admin/posts and
-// /api/posts (see functions/api.js, functions/admin_users.js and
-// functions/posts.js) with the signed-in admin's Firebase ID token.
+// Talks to the REST API at /api/admin/users, /api/admin/posts,
+// /api/admin/comments, /api/admin/moderation and /api/posts (see
+// functions/api.js, functions/admin_users.js, functions/posts.js and
+// functions/comments.js) with the signed-in admin's Firebase ID token.
 // Password resets go through Firebase Auth directly, which emails the
 // member its usual reset link.
 //
@@ -70,7 +73,7 @@ function show(view) {
   $("#app").dataset.state = view;
   for (const s of document.querySelectorAll("[data-view]")) s.hidden = s.dataset.view !== view;
   // The section tabs belong to the signed-in views only.
-  if (view !== "list" && view !== "news") $("#sections").hidden = true;
+  if (view !== "list" && view !== "news" && view !== "comments") $("#sections").hidden = true;
 }
 
 function say(text, ok = false) {
@@ -440,9 +443,10 @@ function showSection(next) {
   for (const tab of document.querySelectorAll("#sections [data-section]")) {
     tab.setAttribute("aria-selected", String(tab.dataset.section === next));
   }
-  $("#heading").textContent = next === "news" ? "News" : "Users";
-  show(next === "news" ? "news" : "list");
+  $("#heading").textContent = next === "news" ? "News" : next === "comments" ? "Comments" : "Users";
+  show(next === "news" ? "news" : next === "comments" ? "comments" : "list");
   if (next === "news") loadNews();
+  else if (next === "comments") loadComments();
   else load();
 }
 
@@ -662,6 +666,169 @@ $("#n-remove").addEventListener("click", async () => {
 for (const tab of document.querySelectorAll("#sections [data-section]")) {
   tab.addEventListener("click", () => showSection(tab.dataset.section));
 }
+
+// ---- comments -------------------------------------------------------------
+
+const QUEUE_LABELS = { pending: "waiting for review", reported: "reported", recent: "published recently" };
+const HOLD_LABELS = { screen: "Held by the scores", words: "Suspicious word", reports: "Hidden by reports" };
+
+let queue = "pending";
+let comments = [];
+let wordsLoaded = false;
+
+/** Loads the current queue and, the first time, the word lists. */
+async function loadComments() {
+  busy(true);
+  try {
+    const data = await api(`/api/admin/comments?queue=${queue}`);
+    comments = data.comments;
+    renderComments();
+    if (!wordsLoaded) {
+      const lists = await api("/api/admin/moderation");
+      $("#words-form").elements.banned.value = lists.banned.join("\n");
+      $("#words-form").elements.suspicious.value = lists.suspicious.join("\n");
+      wordsLoaded = true;
+    }
+  } catch (error) {
+    say(describe(error) ?? "Could not load the comments.");
+  } finally {
+    busy(false);
+  }
+}
+
+/** A short pill for a screening score, a matched word or a report reason. */
+function flag(text, kind = "") {
+  const span = document.createElement("span");
+  span.className = `flag ${kind}`.trim();
+  span.textContent = text;
+  return span;
+}
+
+/** What the screening and the reports said about a comment, as pills. */
+function screeningCell(comment) {
+  const td = document.createElement("td");
+  const s = comment.screening ?? {};
+  if (comment.status === "pending" || comment.status === "hidden") td.append(flag(HOLD_LABELS[comment.hold] ?? "Held", "bad"));
+  for (const word of s.matched ?? []) td.append(flag(`"${word}"`, "bad"));
+  const scores = Object.entries(s.scores ?? {})
+    .filter(([, v]) => v >= 0.3)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4);
+  for (const [name, value] of scores) td.append(flag(`${name} ${Math.round(value * 100)}%`, value >= 0.8 ? "bad" : ""));
+  if (s.error) td.append(flag("Screening failed", "bad"));
+  for (const reason of comment.reports ?? []) td.append(flag(`Reported: ${reason}`, "bad"));
+  if (!td.childNodes.length) td.append(flag(s.language ? `Clean (${s.language})` : "Clean", "ok"));
+  return td;
+}
+
+function renderComments() {
+  const body = $("#comment-rows");
+  body.replaceChildren();
+  for (const comment of comments) {
+    const tr = document.createElement("tr");
+    tr.className = "row";
+    const text = document.createElement("td");
+    text.className = "text";
+    const by = document.createElement("span");
+    by.className = "by";
+    by.textContent = `${comment.username || "(no username)"} · ${when(comment.createdAt)}${comment.editedAt ? " (edited)" : ""}${comment.parentId ? " · reply" : ""}`;
+    const html = document.createElement("div");
+    html.className = "body";
+    // Rendered by the functions from the Markdown subset and sanitised there.
+    html.innerHTML = comment.html || "";
+    text.append(by, html);
+    const post = document.createElement("td");
+    post.className = "post";
+    if (comment.post?.url) {
+      const a = document.createElement("a");
+      a.href = comment.post.url;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.textContent = comment.post.title || comment.post.id;
+      post.append(a);
+    } else {
+      post.textContent = comment.post?.title || comment.post?.id || "";
+    }
+    const acts = document.createElement("td");
+    acts.className = "acts";
+    if (comment.status === "pending" || comment.status === "hidden") {
+      const approve = document.createElement("button");
+      approve.type = "button";
+      approve.className = "secondary small-btn";
+      approve.textContent = comment.status === "hidden" ? "Restore" : "Approve";
+      approve.addEventListener("click", () => act(comment, "approve"));
+      acts.append(approve);
+    }
+    if (comment.status !== "removed") {
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "secondary small-btn delete";
+      remove.textContent = "Remove";
+      remove.addEventListener("click", () => act(comment, "remove"));
+      acts.append(remove);
+    }
+    tr.append(text, post, screeningCell(comment), acts);
+    body.append(tr);
+  }
+  $("#comments-empty").hidden = comments.length > 0;
+  $("#comments-summary").textContent = `${comments.length} comment${comments.length === 1 ? "" : "s"} ${QUEUE_LABELS[queue]}.`;
+}
+
+/** Approves (publishes) or removes a comment, then reloads the queue. */
+async function act(comment, action) {
+  if (action === "remove") {
+    $("#confirm-text").textContent = `Remove this comment by ${comment.username || "this member"}? Replies under it stay.`;
+    if (!(await confirmYesNo())) return;
+  }
+  busy(true);
+  try {
+    await api(`/api/admin/comments/${encodeURIComponent(comment.post.id)}/${encodeURIComponent(comment.id)}/${action}`, { method: "POST" });
+    say(action === "approve" ? "Published." : "Removed.", true);
+    await loadComments();
+  } catch (error) {
+    say(describe(error) ?? `Could not ${action} that comment.`);
+  } finally {
+    busy(false);
+  }
+}
+
+for (const button of document.querySelectorAll("[data-queue]")) {
+  button.addEventListener("click", () => {
+    queue = button.dataset.queue;
+    for (const b of document.querySelectorAll("[data-queue]")) b.setAttribute("aria-pressed", String(b === button));
+    loadComments();
+  });
+}
+
+const lines = (value) =>
+  value
+    .split(/\r?\n/)
+    .map((w) => w.trim())
+    .filter(Boolean);
+
+$("#words-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = $("#words-form");
+  const status = $("#words-status");
+  $("#words-save").disabled = true;
+  status.textContent = "";
+  status.className = "status-line";
+  try {
+    const saved = await api("/api/admin/moderation", {
+      method: "PUT",
+      body: { banned: lines(form.elements.banned.value), suspicious: lines(form.elements.suspicious.value) },
+    });
+    form.elements.banned.value = saved.banned.join("\n");
+    form.elements.suspicious.value = saved.suspicious.join("\n");
+    status.textContent = `Saved: ${saved.banned.length} banned, ${saved.suspicious.length} suspicious.`;
+    status.classList.add("ok");
+  } catch (error) {
+    status.textContent = describe(error) ?? "Could not save the word lists.";
+    status.classList.add("bad");
+  } finally {
+    $("#words-save").disabled = false;
+  }
+});
 
 // ---- events ---------------------------------------------------------------
 

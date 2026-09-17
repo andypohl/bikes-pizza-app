@@ -137,8 +137,8 @@ word list refuses it, Google's Cloud Natural Language moderation
 it at a high toxicity score and holds it for review at a middling one
 or when it looks political, and a suspicious word list holds it too;
 two reports from different members hide a comment until an admin
-looks. The admin page's Comments tab (to come) works the pending and
-reported queues and edits the word lists.
+looks. The admin page's Comments tab works the pending and reported
+queues and edits the word lists.
 
 In the app the thread sits under the post (`lib/widgets/comments_panel.dart`,
 over `lib/posts/comment_service.dart`): the count, the comments oldest
@@ -414,7 +414,7 @@ accounts, change their password or request a reset email.
 
 **Admin page**: `web/admin/`, its own Hosting site served at
 https://admin.bikes.pizza/ (https://admin.bikes-pizza.dev/ for the
-development project), with two sections. **News** is where news posts are
+development project), with three sections. **News** is where news posts are
 written: a list of the news on the site and a dialog with the title, the
 publish date, an optional photo and the story in a WYSIWYG editor over
 Markdown (Toast UI Editor 3.2.2, MIT, a copy under `web/admin/vendor/`
@@ -437,7 +437,13 @@ accounts get a Reset password button (Firebase emails the usual reset
 link). Two-factor authentication is required, as on the review page.
 Delete user, in red, asks "Are you sure?" and then removes the Auth
 user and the member profile, freeing the username; the member's posts
-stay, credited as they were.
+stay, credited as they were. **Comments** is the review desk for
+comments: three queues (waiting for review, reported, recent) as a
+table of the comment, its post, what the screening saw (the hold
+reason, matched words, the moderation scores at or above 30%, report
+reasons) and Approve or Restore and Remove buttons (`/api/admin/comments`,
+`functions/comments.js`); under it the banned and suspicious word lists,
+one entry per line, saved through `/api/admin/moderation`.
 
 All three pages read their Firebase config from Hosting's reserved
 `/__/firebase/init.json`, so nothing project-specific is committed. They are
