@@ -603,9 +603,12 @@ copies as the rest of the contract is.
 7. **Direct messages, app**: the Messages button and list, the thread
    screen, blocking and reporting, the badge total.
 8. **Continue by email**: the request and agree endpoints, the email
-   rendering (with the HTML part added to the mail module), the cards
-   and event lines in the app, the read-only thread page on the website
-   with its rewrite, and the privacy page paragraph.
+   rendering (with the HTML part added to the mail module), the
+   read-only thread page on the website with its rewrite, and the
+   privacy page paragraph.
+9. **Continue by email, app**: the link above the composer, the
+   confirmation, the request cards and the event lines in the thread
+   screen.
 
 Each leaves `main` deployable; the app does nothing visible until the
 functions are deployed.

@@ -9,6 +9,7 @@ import {
   RULES,
   adminThread,
   adminThreads,
+  agreeEmail,
   deleteMemberThreads,
   deleteMessage,
   editMessage,
@@ -24,8 +25,10 @@ import {
   publicThread,
   rateCheck,
   reportThread,
+  requestEmail,
   sendMessage,
   setBlock,
+  withdrawEmail,
 } from "./threads.js";
 
 const ada = { uid: "u1", email: "ada@example.com", admin: false };
@@ -328,3 +331,90 @@ test("deleting a member removes their threads whole, leaving markers, and their 
   assert.deepEqual(await exportMessages("u1", deps), []);
   assert.deepEqual((await exportMessages("u2", deps)).map((m) => m.text), []);
 });
+
+/** Email deps: addresses for u1 and u2, a recording sender. */
+function mailer() {
+  const sent = [];
+  return {
+    sent,
+    emailOf: async (uid) => ({ u1: "ada@example.com", u2: "bob@example.com" })[uid] ?? null,
+    send: async (mail) => {
+      sent.push(mail);
+    },
+    siteUrl: "https://bikes.pizza/",
+  };
+}
+
+test("asking to continue by email needs messages, no block and no pending request", async () => {
+  const { deps, say, threads } = await setup();
+  await openThread({ username: "bob" }, ada, deps);
+  await rejects(requestEmail("u1_u2", ada, deps), "failed-precondition", /Say something/);
+  await say("u1_u2", ada, "hi");
+  await rejects(requestEmail("u1_u2", cal, deps), "not-found");
+  assert.deepEqual(await requestEmail("u1_u2", ada, deps), { requested: true });
+  const thread = await threads.get("u1_u2");
+  assert.deepEqual(thread.emailRequest, { by: "u1", at: deps.now().toISOString() });
+  await rejects(requestEmail("u1_u2", bob, deps), "failed-precondition", /already waiting/);
+  // The asker cannot agree for the other side.
+  await rejects(agreeEmail("u1_u2", ada, { ...deps, ...mailer() }), "failed-precondition", /other member/);
+  // Declining clears it and leaves a quiet line.
+  assert.deepEqual(await withdrawEmail("u1_u2", bob, deps), { withdrawn: true });
+  assert.equal((await threads.get("u1_u2")).emailRequest, null);
+  const page = await listMessages("u1_u2", {}, ada, deps);
+  assert.deepEqual([page.messages[0].kind, page.messages[0].event, page.messages[0].by], ["event", "declined", "u2"]);
+  await rejects(withdrawEmail("u1_u2", ada, deps), "failed-precondition", /no request/);
+  // Blocked: no asking.
+  await setBlock("bob", true, ada, deps);
+  await rejects(requestEmail("u1_u2", ada, deps), "permission-denied");
+});
+
+test("agreeing emails the conversation with Reply-To the asker and starts the next one", async () => {
+  const { deps, say, threads, logged } = await setup();
+  const mail = mailer();
+  await openThread({ username: "bob" }, ada, deps);
+  const texts = [];
+  for (let i = 1; i <= 12; i += 1) {
+    texts.push(`message ${i}`);
+    await say("u1_u2", i % 2 ? ada : bob, `message ${i} **bold**`);
+  }
+  await requestEmail("u1_u2", ada, deps);
+  await rejects(agreeEmail("u1_u2", bob, { ...deps, ...mail, send: null }), "unavailable");
+  const result = await agreeEmail("u1_u2", bob, { ...deps, ...mail });
+  assert.deepEqual(result, { emailed: true, conversation: 2 });
+  assert.equal(mail.sent.length, 1);
+  const sent = mail.sent[0];
+  assert.equal(sent.to, "bob@example.com");
+  assert.equal(sent.replyTo, "ada@example.com");
+  assert.equal(sent.subject, "Your bikes.pizza conversation with ada_bikes");
+  assert.match(sent.text, /Previous messages: https:\/\/bikes\.pizza\/messages\/u1_u2\//);
+  assert.match(sent.text, /ada_bikes \(.*\): message 3 bold/);
+  assert.doesNotMatch(sent.text, /message 2 bold/); // only the newest ten
+  assert.match(sent.html, /Previous messages/);
+  assert.match(sent.html, /<strong>bold<\/strong>/);
+  assert.match(sent.html, /align="right"/);
+  assert.match(sent.html, /align="left"/);
+  const thread = await threads.get("u1_u2");
+  assert.equal(thread.conversation, 2);
+  assert.equal(thread.emailRequest, null);
+  assert.equal(thread.last.text, "(conversation continued by email)");
+  const page = await listMessages("u1_u2", {}, ada, deps);
+  assert.deepEqual([page.messages[0].kind, page.messages[0].event, page.messages[0].conversation], ["event", "emailed", 1]);
+  assert.ok(logged.some(([m]) => m === "conversation continued by email"));
+  // The next message starts conversation 2, and a new request is possible once it has one.
+  await rejects(requestEmail("u1_u2", bob, deps), "failed-precondition", /Say something/);
+  const next = await say("u1_u2", bob, "back again");
+  assert.equal(next.conversation, 2);
+  await requestEmail("u1_u2", bob, deps);
+  assert.equal((await threads.get("u1_u2")).emailRequest.by, "u2");
+});
+
+test("a member with no address on file cannot receive the email", async () => {
+  const { deps, say } = await setup();
+  const mail = mailer();
+  await openThread({ username: "bob" }, ada, deps);
+  await say("u1_u2", ada, "hi");
+  await requestEmail("u1_u2", ada, deps);
+  await rejects(agreeEmail("u1_u2", bob, { ...deps, ...mail, emailOf: async () => null }), "failed-precondition", /email address/);
+  assert.equal(mail.sent.length, 0);
+});
+

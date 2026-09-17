@@ -39,6 +39,9 @@
 //   PATCH /api/threads/:id/messages/:mid   the author, within the edit window; {text}
 //   DELETE /api/threads/:id/messages/:mid  the author
 //   POST /api/threads/:id/seen          verified user; zeroes their unread count
+//   POST /api/threads/:id/email         verified user; asks to continue by email
+//   DELETE /api/threads/:id/email       the asker cancels, or the other declines
+//   POST /api/threads/:id/email/agree   the other member agrees: the email goes out
 //   POST /api/threads/:id/report        verified user; {reason}
 //   POST /api/members/:username/block   verified user; and DELETE to unblock
 //   GET  /api/me/blocks                 verified user
@@ -220,6 +223,9 @@ export function createApi({ verifyToken, service, log = () => {} }) {
     api.patch("/threads/:id/messages/:mid", wrap((req) => threads.edit(req.params.id, req.params.mid, req.body, userFromClaims(req.claims))));
     api.delete("/threads/:id/messages/:mid", wrap((req) => threads.remove(req.params.id, req.params.mid, userFromClaims(req.claims))));
     api.post("/threads/:id/seen", wrap((req) => threads.seen(req.params.id, userFromClaims(req.claims))));
+    api.post("/threads/:id/email", wrap((req) => threads.requestEmail(req.params.id, userFromClaims(req.claims))));
+    api.delete("/threads/:id/email", wrap((req) => threads.withdrawEmail(req.params.id, userFromClaims(req.claims))));
+    api.post("/threads/:id/email/agree", wrap((req) => threads.agreeEmail(req.params.id, userFromClaims(req.claims))));
     api.post("/threads/:id/report", wrap((req) => threads.report(req.params.id, req.body, userFromClaims(req.claims))));
     api.post("/members/:username/block", wrap((req) => threads.block(req.params.username, true, userFromClaims(req.claims))));
     api.delete("/members/:username/block", wrap((req) => threads.block(req.params.username, false, userFromClaims(req.claims))));
