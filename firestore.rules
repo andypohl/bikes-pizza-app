@@ -7,7 +7,7 @@ rules_version = '2';
 // status == "published") and the website's settings document, which the
 // site listens to in real time so a change (such as hiding the submit
 // button) shows without a reload. Everything else (members, submissions,
-// passkeys) goes through the REST API.
+// passkeys, the reactions under a post) goes through the REST API.
 service cloud.firestore {
   match /databases/{database}/documents {
     match /posts/{slug} {

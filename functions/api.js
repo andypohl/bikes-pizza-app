@@ -18,6 +18,8 @@
 //   GET  /api/posts/:id                 the credited member, or an admin
 //   PATCH /api/posts/:id                same; {title?, story?, image?, images?, bike?, pizza?}
 //   DELETE /api/posts/:id               admin; takes the post off the site
+//   GET  /api/posts/:id/reactions       verified user; {counts, mine}
+//   POST /api/posts/:id/reactions       verified user; {picks} — replaces the caller's picks
 //   GET  /api/admin/posts               admin; ?feed=news — the feed's posts, newest first
 //   POST /api/admin/posts               admin; {title, story?, storyFormat?, image?, publishedAt?} — writes a news post
 //   POST /api/admin/uploads             admin; {image} — a picture for inside a story; {url, width, height}
@@ -136,6 +138,9 @@ export function createApi({ verifyToken, service, log = () => {} }) {
     api.get("/posts/:id", wrap((req) => posts.get(req.params.id, actorFromClaims(req.claims))));
     api.patch("/posts/:id", wrap((req) => posts.update(req.params.id, req.body, actorFromClaims(req.claims))));
     if (posts.remove) api.delete("/posts/:id", wrap((req) => posts.remove(req.params.id, secondFactorAdminFromClaims(req.claims))));
+    // Reactions: any verified member, on any published post.
+    if (posts.reactions) api.get("/posts/:id/reactions", wrap((req) => posts.reactions(req.params.id, userFromClaims(req.claims))));
+    if (posts.react) api.post("/posts/:id/reactions", wrap((req) => posts.react(req.params.id, req.body, userFromClaims(req.claims))));
     if (posts.list) api.get("/admin/posts", wrap((req) => posts.list(req.query, secondFactorAdminFromClaims(req.claims))));
     if (posts.create) api.post("/admin/posts", wrap((req) => posts.create(req.body, secondFactorAdminFromClaims(req.claims))));
     if (posts.upload) api.post("/admin/uploads", wrap((req) => posts.upload(req.body, secondFactorAdminFromClaims(req.claims))));

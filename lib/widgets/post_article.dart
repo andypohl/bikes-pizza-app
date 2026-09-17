@@ -4,29 +4,37 @@ import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../auth/auth_service.dart';
 import '../data/post_repository.dart';
 import '../models/post.dart';
 import '../models/post_feed.dart';
+import '../posts/reaction_service.dart';
 import '../screens/post_list_screen.dart';
+import 'reactions_panel.dart';
 import 'unread_dot.dart';
 
 /// A post laid out in full: hero image, its additional pictures when it
 /// has any (each opening a full-screen viewer), title, date, its
-/// structured details when it has any, the rendered HTML body and who
-/// submitted it. Not
+/// structured details when it has any, its reaction palettes when its
+/// feed has any, the rendered HTML body and who submitted it. Not
 /// scrollable itself; the post screen and the news reader each put it in
 /// their own scroll view. With a [repository], the submitter's username
-/// opens the list of everything they have posted.
+/// opens the list of everything they have posted; with [reactions] (and
+/// [auth] to know who is signed in) members can react.
 class PostArticle extends StatelessWidget {
   const PostArticle({
     super.key,
     required this.post,
     this.repository,
+    this.reactions,
+    this.auth,
     this.unread = false,
   });
 
   final Post post;
   final PostRepository? repository;
+  final ReactionService? reactions;
+  final AuthService? auth;
 
   /// Puts the blue unread dot before the title.
   final bool unread;
@@ -194,6 +202,8 @@ class PostArticle extends StatelessWidget {
                 ),
               ),
               ?details,
+              if (ReactionsPanel.palettesFor(post).isNotEmpty)
+                ReactionsPanel(post: post, reactions: reactions, auth: auth),
               const SizedBox(height: 20),
               if (post.html.isNotEmpty)
                 HtmlWidget(

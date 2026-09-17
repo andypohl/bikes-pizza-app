@@ -27,8 +27,10 @@ It is not shown on a post. See "Member submissions" below.
 Facts that the app, the Cloud Functions and the website must agree on
 live once, as JSON in `contract/`: the feeds (labels, nouns,
 whether they take submissions, posting hours), the option lists for a
-post's bike and pizza details, the username rule, the shape of a post's
-URL and the image limits. `node tool/contract/generate.mjs` writes the
+post's bike and pizza details, the reaction palettes (the questions a
+member answers about a post and the options to pick from; add a palette
+or an option there), the username rule, the shape of a post's URL and
+the image limits. `node tool/contract/generate.mjs` writes the
 language-specific copies (`functions/contract.js`, `lib/contract.dart`,
 `site/src/lib/contract.ts`), which are committed; a pull-request check fails when they are out of date. Change
 the JSON, run the generator, commit both.
@@ -102,6 +104,26 @@ screen for a few seconds. The icon badge goes through
 channel in the iOS app delegate that asks for the badge permission the
 first time there is something to show). There is no push: the numbers
 refresh when the app runs.
+
+## Reactions
+
+Under a bike or pizza post's details, signed-in members answer the
+feed's fixed questions by tapping a chip: for a pizza, "I've had this
+pizza" (yes / no) and "This pizza has fantastic" (crust, cheese, sauce,
+toppings, price); for a bike, "This bike looks" (stylish, comfortable,
+fast, rugged) and "My favorite part of this bike is its" (wheels, frame,
+gears/derailleurs, shifters, brakes, paint, bars, seat, pedals). Each
+palette takes one pick; tapping another swaps it and tapping the picked
+one takes it back. Chips show how many members picked each option, and
+hovering a chip (or holding it, on touch) names up to ten of them at
+random. The palettes are in `contract/reactions.json`; each carries a
+`pick` field ("one" now; "many" is understood by the functions and the
+app for palettes that should take several). The tallies live on the post
+document, so the app has them with the post and nothing is fetched until
+someone signs in; the member's own picks and the names come from the
+REST API (`docs/api.md`, `functions/reactions.js`,
+`lib/widgets/reactions_panel.dart`). Members who are signed out see the
+tallies only; news posts have no palettes.
 
 ## Member submissions
 

@@ -138,3 +138,85 @@ const imageMaxUploadBytes = 8388608;
 
 /// How many additional photos a bike or pizza post may carry besides its main one.
 const imageMaxExtra = 4;
+
+/// One choice in a reaction palette: the stored value and its label.
+class ReactionOption {
+  const ReactionOption(this.value, this.title);
+
+  final String value;
+  final String title;
+}
+
+/// A question a member answers about a post by picking from fixed
+/// options: one of them ([pickOne]) or any number.
+class ReactionPalette {
+  const ReactionPalette({
+    required this.key,
+    required this.prompt,
+    required this.pickOne,
+    required this.options,
+  });
+
+  /// Names the palette in a post's counts and a member's picks.
+  final String key;
+  final String prompt;
+  final bool pickOne;
+  final List<ReactionOption> options;
+
+  /// Whether [value] is one of the options.
+  bool has(String value) => options.any((o) => o.value == value);
+}
+
+/// The reaction palettes of each feed, in display order; feeds without
+/// any take no reactions.
+const reactionPalettes = <String, List<ReactionPalette>>{
+  'pizza': [
+    ReactionPalette(
+      key: 'had',
+      prompt: 'I\'ve had this pizza',
+      pickOne: true,
+      options: [ReactionOption('yes', 'Yes'), ReactionOption('no', 'No')],
+    ),
+    ReactionPalette(
+      key: 'fantastic',
+      prompt: 'This pizza has fantastic',
+      pickOne: true,
+      options: [
+        ReactionOption('crust', 'Crust'),
+        ReactionOption('cheese', 'Cheese'),
+        ReactionOption('sauce', 'Sauce'),
+        ReactionOption('toppings', 'Toppings'),
+        ReactionOption('price', 'Price'),
+      ],
+    ),
+  ],
+  'bikes': [
+    ReactionPalette(
+      key: 'looks',
+      prompt: 'This bike looks',
+      pickOne: true,
+      options: [
+        ReactionOption('stylish', 'Stylish'),
+        ReactionOption('comfortable', 'Comfortable'),
+        ReactionOption('fast', 'Fast'),
+        ReactionOption('rugged', 'Rugged'),
+      ],
+    ),
+    ReactionPalette(
+      key: 'favorite',
+      prompt: 'My favorite part of this bike is its',
+      pickOne: true,
+      options: [
+        ReactionOption('wheels', 'Wheels'),
+        ReactionOption('frame', 'Frame'),
+        ReactionOption('gears', 'Gears/derailleurs'),
+        ReactionOption('shifters', 'Shifters'),
+        ReactionOption('brakes', 'Brakes'),
+        ReactionOption('paint', 'Paint'),
+        ReactionOption('bars', 'Bars'),
+        ReactionOption('seat', 'Seat'),
+        ReactionOption('pedals', 'Pedals'),
+      ],
+    ),
+  ],
+};

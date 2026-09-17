@@ -20,6 +20,7 @@ import 'package:bikes_pizza/models/post.dart';
 import 'package:bikes_pizza/models/post_feed.dart';
 import 'package:bikes_pizza/posts/app_badge.dart';
 import 'package:bikes_pizza/posts/post_editor.dart';
+import 'package:bikes_pizza/posts/reaction_service.dart';
 import 'package:bikes_pizza/posts/unread_tracker.dart';
 import 'package:bikes_pizza/screens/edit_post_screen.dart';
 import 'package:bikes_pizza/screens/news_screen.dart';
@@ -31,6 +32,7 @@ import 'package:bikes_pizza/submissions/photo_picker.dart';
 import 'package:bikes_pizza/submissions/submission_service.dart';
 import 'package:bikes_pizza/widgets/post_article.dart';
 import 'package:bikes_pizza/widgets/post_tile.dart';
+import 'package:bikes_pizza/widgets/reactions_panel.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// In-memory repository so widget tests never touch the network.
@@ -451,6 +453,57 @@ class FakeSubmissionService implements SubmissionService {
 /// In-memory post editor: serves [posts] for editing, records saves, and
 /// answers them as a member's (pending review) or an administrator's
 /// (applied) according to [applies].
+/// In-memory reactions: tallies per post, one member's picks (the fake
+/// auth has one account at a time), and what was asked for.
+class FakeReactionService implements ReactionService {
+  final counts = <String, Map<String, Map<String, int>>>{};
+  final mine = <String, Map<String, List<String>>>{};
+  final who = <String, Map<String, Map<String, ReactionNames>>>{};
+  final fetched = <String>[];
+  final sets = <(String, Map<String, List<String>>)>[];
+  bool fail = false;
+
+  PostReactions _state(String postId) => PostReactions(
+    counts: counts[postId] ?? const {},
+    mine: mine[postId] ?? const {},
+    who: who[postId] ?? const {},
+  );
+
+  @override
+  Future<PostReactions> fetch(String postId) async {
+    fetched.add(postId);
+    return _state(postId);
+  }
+
+  @override
+  Future<PostReactions> set(
+    String postId,
+    Map<String, List<String>> picks,
+  ) async {
+    sets.add((postId, picks));
+    if (fail) {
+      // Slow enough for a test to see the tap shown before the answer.
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      throw ApiException('Could not save that.');
+    }
+    final tally = counts.putIfAbsent(postId, () => {});
+    final before = mine[postId] ?? const {};
+    for (final key in {...before.keys, ...picks.keys}) {
+      final was = before[key] ?? const [];
+      final now = picks[key] ?? const [];
+      final row = tally.putIfAbsent(key, () => {});
+      for (final v in was) {
+        if (!now.contains(v)) row[v] = (row[v] ?? 0) - 1;
+      }
+      for (final v in now) {
+        if (!was.contains(v)) row[v] = (row[v] ?? 0) + 1;
+      }
+    }
+    mine[postId] = picks;
+    return _state(postId);
+  }
+}
+
 class FakePostEditor implements PostEditor {
   final posts = <String, EditablePost>{};
   List<PostSummary> mine = [];
@@ -808,10 +861,12 @@ Post _post(
   PizzaDetails? pizza,
   List<PostImage> images = const [],
   DateTime? changedAt,
+  Map<String, Map<String, int>> reactions = const {},
 }) => Post(
   id: title,
   images: images,
   changedAt: changedAt,
+  reactions: reactions,
   feed: bike != null
       ? 'bikes'
       : pizza != null
@@ -874,6 +929,7 @@ void main() {
   late FakePhotoPicker photos;
   late FakePostEditor editor;
   late FakeAdminService admin;
+  FakeReactionService? reactions;
 
   setUp(() {
     PackageInfo.setMockInitialValues(
@@ -890,6 +946,7 @@ void main() {
     submissions = FakeSubmissionService();
     photos = FakePhotoPicker();
     admin = FakeAdminService();
+    reactions = FakeReactionService();
     editor = FakePostEditor()
       ..posts['Newest post'] = _editable('Newest post')
       ..posts['Older post'] = _editable(
@@ -940,6 +997,10 @@ void main() {
           'Detroit style',
           DateTime(2025, 2, 1),
           pizza: const PizzaDetails(style: 'detroit'),
+          reactions: const {
+            'had': {'yes': 3},
+            'fantastic': {'cheese': 2},
+          },
         ),
       ],
       PostFeed.bikes: [
@@ -967,6 +1028,7 @@ void main() {
         submissions: submissions,
         photos: photos,
         editor: editor,
+        reactions: reactions,
         admin: admin,
         unread: unread,
         badge: badge,
@@ -1282,6 +1344,149 @@ void main() {
     await tester.tap(find.text('Older post'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('post-details')), findsNothing);
+  });
+
+  testWidgets('pizza and bike posts show their reaction palettes with the '
+      'tallies the post carries; news posts have none', (tester) async {
+    await pumpApp(tester);
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Detroit style'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('reactions')), findsOneWidget);
+    expect(find.text("I've had this pizza"), findsOneWidget);
+    expect(find.text('This pizza has fantastic'), findsOneWidget);
+    expect(find.text('Yes · 3'), findsOneWidget);
+    expect(find.text('No'), findsOneWidget);
+    expect(find.text('Cheese · 2'), findsOneWidget);
+    expect(find.text('Sauce'), findsOneWidget);
+    // Nobody is signed in, so nothing was fetched and a tap only asks.
+    expect(reactions!.fetched, isEmpty);
+    await tester.tap(find.byKey(const Key('reaction-had-yes')));
+    await tester.pump();
+    expect(find.text('Sign in from Settings to react.'), findsOneWidget);
+    expect(reactions!.sets, isEmpty);
+    expect(find.text('Yes · 3'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Bikes'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1992 GT Outpost'));
+    await tester.pumpAndSettle();
+    expect(find.text('This bike looks'), findsOneWidget);
+    expect(find.text('My favorite part of this bike is its'), findsOneWidget);
+    for (final title in ['Stylish', 'Rugged', 'Gears/derailleurs', 'Pedals']) {
+      expect(find.text(title), findsOneWidget);
+    }
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('News'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PostArticle), findsOneWidget);
+    expect(find.byType(ReactionsPanel), findsNothing);
+  });
+
+  testWidgets('a signed-in member picks one option per palette, swaps it, '
+      'takes it back, and sees a failed save undone', (tester) async {
+    // The server's tallies match what the post carries, plus Ada's pick.
+    reactions!.counts['Detroit style'] = {
+      'had': {'yes': 3},
+      'fantastic': {'cheese': 2},
+    };
+    reactions!.mine['Detroit style'] = {
+      'had': ['yes'],
+    };
+    reactions!.who['Detroit style'] = {
+      'had': {
+        'yes': const ReactionNames(names: ['ada_bikes', 'cal'], more: 1),
+      },
+    };
+    await pumpApp(tester);
+    await auth.signIn(email: 'andy@example.com', password: 'correct-horse');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Detroit style'));
+    await tester.pumpAndSettle();
+    // The member's own picks came with the fresh tallies.
+    expect(reactions!.fetched, ['Detroit style']);
+    FilterChip chip(String key) => tester.widget<FilterChip>(
+      find.descendant(
+        of: find.byKey(Key('reaction-$key')),
+        matching: find.byType(FilterChip),
+      ),
+    );
+    expect(chip('had-yes').selected, isTrue);
+    expect(chip('had-no').selected, isFalse);
+    // Holding a chip names some of the members who picked it.
+    expect(
+      tester
+          .widget<Tooltip>(
+            find.descendant(
+              of: find.byKey(const Key('reaction-had-yes')),
+              matching: find.byType(Tooltip),
+            ),
+          )
+          .message,
+      'ada_bikes, cal and 1 more',
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('reaction-had-no')),
+        matching: find.byType(Tooltip),
+      ),
+      findsNothing,
+      reason: 'nobody picked No',
+    );
+
+    // "Pick one": choosing No moves the pick and the tallies.
+    await tester.tap(find.byKey(const Key('reaction-had-no')));
+    await tester.pumpAndSettle();
+    expect(chip('had-yes').selected, isFalse);
+    expect(chip('had-no').selected, isTrue);
+    expect(find.text('Yes · 2'), findsOneWidget);
+    expect(find.text('No · 1'), findsOneWidget);
+    expect(reactions!.sets.last.$1, 'Detroit style');
+    expect(reactions!.sets.last.$2, {
+      'had': ['no'],
+    });
+
+    // Tapping the picked chip takes the pick back.
+    await tester.tap(find.byKey(const Key('reaction-had-no')));
+    await tester.pumpAndSettle();
+    expect(chip('had-no').selected, isFalse);
+    expect(find.text('No'), findsOneWidget);
+    expect(reactions!.sets.last.$2, {'had': <String>[]});
+
+    // The other palette is independent.
+    await tester.tap(find.byKey(const Key('reaction-fantastic-sauce')));
+    await tester.pumpAndSettle();
+    expect(chip('fantastic-sauce').selected, isTrue);
+    expect(find.text('Sauce · 1'), findsOneWidget);
+    expect(find.text('Cheese · 2'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('reaction-fantastic-cheese')));
+    await tester.pumpAndSettle();
+    expect(chip('fantastic-sauce').selected, isFalse);
+    expect(chip('fantastic-cheese').selected, isTrue);
+    expect(find.text('Cheese · 3'), findsOneWidget);
+    expect(find.text('Sauce'), findsOneWidget);
+    expect(reactions!.sets.last.$2, {
+      'had': <String>[],
+      'fantastic': ['cheese'],
+    });
+
+    // A save that fails is undone and explained.
+    reactions!.fail = true;
+    await tester.tap(find.byKey(const Key('reaction-had-yes')));
+    await tester.pump();
+    expect(find.text('Yes · 3'), findsOneWidget, reason: 'shown at once');
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(find.text('Yes · 2'), findsOneWidget, reason: 'put back');
+    expect(chip('had-yes').selected, isFalse);
+    expect(find.text('Could not save that.'), findsOneWidget);
   });
 
   testWidgets('News, Pizza and Bikes tabs request their own feeds', (

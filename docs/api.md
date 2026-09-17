@@ -302,6 +302,39 @@ drops it at the next build and the app stops listing it; the document and
 its renditions stay. Returns `{ "removed": "<id>" }`. Needs the second
 factor like the other admin endpoints; a member gets `403`.
 
+### `GET /api/posts/{id}/reactions`
+
+The post's reactions, for any verified member. A reaction is an answer
+to one of the fixed questions the post's feed asks, each a pick from a
+palette of options (`contract/reactions.json`: for a pizza, "I've had
+this pizza" and "This pizza has fantastic"; for a bike, "This bike
+looks" and "My favorite part of this bike is its"). Every palette takes
+one pick at present; the contract's `pick` field ("one" | "many") leaves
+room for palettes that take several.
+
+```json
+{
+  "counts": { "had": { "yes": 12, "no": 3 }, "fantastic": { "crust": 2, "cheese": 4, "sauce": 0, "toppings": 1, "price": 0 } },
+  "mine": { "had": ["yes"] },
+  "who": { "had": { "yes": { "names": ["ada_bikes", "bob"], "more": 10 }, "no": { "names": [], "more": 3 } }, "fantastic": { … } }
+}
+```
+
+`counts` has every option of every palette the feed has, zero where
+nobody picked it; `mine` the caller's picks, only the palettes they have
+answered; `who`, for each option, up to ten usernames of members who
+picked it (chosen at random on each call; members without a username
+are not named) and how many more picked it. News posts have no palettes
+and answer `409`; a removed or unknown post `404`.
+
+### `POST /api/posts/{id}/reactions`
+
+Replaces the caller's picks on the post with `{ "picks": { "<palette>":
+["<value>"] } }` (a palette left out, or given an empty list, is
+unanswered) and answers as the `GET` does, with everything as it now
+stands. Unknown palettes or options, or two picks for a palette that
+takes one, are `400`.
+
 ### `GET /api/admin/posts` (admin)
 
 The news posts on the site, newest first, for the admin page's News
@@ -358,8 +391,17 @@ images: [ same shape, ... ]  additional pictures, in order; empty for most posts
 details: null | { brand, year, color, type } | { style }
 credit: null | { uid, username, name }
 source: null | { system: "submission" | "ghost", id, url }
+reactions: { <palette>: { <value>: <count> } }   how many members picked each
+                           reaction option; absent until someone reacts
 createdAt, updatedAt
 ```
+
+Each member's own picks are under the post at
+`posts/{slug}/reactions/{uid}` as `{ uid, username, picks: { <palette>:
+[<value>] }, updatedAt }`; the API keeps the post's tallies in step in
+the same transaction, and copies the username there (as on `credit`) so
+reactors can be named without a lookup each. Those records are not
+readable by clients; the API above serves them.
 
 A photo's renditions (the main one's and each additional picture's
 alike) are in Cloud Storage at

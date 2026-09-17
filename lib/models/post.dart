@@ -1,4 +1,5 @@
 import '../contract.dart';
+import '../posts/reaction_service.dart';
 
 /// A post's photo: where its renditions live and which sizes exist. The
 /// functions make them when a post is published (functions/renditions.js);
@@ -207,6 +208,7 @@ class Post {
     this.credit,
     this.bike,
     this.pizza,
+    this.reactions = const {},
   }) : changedAt = changedAt ?? publishedAt;
 
   /// The slug: the document id, the edit endpoints' id and the last part
@@ -247,6 +249,11 @@ class Post {
   /// Structured details of a pizza post, when filled in.
   final PizzaDetails? pizza;
 
+  /// How many members picked each reaction option, by palette key then
+  /// option value (`reactionPalettes` in the contract); empty until
+  /// someone reacts. Kept on the post so lists have it without a call.
+  final Map<String, Map<String, int>> reactions;
+
   /// Whichever structured details the post has, for display.
   PostDetails? get details => bike ?? pizza;
 
@@ -282,6 +289,7 @@ class Post {
     credit: credit,
     bike: clearBike ? null : bike ?? this.bike,
     pizza: clearPizza ? null : pizza ?? this.pizza,
+    reactions: reactions,
   );
 
   /// Builds a post from a `posts` document (decoded from Firestore) or
@@ -318,6 +326,7 @@ class Post {
       credit: PostCredit.fromJson(json['credit']),
       bike: bike == null || bike.isEmpty ? null : bike,
       pizza: pizza == null || pizza.isEmpty ? null : pizza,
+      reactions: PostReactions.parseCounts(json['reactions']),
     );
   }
 

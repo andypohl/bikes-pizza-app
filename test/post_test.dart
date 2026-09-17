@@ -10,6 +10,31 @@ const _image = {
 };
 
 void main() {
+  test('a post reads its reaction tallies, ignoring what is not a count', () {
+    final post = Post.fromJson({
+      'slug': 'slice',
+      'feed': 'pizza',
+      'title': 'Slice',
+      'publishedAt': '2026-09-01T12:00:00.000Z',
+      'reactions': {
+        'had': {'yes': 3, 'no': 'many'},
+        'fantastic': 'cheese',
+      },
+    }, siteUrl: 'https://example.com');
+    expect(post.reactions, {
+      'had': {'yes': 3},
+    });
+    expect(post.copyWith(title: 'Big slice').reactions, post.reactions);
+
+    final none = Post.fromJson({
+      'slug': 'slice',
+      'feed': 'pizza',
+      'title': 'Slice',
+      'publishedAt': '2026-09-01T12:00:00.000Z',
+    }, siteUrl: 'https://example.com');
+    expect(none.reactions, isEmpty);
+  });
+
   test('a post reads its additional pictures, skipping broken ones', () {
     final post = Post.fromJson({
       'slug': 'a',
