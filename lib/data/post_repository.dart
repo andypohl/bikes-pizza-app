@@ -11,12 +11,15 @@ class PostPage {
   static const empty = PostPage(posts: [], hasMore: false);
 }
 
-/// A post that was published or edited: what the unread counters count.
+/// A post that was published, edited or commented on since some time:
+/// what the unread counters count.
 class PostChange {
   const PostChange({
     required this.id,
     required this.feed,
     required this.changedAt,
+    this.commentedAt,
+    this.commentTimes = const [],
   });
 
   final String id;
@@ -24,6 +27,11 @@ class PostChange {
   /// The post's feed value (`bikes`, `pizza` or `news`).
   final String feed;
   final DateTime changedAt;
+
+  /// When the newest published comment was written, when there is one,
+  /// and the times of the newest ones (see `Post.commentTimes`).
+  final DateTime? commentedAt;
+  final List<DateTime> commentTimes;
 }
 
 /// Source of posts, backed by Firestore in the real app
@@ -34,7 +42,8 @@ abstract class PostRepository {
   /// are returned.
   Future<PostPage> fetchPosts(PostFeed feed, {int page = 1, String? uid});
 
-  /// Every post published or edited after [since], newest change first.
+  /// Every post published, edited or commented on after [since], newest
+  /// change first.
   Future<List<PostChange>> fetchChanges({required DateTime since});
 }
 

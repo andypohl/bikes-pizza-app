@@ -110,4 +110,5 @@ Post postAfterEdit(Post post, EditablePost saved) => post.copyWith(
   pizza: saved.pizza,
   clearBike: saved.bike?.isEmpty ?? false,
   clearPizza: saved.pizza?.isEmpty ?? false,
+  commentsEnabled: saved.commentsEnabled,
 );

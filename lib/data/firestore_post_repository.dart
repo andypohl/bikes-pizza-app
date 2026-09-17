@@ -79,6 +79,42 @@ class FirestorePostRepository implements PostRepository {
     'limit': changesLimit,
   };
 
+  /// The other query behind [fetchChanges]: published posts commented on
+  /// after [since], with their comment times, at most [changesLimit].
+  Map<String, Object?> commentsQuery(DateTime since) => {
+    'from': [
+      {'collectionId': 'posts'},
+    ],
+    'select': {
+      'fields': [
+        {'fieldPath': 'feed'},
+        {'fieldPath': 'changedAt'},
+        {'fieldPath': 'commentedAt'},
+        {'fieldPath': 'commentTimes'},
+      ],
+    },
+    'where': {
+      'compositeFilter': {
+        'op': 'AND',
+        'filters': [
+          _equals('status', 'published'),
+          _filter(
+            'commentedAt',
+            'GREATER_THAN',
+            since.toUtc().toIso8601String(),
+          ),
+        ],
+      },
+    },
+    'orderBy': [
+      {
+        'field': {'fieldPath': 'commentedAt'},
+        'direction': 'DESCENDING',
+      },
+    ],
+    'limit': changesLimit,
+  };
+
   /// More changes than this since the tracker's baseline are not counted;
   /// the baseline moves up as posts are read, so it is rarely reached.
   static const changesLimit = 500;
@@ -116,22 +152,37 @@ class FirestorePostRepository implements PostRepository {
 
   @override
   Future<List<PostChange>> fetchChanges({required DateTime since}) async {
-    final List<Map<String, dynamic>> rows;
+    final List<Map<String, dynamic>> changed;
+    final List<Map<String, dynamic>> commented;
     try {
-      rows = await _firestore.runQuery(changesQuery(since));
+      changed = await _firestore.runQuery(changesQuery(since));
+      commented = await _firestore.runQuery(commentsQuery(since));
     } on FirestoreException catch (e) {
       throw PostFetchException(e.message);
     }
-    return [
-      for (final row in rows)
-        if (row['id'] is String &&
-            row['feed'] is String &&
-            DateTime.tryParse(row['changedAt'] as String? ?? '') != null)
-          PostChange(
-            id: row['id'] as String,
-            feed: row['feed'] as String,
-            changedAt: DateTime.parse(row['changedAt'] as String),
-          ),
-    ];
+    // A post in both lists (edited and commented on) is one change with
+    // both times; the order is by change time, newest first.
+    final changes = <String, PostChange>{};
+    for (final row in [...changed, ...commented]) {
+      final id = row['id'];
+      final feed = row['feed'];
+      final changedAt = DateTime.tryParse(row['changedAt'] as String? ?? '');
+      if (id is! String || feed is! String || changedAt == null) continue;
+      final commentedAt = DateTime.tryParse(
+        row['commentedAt'] as String? ?? '',
+      );
+      final before = changes[id];
+      changes[id] = PostChange(
+        id: id,
+        feed: feed,
+        changedAt: changedAt,
+        commentedAt: commentedAt ?? before?.commentedAt,
+        commentTimes: commentedAt != null
+            ? Post.parseTimes(row['commentTimes'])
+            : before?.commentTimes ?? const [],
+      );
+    }
+    return changes.values.toList()
+      ..sort((a, b) => b.changedAt.compareTo(a.changedAt));
   }
 }

@@ -228,30 +228,74 @@ void main() {
   });
 
   test(
-    'fetchChanges asks for feed and change time of posts changed since',
+    'fetchChanges asks for changed and commented posts and merges them',
     () async {
-      late http.Request seen;
+      final seen = <Map>[];
       final client = MockClient((request) async {
-        seen = request;
+        final query =
+            (jsonDecode(request.body) as Map)['structuredQuery'] as Map;
+        seen.add(query);
+        final byComments =
+            (query['orderBy'] as List).first['field']['fieldPath'] ==
+            'commentedAt';
         return http.Response(
           jsonEncode([
-            {
-              'document': {
-                'name': 'projects/p/databases/(default)/documents/posts/a',
-                'fields': {
-                  'feed': {'stringValue': 'bikes'},
-                  'changedAt': {'stringValue': '2026-09-05T12:00:00.000Z'},
+            if (!byComments) ...[
+              {
+                'document': {
+                  'name': 'projects/p/databases/(default)/documents/posts/a',
+                  'fields': {
+                    'feed': {'stringValue': 'bikes'},
+                    'changedAt': {'stringValue': '2026-09-05T12:00:00.000Z'},
+                  },
                 },
               },
-            },
-            {
-              'document': {
-                'name': 'projects/p/databases/(default)/documents/posts/broken',
-                'fields': {
-                  'feed': {'stringValue': 'bikes'},
+              {
+                'document': {
+                  'name':
+                      'projects/p/databases/(default)/documents/posts/broken',
+                  'fields': {
+                    'feed': {'stringValue': 'bikes'},
+                  },
                 },
               },
-            },
+            ] else ...[
+              {
+                'document': {
+                  'name': 'projects/p/databases/(default)/documents/posts/a',
+                  'fields': {
+                    'feed': {'stringValue': 'bikes'},
+                    'changedAt': {'stringValue': '2026-09-05T12:00:00.000Z'},
+                    'commentedAt': {'stringValue': '2026-09-07T08:00:00.000Z'},
+                    'commentTimes': {
+                      'arrayValue': {
+                        'values': [
+                          {'stringValue': '2026-09-07T08:00:00.000Z'},
+                          {'stringValue': '2026-09-06T08:00:00.000Z'},
+                        ],
+                      },
+                    },
+                  },
+                },
+              },
+              {
+                'document': {
+                  'name': 'projects/p/databases/(default)/documents/posts/b',
+                  'fields': {
+                    'feed': {'stringValue': 'pizza'},
+                    'changedAt': {'stringValue': '2026-08-01T12:00:00.000Z'},
+                    'commentedAt': {'stringValue': '2026-09-02T08:00:00.000Z'},
+                    'commentTimes': {
+                      'arrayValue': {
+                        'values': [
+                          {'stringValue': '2026-09-02T08:00:00.000Z'},
+                        ],
+                      },
+                    },
+                  },
+                },
+              },
+            ],
             {'readTime': '2026-09-06T00:00:00.000Z'},
           ]),
           200,
@@ -260,12 +304,21 @@ void main() {
       });
       final changes = await repo(client)
           .fetchChanges(since: DateTime.utc(2026, 9, 1));
-      expect(changes.length, 1);
-      expect(changes.single.id, 'a');
-      expect(changes.single.feed, 'bikes');
-      expect(changes.single.changedAt, DateTime.utc(2026, 9, 5, 12));
+      // One entry per post, newest change first; a post in both lists
+      // carries both times.
+      expect(changes.map((c) => c.id), ['a', 'b']);
+      expect(changes.first.feed, 'bikes');
+      expect(changes.first.changedAt, DateTime.utc(2026, 9, 5, 12));
+      expect(changes.first.commentedAt, DateTime.utc(2026, 9, 7, 8));
+      expect(changes.first.commentTimes, [
+        DateTime.utc(2026, 9, 7, 8),
+        DateTime.utc(2026, 9, 6, 8),
+      ]);
+      expect(changes.last.commentedAt, DateTime.utc(2026, 9, 2, 8));
+      expect(changes.last.commentTimes, [DateTime.utc(2026, 9, 2, 8)]);
 
-      final query = (jsonDecode(seen.body) as Map)['structuredQuery'] as Map;
+      expect(seen.length, 2);
+      final query = seen.first;
       expect(query['select'], {
         'fields': [
           {'fieldPath': 'feed'},
@@ -282,6 +335,23 @@ void main() {
         },
       });
       expect(query['limit'], FirestorePostRepository.changesLimit);
+      final comments = seen.last;
+      expect((comments['select'] as Map)['fields'], [
+        {'fieldPath': 'feed'},
+        {'fieldPath': 'changedAt'},
+        {'fieldPath': 'commentedAt'},
+        {'fieldPath': 'commentTimes'},
+      ]);
+      expect(
+        ((comments['where'] as Map)['compositeFilter']['filters'] as List)[1],
+        {
+          'fieldFilter': {
+            'field': {'fieldPath': 'commentedAt'},
+            'op': 'GREATER_THAN',
+            'value': {'stringValue': '2026-09-01T00:00:00.000Z'},
+          },
+        },
+      );
     },
   );
 

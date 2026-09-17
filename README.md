@@ -138,10 +138,25 @@ it at a high toxicity score and holds it for review at a middling one
 or when it looks political, and a suspicious word list holds it too;
 two reports from different members hide a comment until an admin
 looks. The admin page's Comments tab (to come) works the pending and
-reported queues and edits the word lists. A mention makes the post
-unread again in the app; other new comments only add a "N new" count
-on the tile, from the `commentTimes` the post carries. Comments never
-count as an edit of the post. The design is in
+reported queues and edits the word lists.
+
+In the app the thread sits under the post (`lib/widgets/comments_panel.dart`,
+over `lib/posts/comment_service.dart`): the count, the comments oldest
+first with their first three replies ("Show N more replies", "Load more
+comments"), like buttons whose counts open the list of who liked, Reply,
+and a menu with Edit (own comment, five minutes), Delete (own comment, or
+any on the member's own post, or an admin) and Report with the contract's
+reasons. The composer has bold, italic and link buttons that insert the
+Markdown markers and shows the character count; a held comment shows in
+place as "Waiting for review". Signed out, the panel shows the count and a
+hint to sign in; a post whose author switched comments off (the Comments
+switch on the edit screen) says so. List tiles show the count and, from
+the unread tracker, "N new" for comments written since the post was last
+opened on this device; a comment that mentions the member makes the post
+fully unread again (dot, tab counter, icon badge), through the mention
+notices the tracker fetches with its changes query. Comments never count
+as an edit of the post. Settings → Manage account → "Export my data"
+shares everything the member has as a JSON file. The design is in
 `docs/community-design.md`, the endpoints in `docs/api.md`, the rules
 (lengths, windows, thresholds, report reasons) in
 `contract/comments.json`, and the functions in `functions/comments.js`

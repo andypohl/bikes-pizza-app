@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'account/data_export.dart';
 import 'account/member_service.dart';
 import 'admin/admin_service.dart';
 import 'api/api_client.dart';
@@ -15,6 +18,7 @@ import 'data/firestore_post_repository.dart';
 import 'data/post_repository.dart';
 import 'models/post_feed.dart';
 import 'posts/app_badge.dart';
+import 'posts/comment_service.dart';
 import 'posts/post_editor.dart';
 import 'posts/reaction_service.dart';
 import 'posts/unread_tracker.dart';
@@ -66,7 +70,9 @@ Future<Widget> _loadApp() async {
     photos: ImagePickerPhotoPicker(),
     editor: ApiPostEditor(api),
     reactions: ApiReactionService(api),
+    comments: ApiCommentService(api),
     admin: ApiAdminService(api),
+    exporter: ApiDataExporter(api),
     unread: unread,
     badge: PlatformAppBadge(),
   );
@@ -86,7 +92,9 @@ class BikesPizzaApp extends StatelessWidget {
     this.photos,
     this.editor,
     this.reactions,
+    this.comments,
     this.admin,
+    this.exporter,
     this.unread,
     this.badge = const NoAppBadge(),
   });
@@ -117,9 +125,17 @@ class BikesPizzaApp extends StatelessWidget {
   /// under a post's details); null shows only the tallies.
   final ReactionService? reactions;
 
+  /// Lets signed-in members read and write comments on bike and pizza
+  /// posts, and feeds their mention notices to the unread counters;
+  /// null shows only the counts.
+  final CommentService? comments;
+
   /// The review and user administration screens for administrators on
   /// tablets; null hides Settings → Admin.
   final AdminService? admin;
+
+  /// Offers "Export my data" on the account screen; null leaves it out.
+  final DataExporter? exporter;
 
   /// Counts the posts not opened since they changed, for the tab counters
   /// and, through [badge], the app icon; null shows no counters.
@@ -156,7 +172,9 @@ class BikesPizzaApp extends StatelessWidget {
             photos: photos,
             editor: editor,
             reactions: reactions,
+            comments: comments,
             admin: admin,
+            exporter: exporter,
             unread: unread,
             badge: badge,
           ),
@@ -185,7 +203,9 @@ class HomeShell extends StatefulWidget {
     this.photos,
     this.editor,
     this.reactions,
+    this.comments,
     this.admin,
+    this.exporter,
     this.unread,
     this.badge = const NoAppBadge(),
   });
@@ -200,7 +220,9 @@ class HomeShell extends StatefulWidget {
   final PhotoPicker? photos;
   final PostEditor? editor;
   final ReactionService? reactions;
+  final CommentService? comments;
   final AdminService? admin;
+  final DataExporter? exporter;
   final UnreadTracker? unread;
   final AppBadge badge;
 
@@ -211,12 +233,18 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int _index = 0;
   int _shownBadge = -1;
+  StreamSubscription<AppUser?>? _users;
+  String? _refreshedFor;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     widget.unread?.addListener(_showBadge);
+    // Signing in or out changes whose mentions count.
+    _users = widget.auth.userChanges.listen((user) {
+      if (user?.uid != _refreshedFor) _refreshUnread();
+    });
     _refreshUnread();
   }
 
@@ -224,6 +252,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     widget.unread?.removeListener(_showBadge);
+    _users?.cancel();
     super.dispose();
   }
 
@@ -232,10 +261,20 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) _refreshUnread();
   }
 
+  /// Refreshes the counters: the changed posts and, for a signed-in
+  /// member with the comments service, their mention notices.
   Future<void> _refreshUnread() async {
     final unread = widget.unread;
     if (unread == null) return;
-    await unread.refresh(widget.repository);
+    final comments = widget.comments;
+    final user = widget.auth.currentUser;
+    _refreshedFor = user?.uid;
+    await unread.refresh(
+      widget.repository,
+      notices: comments != null && user != null && user.emailVerified
+          ? (since) => comments.notices(since: since)
+          : null,
+    );
   }
 
   /// Puts the unread total on the app icon; the first time there is one,
@@ -279,6 +318,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           photos: widget.photos,
           editor: widget.editor,
           reactions: widget.reactions,
+          comments: widget.comments,
           unread: widget.unread,
         ),
       NewsScreen(
@@ -298,6 +338,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         members: widget.members,
         editor: widget.editor,
         reactions: widget.reactions,
+        comments: widget.comments,
         unread: widget.unread,
       ),
       PostListScreen(
@@ -309,6 +350,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         members: widget.members,
         editor: widget.editor,
         reactions: widget.reactions,
+        comments: widget.comments,
         unread: widget.unread,
       ),
       StoreScreen(
@@ -323,6 +365,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         editor: widget.editor,
         photos: widget.photos,
         admin: widget.admin,
+        exporter: widget.exporter,
       ),
     ];
     // A window can shrink below tablet width; keep the index in range.

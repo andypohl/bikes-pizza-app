@@ -56,6 +56,7 @@ class EditablePost {
     this.bike,
     this.pizza,
     this.pendingEditId,
+    this.commentsEnabled = true,
   });
 
   final String id;
@@ -64,6 +65,9 @@ class EditablePost {
   final String? url;
   final DateTime publishedAt;
   final PostImage? image;
+
+  /// False when comments are switched off on the post.
+  final bool commentsEnabled;
 
   /// The additional pictures, in order.
   final List<PostImage> images;
@@ -107,6 +111,7 @@ class EditablePost {
       pendingEditId: json['pendingEdit'] is Map
           ? (json['pendingEdit'] as Map)['id'] as String?
           : null,
+      commentsEnabled: json['commentsEnabled'] != false,
     );
   }
 }
@@ -153,7 +158,9 @@ class NewPicture extends AdditionalPicture {
 
 /// The changes to send: only the fields set are changed. [bike] and
 /// [pizza] replace the post's details as a whole, and [pictures] the
-/// additional pictures as a whole, in the order given.
+/// additional pictures as a whole, in the order given. [comments]
+/// switches comments on the post on or off; that is applied at once
+/// even for a member, whose other changes wait for review.
 class PostEdit {
   const PostEdit({
     this.title,
@@ -162,6 +169,7 @@ class PostEdit {
     this.pictures,
     this.bike,
     this.pizza,
+    this.comments,
   });
 
   final String? title;
@@ -170,6 +178,7 @@ class PostEdit {
   final List<AdditionalPicture>? pictures;
   final BikeDetails? bike;
   final PizzaDetails? pizza;
+  final bool? comments;
 
   bool get isEmpty =>
       title == null &&
@@ -177,7 +186,8 @@ class PostEdit {
       photo == null &&
       pictures == null &&
       bike == null &&
-      pizza == null;
+      pizza == null &&
+      comments == null;
 
   static Map<String, String> _upload(SubmissionPhoto photo) => {
     'data': base64Encode(photo.bytes),
@@ -204,6 +214,7 @@ class PostEdit {
         'type': bike!.type ?? '',
       },
     if (pizza != null) 'pizza': {'style': pizza!.style ?? ''},
+    if (comments != null) 'comments': comments,
   };
 }
 
