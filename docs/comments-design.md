@@ -1,0 +1,281 @@
+# Comments: design
+
+Members can comment on bike and pizza posts, reply once, like comments and
+report them; the post's author can turn comments off; text is screened
+before it is shown; administrators review what the screening or reports
+hold back. This document fixes the design so it can be built in a few
+pull requests. It follows the decisions taken on September 16, 2026 after
+a survey of Disqus, Hyvor Talk, Remark42, Comentario, Coral, Cusdis,
+giscus and Stream.
+
+## Decisions
+
+| Area | Decision |
+|---|---|
+| Who | Signed-in members (verified email) read and write. Signed-out visitors see the count and "Sign in to read the comments". |
+| Off switch | The post's author (or an admin) turns comments off per post; existing comments are kept but hidden while off. A sitewide switch in site settings, like the submit button. |
+| Text | Plain text with bold, italic and links; no images. A pasted bare URL becomes `[link](url)`. Length cap 1,000 characters. |
+| Mentions | `@username` of an existing member; makes the post unread for that member. No email. |
+| Editing | Five-minute window, then an "(edited)" mark by the time. Delete any time. |
+| Shape | Top-level comments with one level of replies. Oldest first. Twenty top-level comments per page with "load more"; three replies shown, "show N more replies". |
+| Likes | Like with a count; tapping the count lists who liked it. |
+| Screening | Automatic toxicity and topic scoring with thresholds; a banned word list that blocks; a suspicious word list that holds for review. Politics is held for review; swearing and slurs are blocked. |
+| Reports | Report with a reason (racism, misogyny, harassment or too mean, politics, spam, other). Hidden automatically after two reports from different members, until an admin decides. |
+| Post author | Can delete any comment on their own post. |
+| Notifications | In-app unread counters only: a reply to you, a mention of you, or a comment on your post makes that post unread. |
+| Identity | Username only, not a link. |
+| Data | Comments and likes go in a member's data export; deleting the account deletes them. |
+| Website | Post pages fetch comments live for signed-in visitors. Tiles show the count. |
+| Later | Auto-translation of comments in other languages, with a "(translated, show original)" note. |
+
+## Storage
+
+Comments live under the post, written only by the functions (as with
+reactions; the rules deny client access to the subcollection):
+
+```
+posts/{slug}
+  commentCount             published comments, top-level and replies
+  commentsEnabled          missing or true means on; false means off
+
+posts/{slug}/comments/{id}
+  uid, username            who wrote it (username copied, kept in step on rename)
+  parentId                 null for a top-level comment, else the top-level id
+  text                     as written, Markdown subset (bold, italic, links)
+  html                     rendered and sanitized at write time
+  mentions: [uid, ...]     members named with @
+  createdAt, editedAt      ISO; editedAt null until edited
+  status                   "published" | "pending" | "hidden" | "removed"
+  hold                     why it is pending or hidden: "screen" | "words" | "reports" | null
+  removedBy                "author" | "postAuthor" | "admin" | null
+  screening                { language, scores: {category: 0..1}, matched: [word] } for the reviewer
+  likeCount, replyCount    counts of published likes and replies
+  reportCount              distinct reporters so far
+
+posts/{slug}/comments/{id}/likes/{uid}      { uid, username, at }
+posts/{slug}/comments/{id}/reports/{uid}    { uid, reason, at }
+
+members/{uid}/notices/{id}                  { kind: "reply" | "mention" | "comment", post, at }
+settings/moderation                         { banned: [word], suspicious: [word] }
+```
+
+Statuses: `pending` is held by screening and invisible to members;
+`hidden` is a published comment taken down by reports and invisible until
+an admin restores or removes it; `removed` keeps the document so replies
+under it still read, with `text` and `html` cleared. A top-level comment
+that is removed and has no replies is deleted outright.
+
+`commentCount`, `likeCount`, `replyCount` and `reportCount` are moved in
+the same transaction as the write that changes them, as reaction tallies
+are. `commentsEnabled` is set through the post edit endpoint.
+
+Usernames on comments and likes are kept in step by the rename path that
+already updates posts and reactions (a collection-group index on `uid`
+for each subcollection).
+
+## Text
+
+Comments are stored as a Markdown subset and rendered to HTML when
+written, with `marked` and `sanitize-html` as post bodies are, allowing
+only `strong`, `em`, `a` (with `rel="nofollow noopener"` and `target`)
+and line breaks. Before rendering:
+
+- A bare URL in the text (`https://…` not already inside a link) is
+  replaced with `[link](https://…)`, so the comment reads "[link]".
+- `@name` where `name` is an existing username becomes `**@name**` in the
+  HTML and the member's uid goes in `mentions`. Unknown names stay plain.
+- Headings, images, code blocks, tables and raw HTML are stripped.
+
+The app's composer has three toolbar buttons (bold, italic, link) that
+insert the Markdown markers around the selection; the field otherwise
+holds plain text. Comments render with the HTML widget the post body
+uses. The website renders `html` directly.
+
+## API
+
+All under `/api`, all requiring a verified member, admin where noted.
+Comments are read through the API rather than Firestore so the sign-in
+rule, the viewer's own likes and hidden-to-others states are applied in
+one place, for the app and the website alike.
+
+```
+GET    /api/posts/{id}/comments?after=            page of top-level comments, oldest first,
+                                                  each with its first three replies and
+                                                  {liked, replyCount, likeCount}; the
+                                                  caller's own pending comments included,
+                                                  marked; 409 when comments are off
+GET    /api/posts/{id}/comments/{cid}/replies     every reply of one comment
+POST   /api/posts/{id}/comments                   {text, parentId?} -> the comment, or
+                                                  {status: "pending"} when held, or 400
+                                                  with a message when blocked
+PATCH  /api/posts/{id}/comments/{cid}             {text}; author only, within five minutes;
+                                                  screened again
+DELETE /api/posts/{id}/comments/{cid}             author, the post's author, or admin
+POST   /api/posts/{id}/comments/{cid}/like        toggles; -> {liked, likeCount}
+GET    /api/posts/{id}/comments/{cid}/likes       usernames of everyone who liked it
+POST   /api/posts/{id}/comments/{cid}/report      {reason}; one per member per comment
+PATCH  /api/posts/{id}                            gains {comments: boolean}; author or admin
+
+GET    /api/me/notices?since=                     {notices: [{kind, post, at}]} for the
+                                                  unread counters
+GET    /api/me/export                             everything the member has: posts they are
+                                                  credited on, comments, likes, reactions
+
+GET    /api/admin/comments?queue=pending|reported|recent   admin
+POST   /api/admin/comments/{cid}/approve|remove|restore    admin
+GET    /api/admin/moderation                               admin; the word lists
+PUT    /api/admin/moderation                               admin; {banned, suspicious}
+```
+
+Rate limit: one comment per member every fifteen seconds and two hundred
+a day, checked in the write transaction against a small counter on the
+member document. Refused with a friendly message.
+
+Post edits: the `comments` field on `PATCH /api/posts/{id}` is applied at
+once for the post's author too (no review), since it changes nothing on
+the site.
+
+## Screening
+
+Every new or edited comment goes through, in order:
+
+1. **Banned words.** Any match, as a whole word, case-insensitive, against
+   `settings/moderation.banned`: refused with "That comment can't be
+   posted." The reason is not spelled out.
+2. **Toxicity and topics.** Google's Cloud Natural Language `moderateText`
+   scores the text across categories that include Toxic, Insult,
+   Profanity, Derogatory, Sexual, Violent, and Politics, and reports the
+   language. It lives in the same Google Cloud project as the Vision API
+   the photos go through, is enabled the same way (through the Pulumi
+   program's API list), and is free at this volume. Thresholds, in the
+   contract so they can be tuned:
+   - Toxic, Insult, Profanity, Derogatory, Sexual or Violent at 0.8 or
+     above: refused, as with banned words.
+   - Any of those at 0.5 or above, or Politics at 0.5 or above: held as
+     `pending` for review. The member sees "Your comment is waiting for
+     review" in place of it; nobody else sees it.
+3. **Suspicious words.** Any match against `settings/moderation.suspicious`:
+   held for review.
+
+Otherwise the comment is published at once. The word lists are edited on
+the admin page and are not in the repository. What the screening saw is
+stored on the comment for the reviewer.
+
+The scoring's language field is what a later translation feature would
+key on: a comment whose language is not English would get a
+`translations: {en: html}` field filled by Cloud Translation at write
+time, and clients would show the translation with "(translated, show
+original)". Nothing is built for this now beyond storing the language.
+
+## Reports and review
+
+A member reports a comment with one reason from the contract's list
+(`racism`, `misogyny`, `harassment` labeled "Too mean or harassing",
+`politics`, `spam`, `other`). The second distinct reporter hides the
+comment (`hidden`, `hold: "reports"`). Reporters cannot report a comment
+twice, nor their own.
+
+The admin page gets a **Comments** tab beside Users and News, with three
+queues: pending (held by screening), reported (hidden or reported once),
+and recent (everything published, newest first). Each row shows the
+comment, the post, the author, what the screening saw and the report
+reasons, with Approve (publish a pending or hidden comment; clears the
+reports), Remove (status `removed`, `removedBy: "admin"`) and, on the
+same tab, the two word lists as editable text areas. Admins need the
+second factor as elsewhere.
+
+Removing a comment: the author or the post's author from the app, an
+admin from the admin page. A removed comment with replies shows as
+"Comment removed" in the thread; without replies it disappears.
+
+## Unread counters
+
+Today the counters watch `changedAt` on posts. Comments add a second
+source: notices under the member. When a comment is published (at write
+time, or when an admin approves it), the function writes a notice to:
+
+- the post's author, kind `comment` (unless they wrote it);
+- the parent comment's author for a reply, kind `reply`;
+- each mentioned member, kind `mention`.
+
+The app's tracker fetches `GET /api/me/notices?since=<its baseline>` in
+the same refresh as the changes query, and a post with a notice newer
+than the time it was last opened counts as unread and gets the blue dot,
+exactly as an edit does. Opening the post marks it read as now. Notices
+older than 60 days are deleted by the nightly schedule. Signed-out, the
+counters work as today.
+
+## App
+
+- Under the reactions panel on a bike or pizza post: the count ("12
+  comments"), then the comments, each with username, time (and
+  "(edited)"), the text, a like button with its count, Reply, and an
+  overflow menu with Edit (within five minutes, own comment), Delete (own
+  comment, or any on the member's own post) and Report. Replies are
+  indented under their comment, three shown, "Show N more replies".
+- A composer at the bottom with the three toolbar buttons, the character
+  count, and Post; replying puts "Replying to name" above it. A held
+  comment shows in place with "Waiting for review".
+- Signed out: the count and "Sign in from Settings to read the comments".
+- Comments off: "Comments are off for this post" and no composer.
+- The edit screen gets a "Comments" switch for the post's author and
+  admins.
+- Tiles and the list rows show the count from `commentCount` on the post.
+- Tapping a like count opens a sheet listing usernames.
+- Errors from the API (blocked, rate-limited, off) show as they come, in
+  a snackbar.
+
+## Website
+
+Post pages are static and have no sign-in of their own; the account page
+at `/account/` shares the origin and keeps the Firebase session in the
+browser. The post page loads the Firebase Auth script, and if a session
+is present, fetches the comments from the API with the ID token and
+renders them under the post with the same layout (read, like, reply,
+report, delete, and the composer). Without a session it shows the count
+and "Sign in to read the comments" linking to `/account/`. The count in
+tiles comes from the post at build time, so it is as fresh as the last
+rebuild. Comments do not trigger site rebuilds.
+
+## Account deletion and export
+
+`deleteAccount` (and the admin's delete user) also: deletes the member's
+comments (a top-level comment with replies becomes `removed` with no
+author; the rest are deleted), their likes (moving counts down), their
+reports, reactions and notices. `GET /api/me/export` returns a JSON
+document with the member's profile, posts credited to them, comments,
+likes and reactions, offered from the app's account screen as "Export my
+data" (the app saves the file through the share sheet).
+
+## Contract
+
+`contract/comments.json` adds: `maxLength` (1000), `editWindowMinutes`
+(5), `pageSize` (20), `repliesShown` (3), `reportsToHide` (2), the report
+reasons with labels, and the screening thresholds. Generated into the
+three copies as the rest of the contract is.
+
+## Firestore
+
+- Rules: `posts/{slug}/comments/**` and `members/{uid}/notices/**` stay
+  under the deny-all rule.
+- Indexes: `comments` collection group on `uid` (renames and deletion),
+  `likes` and `reports` collection groups on `uid`; `comments` single
+  collection index on `status`, `parentId`, `createdAt` for the pages;
+  admin queues on `status` and `createdAt`.
+
+## Pull requests
+
+1. **Functions and contract**: storage, text pipeline, screening with the
+   Natural Language API, the comment, like, report and notice endpoints,
+   moderation word lists, account deletion and export. Tests as for
+   reactions. Enable the API through `infra/` for both projects.
+2. **App**: comment list, composer, likes sheet, report dialog, edit
+   window, unread notices, comments switch on the edit screen, counts on
+   tiles, data export.
+3. **Admin page**: the Comments tab with the three queues and the word
+   lists.
+4. **Website**: comments on post pages for signed-in visitors, counts on
+   tiles.
+
+Each leaves `main` deployable; the app does nothing visible until the
+functions are deployed.
