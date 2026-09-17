@@ -191,3 +191,116 @@ export const IMAGE_TYPES = {
   "image/png": "png",
   "image/webp": "webp",
 };
+
+/** The reaction palettes of each feed, in display order; feeds without any take no reactions. */
+
+export const REACTION_PALETTES = {
+  "pizza": [
+    {
+      "key": "had",
+      "prompt": "I've had this pizza",
+      "pick": "one",
+      "options": [
+        {
+          "value": "yes",
+          "title": "Yes"
+        },
+        {
+          "value": "no",
+          "title": "No"
+        }
+      ]
+    },
+    {
+      "key": "fantastic",
+      "prompt": "This pizza has fantastic",
+      "pick": "one",
+      "options": [
+        {
+          "value": "cheese",
+          "title": "Cheese"
+        },
+        {
+          "value": "sauce",
+          "title": "Sauce"
+        },
+        {
+          "value": "toppings",
+          "title": "Toppings"
+        },
+        {
+          "value": "price",
+          "title": "Price"
+        }
+      ]
+    }
+  ],
+  "bikes": [
+    {
+      "key": "looks",
+      "prompt": "This bike looks",
+      "pick": "one",
+      "options": [
+        {
+          "value": "stylish",
+          "title": "Stylish"
+        },
+        {
+          "value": "comfortable",
+          "title": "Comfortable"
+        },
+        {
+          "value": "fast",
+          "title": "Fast"
+        },
+        {
+          "value": "rugged",
+          "title": "Rugged"
+        }
+      ]
+    },
+    {
+      "key": "favorite",
+      "prompt": "My favorite part of this bike is its",
+      "pick": "one",
+      "options": [
+        {
+          "value": "wheels",
+          "title": "Wheels"
+        },
+        {
+          "value": "frame",
+          "title": "Frame"
+        },
+        {
+          "value": "gears",
+          "title": "Gears/derailleurs"
+        },
+        {
+          "value": "shifters",
+          "title": "Shifters"
+        },
+        {
+          "value": "brakes",
+          "title": "Brakes"
+        },
+        {
+          "value": "paint",
+          "title": "Paint"
+        },
+        {
+          "value": "bars",
+          "title": "Bars"
+        },
+        {
+          "value": "seat",
+          "title": "Seat"
+        },
+        {
+          "value": "pedals",
+          "title": "Pedals"
+        }
+      ]
+    }
+  ]
+};

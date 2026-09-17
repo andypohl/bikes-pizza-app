@@ -6,6 +6,7 @@ import '../data/post_repository.dart';
 import '../models/post.dart';
 import '../models/post_feed.dart';
 import '../posts/post_editor.dart';
+import '../posts/reaction_service.dart';
 import '../posts/unread_tracker.dart';
 import '../submissions/photo_picker.dart';
 import '../submissions/submission_service.dart';
@@ -39,6 +40,7 @@ class PostListScreen extends StatefulWidget {
     this.photos,
     this.members,
     this.editor,
+    this.reactions,
     this.credit,
     this.unread,
   });
@@ -46,6 +48,10 @@ class PostListScreen extends StatefulWidget {
   final PostFeed feed;
   final PostRepository repository;
   final UnreadTracker? unread;
+
+  /// Lets signed-in members react to bike and pizza posts; null shows
+  /// only the tallies.
+  final ReactionService? reactions;
   final AuthService? auth;
   final SubmissionService? submissions;
   final PhotoPicker? photos;
@@ -166,6 +172,7 @@ class _PostListScreenState extends State<PostListScreen> {
         builder: (_) => PostDetailScreen(
           post: post,
           repository: widget.repository,
+          reactions: widget.reactions,
           auth: widget.auth,
           editor: widget.editor,
           photos: widget.photos,
@@ -256,6 +263,7 @@ class _PostListScreenState extends State<PostListScreen> {
                           key: ValueKey(selected.id),
                           post: selected,
                           repository: widget.repository,
+                          reactions: widget.reactions,
                           auth: auth,
                           editor: widget.editor,
                           photos: photos,
@@ -336,6 +344,7 @@ class _PostPane extends StatelessWidget {
     required this.post,
     required this.repository,
     required this.onClose,
+    this.reactions,
     this.auth,
     this.editor,
     this.photos,
@@ -345,6 +354,7 @@ class _PostPane extends StatelessWidget {
   final Post post;
   final PostRepository repository;
   final VoidCallback onClose;
+  final ReactionService? reactions;
   final AuthService? auth;
   final PostEditor? editor;
   final PhotoPicker? photos;
@@ -388,7 +398,12 @@ class _PostPane extends StatelessWidget {
         ),
         Expanded(
           child: SingleChildScrollView(
-            child: PostArticle(post: post, repository: repository),
+            child: PostArticle(
+              post: post,
+              repository: repository,
+              reactions: reactions,
+              auth: auth,
+            ),
           ),
         ),
       ],

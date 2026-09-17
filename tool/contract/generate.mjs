@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Generates the language-specific copies of the facts in contract/*.json:
 // the feeds, the option lists for a post's structured details, the
-// username rule, the URL shape of a post's page and the image limits.
+// reaction palettes, the username rule, the URL shape of a post's page and
+// the image limits.
 // Everything that reads them (the app, the Cloud Functions, the website,
 // the Studio) imports a generated file rather than keeping its own copy.
 //
@@ -20,6 +21,7 @@ const read = (name) => JSON.parse(readFileSync(join(root, "contract", name), "ut
 const { timeZone, feeds } = read("feeds.json");
 const options = read("options.json");
 const rules = read("rules.json");
+const { palettes } = read("reactions.json");
 
 const HEADER = "Generated from contract/*.json by tool/contract/generate.mjs. Do not edit; change the JSON and run the generator.";
 
@@ -77,6 +79,11 @@ function javascript({ typed }) {
   out.push(`/** How many additional photos a bike or pizza post may carry besides its main one. */\n`);
   out.push(`export const IMAGE_MAX_EXTRA = ${rules.image.maxExtra};\n`);
   out.push(jsRecord("IMAGE_TYPES", Object.entries(rules.image.types), t(": Record<string, string>")));
+  if (typed) {
+    out.push(`export type ReactionPalette = { key: string; prompt: string; pick: "one" | "many"; options: Option[] };\n`);
+  }
+  out.push(`/** The reaction palettes of each feed, in display order; feeds without any take no reactions. */\n`);
+  out.push(`export const REACTION_PALETTES${t(": Record<string, ReactionPalette[]>")} = ${JSON.stringify(palettes, null, 2)};\n`);
   return out.join("\n");
 }
 
@@ -108,7 +115,29 @@ function dart() {
   out.push(`const imageMaxEdge = ${rules.image.maxEdge};\n`);
   out.push(`const imageMaxUploadBytes = ${rules.image.maxUploadBytes};\n`);
   out.push(`/// How many additional photos a bike or pizza post may carry besides its main one.\nconst imageMaxExtra = ${rules.image.maxExtra};\n`);
+  out.push(dartReactions());
   return out.join("\n");
+}
+
+/**
+ * The reaction palettes as Dart: a small class for a palette and its
+ * options, then one const list per feed.
+ */
+function dartReactions() {
+  const option = (o) => `ReactionOption(${dartString(o.value)}, ${dartString(o.title)})`;
+  // Laid out as `dart format` would: the options on one line when they fit.
+  const options = (list) => {
+    const short = `      options: [${list.map(option).join(", ")}],`;
+    return short.length <= 80 ? short : `      options: [\n${list.map((o) => `        ${option(o)},`).join("\n")}\n      ],`;
+  };
+  const palette = (p) =>
+    `    ReactionPalette(\n      key: ${dartString(p.key)},\n      prompt: ${dartString(p.prompt)},\n      pickOne: ${p.pick === "one"},\n${options(p.options)}\n    ),`;
+  const feeds = Object.entries(palettes).map(([feed, list]) => `  ${dartString(feed)}: [\n${list.map(palette).join("\n")}\n  ],`);
+  return [
+    `/// One choice in a reaction palette: the stored value and its label.\nclass ReactionOption {\n  const ReactionOption(this.value, this.title);\n\n  final String value;\n  final String title;\n}\n`,
+    `/// A question a member answers about a post by picking from fixed\n/// options: one of them ([pickOne]) or any number.\nclass ReactionPalette {\n  const ReactionPalette({\n    required this.key,\n    required this.prompt,\n    required this.pickOne,\n    required this.options,\n  });\n\n  /// Names the palette in a post's counts and a member's picks.\n  final String key;\n  final String prompt;\n  final bool pickOne;\n  final List<ReactionOption> options;\n\n  /// Whether [value] is one of the options.\n  bool has(String value) => options.any((o) => o.value == value);\n}\n`,
+    `/// The reaction palettes of each feed, in display order; feeds without\n/// any take no reactions.\nconst reactionPalettes = <String, List<ReactionPalette>>{\n${feeds.join("\n")}\n};\n`,
+  ].join("\n");
 }
 
 // ---- write or check ----------------------------------------------------------

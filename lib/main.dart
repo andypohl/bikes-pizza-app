@@ -16,6 +16,7 @@ import 'data/post_repository.dart';
 import 'models/post_feed.dart';
 import 'posts/app_badge.dart';
 import 'posts/post_editor.dart';
+import 'posts/reaction_service.dart';
 import 'posts/unread_tracker.dart';
 import 'screens/news_screen.dart';
 import 'screens/post_list_screen.dart';
@@ -64,6 +65,7 @@ Future<Widget> _loadApp() async {
     submissions: CloudFunctionsSubmissionService(),
     photos: ImagePickerPhotoPicker(),
     editor: ApiPostEditor(api),
+    reactions: ApiReactionService(api),
     admin: ApiAdminService(api),
     unread: unread,
     badge: PlatformAppBadge(),
@@ -83,6 +85,7 @@ class BikesPizzaApp extends StatelessWidget {
     this.submissions,
     this.photos,
     this.editor,
+    this.reactions,
     this.admin,
     this.unread,
     this.badge = const NoAppBadge(),
@@ -109,6 +112,10 @@ class BikesPizzaApp extends StatelessWidget {
   /// With [photos], lets members edit their posts (and admins any post);
   /// null hides the Edit buttons and the Posts tile in Settings.
   final PostEditor? editor;
+
+  /// Lets signed-in members react to bike and pizza posts (the chips
+  /// under a post's details); null shows only the tallies.
+  final ReactionService? reactions;
 
   /// The review and user administration screens for administrators on
   /// tablets; null hides Settings → Admin.
@@ -148,6 +155,7 @@ class BikesPizzaApp extends StatelessWidget {
             submissions: submissions,
             photos: photos,
             editor: editor,
+            reactions: reactions,
             admin: admin,
             unread: unread,
             badge: badge,
@@ -176,6 +184,7 @@ class HomeShell extends StatefulWidget {
     this.submissions,
     this.photos,
     this.editor,
+    this.reactions,
     this.admin,
     this.unread,
     this.badge = const NoAppBadge(),
@@ -190,6 +199,7 @@ class HomeShell extends StatefulWidget {
   final SubmissionService? submissions;
   final PhotoPicker? photos;
   final PostEditor? editor;
+  final ReactionService? reactions;
   final AdminService? admin;
   final UnreadTracker? unread;
   final AppBadge badge;
@@ -268,6 +278,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           auth: widget.auth,
           photos: widget.photos,
           editor: widget.editor,
+          reactions: widget.reactions,
           unread: widget.unread,
         ),
       NewsScreen(
@@ -286,6 +297,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         photos: widget.photos,
         members: widget.members,
         editor: widget.editor,
+        reactions: widget.reactions,
         unread: widget.unread,
       ),
       PostListScreen(
@@ -296,6 +308,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         photos: widget.photos,
         members: widget.members,
         editor: widget.editor,
+        reactions: widget.reactions,
         unread: widget.unread,
       ),
       StoreScreen(

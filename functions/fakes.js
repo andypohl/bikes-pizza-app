@@ -1,15 +1,19 @@
 // In-memory stand-ins for the persistence modules, shared by the tests.
 
+import { applyDeltas, countDeltas } from "./reactions.js";
+
 /** An in-memory post_store.js: documents by slug, renditions by path. */
 export function memoryPostStore() {
   const docs = new Map();
   const files = new Map();
+  const reactions = new Map(); // "slug/uid" -> {uid, username, picks, updatedAt}
   let clock = 0;
   const stamp = () => new Date(2026, 5, 1, 12, ++clock);
   const sorted = (list) => list.sort((a, b) => (a.publishedAt < b.publishedAt ? 1 : -1));
   return {
     docs,
     files,
+    reactions,
     async get(slug) {
       const doc = docs.get(slug);
       return doc ? { ...doc, slug } : null;
@@ -48,7 +52,19 @@ export function memoryPostStore() {
           n += 1;
         }
       }
+      for (const record of reactions.values()) if (record.uid === uid) record.username = username;
       return n;
+    },
+    async listReactions(slug) {
+      return [...reactions.entries()].filter(([key]) => key.startsWith(`${slug}/`)).map(([, record]) => ({ ...record }));
+    },
+    async setReaction(slug, uid, picks, { username = "" } = {}) {
+      const doc = docs.get(slug);
+      if (!doc) throw new Error(`no post ${slug}`);
+      const own = reactions.get(`${slug}/${uid}`);
+      doc.reactions = applyDeltas(doc.reactions, countDeltas(own?.picks, picks));
+      reactions.set(`${slug}/${uid}`, { uid, username, picks, updatedAt: stamp() });
+      return { reactions: doc.reactions };
     },
     async putRendition(slug, version, { name, bytes, contentType }) {
       files.set(`posts/${slug}/${version}/${name}`, { bytes, contentType });

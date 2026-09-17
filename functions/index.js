@@ -30,8 +30,9 @@
 // api:               HTTPS; the REST API behind /api/ on the submissions
 //                    Hosting site (list, fetch, review, create, queues,
 //                    site settings such as the website's submit button,
-//                    user administration, and editing published posts:
-//                    posts.js).
+//                    user administration, editing published posts
+//                    (posts.js) and members' reactions to them
+//                    (reactions.js)).
 
 import { GoogleAuth } from "google-auth-library";
 import { initializeApp } from "firebase-admin/app";
@@ -53,6 +54,7 @@ import { firestorePostStore } from "./post_store.js";
 import { isMailConfigured, sendMail } from "./mail.js";
 import * as passkeys from "./passkeys.js";
 import * as postEditing from "./posts.js";
+import * as reactions from "./reactions.js";
 import { inspectImage } from "./vision.js";
 import { requestRebuild } from "./rebuild.js";
 import { TIME_ZONE, cronFor } from "./schedule.js";
@@ -149,8 +151,8 @@ export const updateMember = onCall(memberOptions, (request) =>
     const updated = await applyMemberUpdate(user, patch, { store });
     logger.info("member updated", { uid: user.uid, fields: Object.keys(patch) });
     if ("username" in patch) {
-      // Best effort: the posts carry the username; if this fails the admin
-      // page can rename again.
+      // Best effort: the posts and reactions carry the username; if this
+      // fails the admin page can rename again.
       try {
         const changed = await posts().setUsername(user.uid, patch.username);
         if (changed) await rebuildWebsite(`member ${user.uid} renamed`);
@@ -387,6 +389,11 @@ const service = {
       return result;
     },
     upload: (data, admin) => postEditing.uploadImage(data, admin, { posts: posts(), processImage, log: logger.info }),
+    // Reactions change only tallies on the post, which the app reads live,
+    // so the website is not rebuilt for them.
+    reactions: (id, user) => reactions.getReactions(id, user, { posts: posts() }),
+    react: (id, data, user) =>
+      reactions.setReactions(id, data, user, { posts: posts(), members: firestoreMemberStore(getFirestore()), log: logger.info }),
     remove: async (id, admin) => {
       const result = await postEditing.removePost(id, admin, { posts: posts(), log: logger.info });
       await rebuildWebsite(`post ${id} removed by admin`);

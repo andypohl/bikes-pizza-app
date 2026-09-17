@@ -65,6 +65,8 @@ const service = {
     list: async (query, admin) => calls.push(["posts.list", { ...query }, admin.uid]) && { feed: query.feed ?? "news", posts: [] },
     create: async (data, admin) => calls.push(["posts.create", data.title, admin.uid]) && { status: "applied", post: { id: "p9" } },
     upload: async (data, admin) => calls.push(["posts.upload", Object.keys(data), admin.uid]) && { url: "https://files.test/x.jpg", width: 1, height: 1 },
+    reactions: async (id, user) => calls.push(["posts.reactions", id, user.uid]) && { counts: {}, mine: {}, who: {} },
+    react: async (id, data, user) => calls.push(["posts.react", id, data, user.uid]) && { counts: {}, mine: data.picks, who: {} },
   },
   queue: {
     info: async (feed) => {
@@ -260,6 +262,24 @@ test("posts: members see their own; admins count as admins only with a second fa
   assert.equal(patched.status, 200);
   assert.deepEqual(patched.body, { id: "p1", title: "New" });
   assert.deepEqual(calls.at(-1), ["posts.update", "p1", { title: "New" }, "u1", false]);
+});
+
+test("reactions are for any verified member", async () => {
+  calls.length = 0;
+  const seen = await call("/api/posts/p1/reactions", { token: "member" });
+  assert.equal(seen.status, 200);
+  assert.deepEqual(seen.body, { counts: {}, mine: {}, who: {} });
+  assert.deepEqual(calls[0], ["posts.reactions", "p1", "u1"]);
+
+  const set = await call("/api/posts/p1/reactions", { method: "POST", token: "member", body: { picks: { had: ["yes"] } } });
+  assert.equal(set.status, 200);
+  assert.deepEqual(set.body.mine, { had: ["yes"] });
+  assert.deepEqual(calls[1], ["posts.react", "p1", { picks: { had: ["yes"] } }, "u1"]);
+
+  const anonymous = await call("/api/posts/p1/reactions", { method: "POST", body: { picks: {} } });
+  assert.equal(anonymous.status, 401);
+  const unverified = await call("/api/posts/p1/reactions", { token: "unverified" });
+  assert.equal(unverified.status, 409);
 });
 
 test("the admin page's post routes need an admin with a second factor", async () => {

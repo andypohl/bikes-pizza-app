@@ -4,6 +4,7 @@ import '../auth/auth_service.dart';
 import '../data/post_repository.dart';
 import '../models/post.dart';
 import '../posts/post_editor.dart';
+import '../posts/reaction_service.dart';
 import '../submissions/photo_picker.dart';
 import '../widgets/edit_post_button.dart';
 import '../widgets/post_article.dart';
@@ -18,6 +19,7 @@ class PostDetailScreen extends StatefulWidget {
     super.key,
     required this.post,
     this.repository,
+    this.reactions,
     this.auth,
     this.editor,
     this.photos,
@@ -26,6 +28,7 @@ class PostDetailScreen extends StatefulWidget {
 
   final Post post;
   final PostRepository? repository;
+  final ReactionService? reactions;
   final AuthService? auth;
   final PostEditor? editor;
   final PhotoPicker? photos;
@@ -69,7 +72,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         ],
       ),
       body: SingleChildScrollView(
-        child: PostArticle(post: post, repository: widget.repository),
+        child: PostArticle(
+          post: post,
+          repository: widget.repository,
+          reactions: widget.reactions,
+          auth: auth,
+        ),
       ),
     );
   }
