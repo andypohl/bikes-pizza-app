@@ -20,6 +20,20 @@
 //   DELETE /api/posts/:id               admin; takes the post off the site
 //   GET  /api/posts/:id/reactions       verified user; {counts, mine}
 //   POST /api/posts/:id/reactions       verified user; {picks} — replaces the caller's picks
+//   GET  /api/posts/:id/comments        verified user; ?after= — a page of the thread
+//   POST /api/posts/:id/comments        verified user; {text, parentId?}
+//   PATCH /api/posts/:id/comments/:cid  the author, within the edit window; {text}
+//   DELETE /api/posts/:id/comments/:cid the author, the post's author, or an admin
+//   GET  /api/posts/:id/comments/:cid/replies   verified user
+//   POST /api/posts/:id/comments/:cid/like      verified user; toggles
+//   GET  /api/posts/:id/comments/:cid/likes     verified user
+//   POST /api/posts/:id/comments/:cid/report    verified user; {reason}
+//   GET  /api/me/notices                verified user; ?since= — mention notices
+//   GET  /api/me/export                 verified user; everything the member has
+//   GET  /api/admin/comments            admin; ?queue=pending|reported|recent
+//   POST /api/admin/comments/:id/:cid/approve|remove   admin; :id is the post
+//   GET  /api/admin/moderation          admin; the word lists
+//   PUT  /api/admin/moderation          admin; {banned, suspicious}
 //   GET  /api/admin/posts               admin; ?feed=news — the feed's posts, newest first
 //   POST /api/admin/posts               admin; {title, story?, storyFormat?, image?, publishedAt?} — writes a news post
 //   POST /api/admin/uploads             admin; {image} — a picture for inside a story; {url, width, height}
@@ -69,7 +83,7 @@ export function createApi({ verifyToken, service, log = () => {} }) {
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", true);
-  app.use(cors({ origin: true, methods: ["GET", "POST", "PATCH", "DELETE"], allowedHeaders: ["Authorization", "Content-Type"] }));
+  app.use(cors({ origin: true, methods: ["GET", "POST", "PATCH", "PUT", "DELETE"], allowedHeaders: ["Authorization", "Content-Type"] }));
   app.use(express.json({ limit: BODY_LIMIT }));
 
   const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).then((body) => res.json(body), next);
@@ -144,6 +158,27 @@ export function createApi({ verifyToken, service, log = () => {} }) {
     if (posts.list) api.get("/admin/posts", wrap((req) => posts.list(req.query, secondFactorAdminFromClaims(req.claims))));
     if (posts.create) api.post("/admin/posts", wrap((req) => posts.create(req.body, secondFactorAdminFromClaims(req.claims))));
     if (posts.upload) api.post("/admin/uploads", wrap((req) => posts.upload(req.body, secondFactorAdminFromClaims(req.claims))));
+  }
+
+  // Comments: any verified member reads and writes; deleting is for the
+  // author, the post's author or an admin (actorFromClaims decides the
+  // last); review is for admins with a second factor.
+  const comments = service.comments;
+  if (comments) {
+    api.get("/posts/:id/comments", wrap((req) => comments.list(req.params.id, req.query, userFromClaims(req.claims))));
+    api.post("/posts/:id/comments", wrap((req) => comments.create(req.params.id, req.body, userFromClaims(req.claims))));
+    api.patch("/posts/:id/comments/:cid", wrap((req) => comments.edit(req.params.id, req.params.cid, req.body, userFromClaims(req.claims))));
+    api.delete("/posts/:id/comments/:cid", wrap((req) => comments.remove(req.params.id, req.params.cid, actorFromClaims(req.claims))));
+    api.get("/posts/:id/comments/:cid/replies", wrap((req) => comments.replies(req.params.id, req.params.cid, userFromClaims(req.claims))));
+    api.post("/posts/:id/comments/:cid/like", wrap((req) => comments.like(req.params.id, req.params.cid, userFromClaims(req.claims))));
+    api.get("/posts/:id/comments/:cid/likes", wrap((req) => comments.likes(req.params.id, req.params.cid, userFromClaims(req.claims))));
+    api.post("/posts/:id/comments/:cid/report", wrap((req) => comments.report(req.params.id, req.params.cid, req.body, userFromClaims(req.claims))));
+    api.get("/me/notices", wrap((req) => comments.notices(userFromClaims(req.claims), req.query)));
+    api.get("/me/export", wrap((req) => comments.exportData(userFromClaims(req.claims))));
+    api.get("/admin/comments", wrap((req) => comments.queue(req.query, secondFactorAdminFromClaims(req.claims))));
+    api.post("/admin/comments/:id/:cid/:action", wrap((req) => comments.act(req.params.id, req.params.cid, req.params.action, secondFactorAdminFromClaims(req.claims))));
+    api.get("/admin/moderation", wrap((req) => comments.moderation(secondFactorAdminFromClaims(req.claims))));
+    api.put("/admin/moderation", wrap((req) => comments.setModeration(req.body, secondFactorAdminFromClaims(req.claims))));
   }
 
   const users = service.users;

@@ -134,5 +134,7 @@ export function publicPost(doc, siteUrl) {
     details: doc.details ?? null,
     credit: doc.credit ?? null,
     gallery: GALLERY_FEEDS.includes(doc.feed),
+    commentCount: doc.commentCount ?? 0,
+    commentsEnabled: doc.commentsEnabled !== false,
   };
 }

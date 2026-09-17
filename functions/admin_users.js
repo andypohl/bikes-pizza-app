@@ -163,13 +163,15 @@ export async function updateUser(uid, data, deps) {
 
 /**
  * Deletes the Auth user and their member record (releasing the username).
- * Their posts stay, credited as they were.
+ * Their posts stay, credited as they were; `cleanup(uid)`, when given,
+ * removes what else they left (comments, likes, reactions, notices; see
+ * comments.js), after the record is gone.
  *
  * `notify`, when given, is called afterwards with the deleted user's email
  * so the owner can be told; the deletion has already happened by then, so
  * a failure there is reported through `log` rather than thrown.
  */
-export async function deleteUser(uid, { auth, members, notify, log = () => {} }) {
+export async function deleteUser(uid, { auth, members, cleanup, notify, log = () => {} }) {
   let email = null;
   try {
     email = (await auth.getUser(uid)).email ?? null;
@@ -179,6 +181,13 @@ export async function deleteUser(uid, { auth, members, notify, log = () => {} })
     throw error;
   }
   await members.delete(uid);
+  if (cleanup) {
+    try {
+      await cleanup(uid);
+    } catch (error) {
+      log("member data cleanup failed", { uid, message: error.message });
+    }
+  }
   if (notify && email) {
     try {
       await notify({ uid, email });

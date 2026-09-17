@@ -4,6 +4,7 @@
 
 import { FieldValue } from "firebase-admin/firestore";
 
+import { COMMENTS, LIKES } from "./comment_store.js";
 import { countDeltas, applyDeltas } from "./reactions.js";
 import { renditionPath } from "./renditions.js";
 
@@ -54,17 +55,19 @@ export function firestorePostStore(db, bucket) {
 
     /**
      * Renames a member on every post they are credited for and on every
-     * reaction they gave; returns how many posts changed.
+     * reaction, comment and like they gave; returns how many posts changed.
      */
     async setUsername(uid, username) {
-      const [credited, reacted] = await Promise.all([
+      const [credited, reacted, commented, liked] = await Promise.all([
         col.where("credit.uid", "==", uid).get(),
         db.collectionGroup(REACTIONS).where("uid", "==", uid).get(),
+        db.collectionGroup(COMMENTS).where("uid", "==", uid).get(),
+        db.collectionGroup(LIKES).where("uid", "==", uid).get(),
       ]);
-      if (credited.empty && reacted.empty) return 0;
+      if (credited.empty && reacted.empty && commented.empty && liked.empty) return 0;
       const batch = db.batch();
       for (const doc of credited.docs) batch.update(doc.ref, { "credit.username": username, updatedAt: FieldValue.serverTimestamp() });
-      for (const doc of reacted.docs) batch.update(doc.ref, { username });
+      for (const doc of [...reacted.docs, ...commented.docs, ...liked.docs]) batch.update(doc.ref, { username });
       await batch.commit();
       return credited.size;
     },
@@ -73,6 +76,27 @@ export function firestorePostStore(db, bucket) {
     async listReactions(slug) {
       const snap = await col.doc(slug).collection(REACTIONS).get();
       return snap.docs.map((d) => ({ ...d.data(), uid: d.id }));
+    },
+
+    /** Every reaction a member gave, with the post's slug on each. */
+    async listReactionsByUid(uid) {
+      const snap = await db.collectionGroup(REACTIONS).where("uid", "==", uid).get();
+      return snap.docs.map((d) => ({ ...d.data(), uid: d.id, slug: d.ref.parent.parent.id }));
+    },
+
+    /** Takes back every reaction a member gave, moving the tallies down; returns how many. */
+    async removeReactions(uid) {
+      const snap = await db.collectionGroup(REACTIONS).where("uid", "==", uid).get();
+      for (const record of snap.docs) {
+        const postRef = record.ref.parent.parent;
+        await db.runTransaction(async (tx) => {
+          const [post, own] = await Promise.all([tx.get(postRef), tx.get(record.ref)]);
+          if (!own.exists) return;
+          if (post.exists) tx.update(postRef, { reactions: applyDeltas(post.data().reactions, countDeltas(own.data().picks, {})) });
+          tx.delete(record.ref);
+        });
+      }
+      return snap.size;
     },
 
     /**

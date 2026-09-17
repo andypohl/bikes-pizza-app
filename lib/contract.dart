@@ -220,3 +220,31 @@ const reactionPalettes = <String, List<ReactionPalette>>{
     ),
   ],
 };
+
+/// Comments on posts: the longest comment, in characters.
+const commentMaxLength = 1000;
+
+/// How long after posting a comment its author may still edit it.
+const commentEditWindow = Duration(minutes: 5);
+
+/// Top-level comments per page.
+const commentPageSize = 20;
+
+/// Replies shown under a comment before "show more".
+const commentRepliesShown = 3;
+
+/// Reports from different members that hide a comment until an admin looks.
+const commentReportsToHide = 2;
+
+/// How many of the newest comment times a post carries (`commentTimes`).
+const commentTimesKept = 20;
+
+/// The reasons a comment can be reported for, value to label, in display order.
+const commentReportReasons = <String, String>{
+  'racism': 'Racism',
+  'misogyny': 'Misogyny',
+  'harassment': 'Too mean or harassing',
+  'politics': 'Politics',
+  'spam': 'Spam',
+  'other': 'Something else',
+};

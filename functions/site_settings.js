@@ -7,6 +7,8 @@ import { ValidationError } from "./account.js";
 export const DEFAULTS = Object.freeze({
   // Whether bikes.pizza shows the "Submit a bike or pizza" button and form.
   submitButton: true,
+  // Whether members can read and write comments on posts, sitewide.
+  comments: true,
 });
 
 /** The stored settings merged over the defaults. */

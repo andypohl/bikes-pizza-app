@@ -125,6 +125,31 @@ REST API (`docs/api.md`, `functions/reactions.js`,
 `lib/widgets/reactions_panel.dart`). Members who are signed out see the
 tallies only; news posts have no palettes.
 
+## Comments
+
+Signed-in members with a username comment on bike and pizza posts:
+top-level comments with one level of replies, likes, `@mentions`, a
+five-minute edit window and a report button; the post's author can
+switch comments off on their post and delete any comment under it.
+Every comment is screened before anyone sees it: the admin's banned
+word list refuses it, Google's Cloud Natural Language moderation
+(`functions/moderate.js`; the API is enabled through `infra/`) refuses
+it at a high toxicity score and holds it for review at a middling one
+or when it looks political, and a suspicious word list holds it too;
+two reports from different members hide a comment until an admin
+looks. The admin page's Comments tab (to come) works the pending and
+reported queues and edits the word lists. A mention makes the post
+unread again in the app; other new comments only add a "N new" count
+on the tile, from the `commentTimes` the post carries. Comments never
+count as an edit of the post. The design is in
+`docs/community-design.md`, the endpoints in `docs/api.md`, the rules
+(lengths, windows, thresholds, report reasons) in
+`contract/comments.json`, and the functions in `functions/comments.js`
+(the service), `functions/comment_text.js` (the Markdown subset and the
+mention and link rewrites) and `functions/comment_store.js` (Firestore).
+Deleting an account removes the member's comments, likes, reactions and
+notices; `GET /api/me/export` hands a member everything they have.
+
 ## Member submissions
 
 The Submit Pizza / Submit Bike form (`lib/screens/submit_screen.dart`) asks
