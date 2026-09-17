@@ -42,16 +42,21 @@ export function countsOf(posts) {
  * has not turned messages off, and the viewer is signed in and not the
  * member themselves.
  */
-export async function getProfile(username, viewer, { members, posts }) {
+export async function getProfile(username, viewer, { members, posts, blocks }) {
   const { uid, record } = await find(username, members);
   const published = await posts.listByUid(uid);
+  let messages = Boolean(viewer && viewer.uid !== uid && record.messages !== false);
+  if (messages && blocks) {
+    const [mine, theirs] = await Promise.all([blocks(viewer.uid), blocks(uid)]);
+    if (mine.includes(uid) || theirs.includes(viewer.uid)) messages = false;
+  }
   return {
     uid,
     username: record.username,
     joinedAt: record.joinedAt ?? record.createdAt?.toDate?.()?.toISOString?.() ?? record.createdAt ?? null,
     location: record.location ?? "",
     counts: countsOf(published),
-    messages: Boolean(viewer && viewer.uid !== uid && record.messages !== false),
+    messages,
   };
 }
 

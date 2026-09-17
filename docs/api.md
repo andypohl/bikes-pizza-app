@@ -553,6 +553,112 @@ published posts in that feed, newest first, each shaped as `GET
 /api/posts/{id}` reads (`id`, `title`, `url`, `image`, …), with
 `hasMore`. Any other feed answers `400`.
 
+## Direct messages
+
+One-on-one conversations between members (docs/community-design.md).
+Two members share one **thread** (`threads/{id}`, the two uids sorted
+and joined with `_`) that holds everything they have said to each other,
+divided into numbered conversations; the app reads threads and their
+messages live from Firestore (the rules let a thread's two members read
+it) and writes through these endpoints. Every one needs a verified
+member; the message text follows the comment rules (bold, italic,
+links, bare URLs to "[link]", 1,000 characters), and is screened: the
+banned word list and strong toxicity refuse it with "That message
+can't be sent."; nothing is held for review, since nobody reads private
+messages. One message per member every two seconds, 500 a day, and 20
+new threads a day (`contract/members.json`).
+
+### `GET /api/me/threads`
+
+The member's threads, newest message first:
+
+```json
+{
+  "threads": [
+    {
+      "id": "…", "gone": false,
+      "other": { "uid": "…", "username": "bob" },
+      "lastMessageAt": "…", "last": { "uid": "…", "text": "See you at the …", "at": "…" },
+      "unread": 2, "conversation": 1,
+      "blocked": false, "blockedByMe": false, "emailRequest": null
+    }
+  ]
+}
+```
+
+`gone` marks the marker left when the other member deleted their
+account (`other` is then null); `last.text` is the newest message's
+first hundred characters; `blocked` says the thread is frozen by a
+block either way.
+
+### `POST /api/me/threads`
+
+`{ "username": "bob" }`: the thread with that member, created if there
+is none: `{ "thread": …, "created": true }`. `404` for an unknown
+username, `409` for oneself or without a username of one's own, `403`
+when the member has turned messages off or either has blocked the
+other.
+
+### `GET /api/threads/{id}/messages`
+
+A page of the thread's messages, newest first, fifty at a time, from
+before `?before=<ISO>` when given: `{ "thread", "messages": [ … ],
+"more" }`. A message is `{ "id", "kind": "message", "conversation",
+"uid", "text", "html", "createdAt", "editedAt", "deleted" }` (a deleted
+one has empty text); an event is `{ "id", "kind": "event", "event":
+"blocked" | "emailed" | "declined", "by", "at", "conversation" }`.
+Non-members get `404`.
+
+### `POST /api/threads/{id}/messages`
+
+`{ "text": "…" }` sends a message and answers `{ "message": … }`. The
+other member's unread count and the thread's preview move with it. A
+frozen thread (a block) answers `403`; a `gone` thread `409`.
+
+### `PATCH /api/threads/{id}/messages/{mid}` and `DELETE …/{mid}`
+
+The author edits their message within five minutes of sending it
+(screened again; `409` after the window) or deletes it any time,
+leaving "Message deleted" for both.
+
+### `POST /api/threads/{id}/seen`
+
+Zeroes the caller's unread count on the thread and stamps when they
+last opened it.
+
+### `POST /api/threads/{id}/report`
+
+`{ "reason": "harassment" }` (the comment report reasons) lets admins
+read the thread.
+
+### `POST /api/members/{username}/block` and `DELETE …/block`
+
+Blocks or unblocks the member. Blocking freezes the thread the two
+share (an event says so), hides the Message button on their profile,
+refuses new threads either way, and hides the blocked member's comments
+from the blocker. `GET /api/me/blocks` lists `{ "blocked": [ { "uid",
+"username" } ] }`.
+
+### `GET /api/admin/threads?queue=reported` and `GET /api/admin/threads/{id}` (admin)
+
+The reported threads (who, when, why) and one reported thread's
+messages. A thread nobody reported answers `403`: admins cannot read
+private conversations.
+
+### In Firestore
+
+`threads/{id}`: `{ members: [uid, uid], usernames: {uid: username},
+createdAt, lastMessageAt, last, unread: {uid: n}, seenAt: {uid: ISO},
+blockedBy: [uid], conversation, conversationStartedAt, emailRequest,
+reportedAt, reportedBy, reason }`, or `{ members: [uid], gone: true,
+goneAt, lastMessageAt }` once the other member is gone.
+`threads/{id}/messages/{mid}`: `{ kind, conversation, uid, text, html,
+createdAt, editedAt, deletedAt, screening }` or an event `{ kind:
+"event", event, by, at, conversation, createdAt }`. Blocks are at
+`members/{uid}/blocks/{otherUid}`. Deleting an account deletes every
+thread the member was in, both sides' messages included, and leaves the
+marker; the export carries the messages the member wrote.
+
 ## Posts in Firestore
 
 Published posts live in Firestore at `posts/{slug}` and are readable by

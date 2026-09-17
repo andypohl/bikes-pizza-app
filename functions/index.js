@@ -61,6 +61,8 @@ import { moderateText } from "./moderate.js";
 import * as passkeys from "./passkeys.js";
 import * as postEditing from "./posts.js";
 import * as profiles from "./profiles.js";
+import { firestoreThreadStore } from "./thread_store.js";
+import * as messaging from "./threads.js";
 import * as reactions from "./reactions.js";
 import { inspectImage } from "./vision.js";
 import { requestRebuild } from "./rebuild.js";
@@ -123,6 +125,8 @@ const verifiedUser = (request) => userFromClaims(request.auth && { uid: request.
 const posts = () => firestorePostStore(getFirestore(), getStorage().bucket());
 /** The comments under them, the mention notices and the word lists (comment_store.js). */
 const comments = () => firestoreCommentStore(getFirestore());
+/** Direct message threads and blocks (thread_store.js). */
+const threads = () => firestoreThreadStore(getFirestore());
 
 /** Translates failures inside `work` into callable errors. */
 async function guarded(uid, what, work) {
@@ -172,6 +176,7 @@ export const updateMember = onCall(memberOptions, (request) =>
       // fails the admin page can rename again.
       try {
         const changed = await posts().setUsername(user.uid, patch.username);
+        await threads().setUsername(user.uid, patch.username);
         if (changed) await rebuildWebsite(`member ${user.uid} renamed`);
       } catch (error) {
         logger.warn("member username not written to their posts", { uid: user.uid, message: error.message });
@@ -343,17 +348,38 @@ const commentDeps = () => ({
   moderate,
   newId: () => getFirestore().collection("posts").doc().id,
   siteUrl: siteUrl(),
+  blocks: (uid) => threads().blocks(uid),
+  messages: (uid) => messaging.exportMessages(uid, { threads: threads() }),
   log: logger.info,
 });
 
-/** What a deleted member left on other people's posts goes with them. */
-const removeMemberData = (uid) => commenting.deleteMemberData(uid, commentDeps());
+/** What threads.js needs: the thread and member stores, the word lists, the screening call. */
+const threadDeps = () => ({
+  threads: threads(),
+  members: firestoreMemberStore(getFirestore()),
+  comments: comments(),
+  moderate,
+  log: logger.info,
+});
 
-/** What the user-administration endpoints need: Auth admin, members, posts. */
+/** What a deleted member left on other people's posts, and their threads, go with them. */
+const removeMemberData = async (uid) => {
+  await commenting.deleteMemberData(uid, commentDeps());
+  await messaging.deleteMemberThreads(uid, threadDeps());
+};
+
+/** What the user-administration endpoints need: Auth admin, members, posts (a rename reaches the threads too). */
 const userAdminDeps = () => ({
   auth: getAuth(),
   members: firestoreMemberStore(getFirestore()),
-  posts: posts(),
+  posts: {
+    ...posts(),
+    setUsername: async (uid, username) => {
+      const changed = await posts().setUsername(uid, username);
+      await threads().setUsername(uid, username);
+      return changed;
+    },
+  },
   newsletters: NEWSLETTERS,
   siteUrl: siteUrl(),
   log: logger.warn,
@@ -455,8 +481,25 @@ const service = {
   },
   // Public profiles: what a username opens (profiles.js).
   members: {
-    profile: (username, viewer) => profiles.getProfile(username, viewer, { members: firestoreMemberStore(getFirestore()), posts: posts() }),
+    profile: (username, viewer) =>
+      profiles.getProfile(username, viewer, { members: firestoreMemberStore(getFirestore()), posts: posts(), blocks: (uid) => threads().blocks(uid) }),
     posts: (username, query) => profiles.listMemberPosts(username, query, { members: firestoreMemberStore(getFirestore()), posts: posts(), siteUrl: siteUrl() }),
+  },
+  // Direct messages (threads.js); the app reads the threads live from
+  // Firestore and writes through these.
+  threads: {
+    list: (user) => messaging.listThreads(user, threadDeps()),
+    open: (data, user) => messaging.openThread(data, user, threadDeps()),
+    messages: (id, query, user) => messaging.listMessages(id, query, user, threadDeps()),
+    send: (id, data, user) => messaging.sendMessage(id, data, user, threadDeps()),
+    edit: (id, mid, data, user) => messaging.editMessage(id, mid, data, user, threadDeps()),
+    remove: (id, mid, user) => messaging.deleteMessage(id, mid, user, threadDeps()),
+    seen: (id, user) => messaging.markSeen(id, user, threadDeps()),
+    report: (id, data, user) => messaging.reportThread(id, data, user, threadDeps()),
+    block: (username, on, user) => messaging.setBlock(username, on, user, threadDeps()),
+    blocks: (user) => messaging.listBlocks(user, threadDeps()),
+    queue: (query, admin) => messaging.adminThreads(query, admin, threadDeps()),
+    get: (id, admin) => messaging.adminThread(id, admin, threadDeps()),
   },
   queue: {
     info: (feed) => subs.queueInfo(feed, { store: store() }),

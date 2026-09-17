@@ -251,3 +251,12 @@ const commentReportReasons = <String, String>{
 
 /// A member's location on their profile: the longest, in characters.
 const memberLocationMaxLength = 60;
+
+/// Direct messages: the longest message, in characters.
+const messageMaxLength = 1000;
+
+/// How long after sending a message its author may still edit it.
+const messageEditWindow = Duration(minutes: 5);
+
+/// How much of the newest message a thread carries as its preview.
+const messagePreviewLength = 100;

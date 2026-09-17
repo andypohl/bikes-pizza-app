@@ -2,6 +2,7 @@
 
 import { applyDeltas, countDeltas } from "./reactions.js";
 import { usernameKey } from "./account.js";
+import { threadId } from "./thread_store.js";
 
 /** An in-memory post_store.js: documents by slug, renditions by path. */
 export function memoryPostStore() {
@@ -256,6 +257,131 @@ export function memoryCommentStore(posts, members = memoryMemberStore()) {
     },
     async setModeration(lists) {
       moderation = { banned: [...lists.banned], suspicious: [...lists.suspicious] };
+    },
+  };
+}
+
+/**
+ * An in-memory thread_store.js over a memoryMemberStore (for the rate
+ * counter): threads by id, messages by "thread/id", blocks by uid.
+ */
+export function memoryThreadStore(members = memoryMemberStore()) {
+  const threads = new Map();
+  const messages = new Map();
+  const blocks = new Map(); // uid -> Set(other)
+  let seq = 0;
+  const ofThread = (id) =>
+    [...messages.entries()]
+      .filter(([key]) => key.startsWith(`${id}/`))
+      .map(([key, m]) => ({ ...m, id: key.split("/")[1] }));
+  const setPath = (doc, path, value) => {
+    const parts = path.split(".");
+    let at = doc;
+    for (const part of parts.slice(0, -1)) at = at[part] ??= {};
+    at[parts.at(-1)] = value;
+  };
+  return {
+    threads,
+    messages,
+    blocks,
+    threadId,
+    async get(id) {
+      const t = threads.get(id);
+      return t ? { ...t, id } : null;
+    },
+    async listForMember(uid) {
+      return [...threads.entries()]
+        .filter(([, t]) => (t.members ?? []).includes(uid))
+        .map(([id, t]) => ({ ...t, id }))
+        .sort((a, b) => (a.lastMessageAt < b.lastMessageAt ? 1 : -1));
+    },
+    async create(id, doc) {
+      threads.set(id, { ...doc });
+    },
+    async update(id, fields) {
+      const t = threads.get(id);
+      for (const [k, v] of Object.entries(fields)) setPath(t, k, v);
+    },
+    async messages(id, { before = null, limit = 50 } = {}) {
+      return ofThread(id)
+        .filter((m) => !before || m.createdAt < before)
+        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+        .slice(0, limit);
+    },
+    async conversationMessages(id, conversation, { limit = 10 } = {}) {
+      return ofThread(id)
+        .filter((m) => (m.conversation ?? 1) === conversation)
+        .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+        .slice(0, limit)
+        .reverse();
+    },
+    async conversationCount(id, conversation) {
+      return ofThread(id).filter((m) => (m.conversation ?? 1) === conversation).length;
+    },
+    async message(id, mid) {
+      const m = messages.get(`${id}/${mid}`);
+      return m ? { ...m, id: mid } : null;
+    },
+    async transact(id, { uid } = {}, decide) {
+      const t = threads.get(id);
+      const member = uid ? await members.get(uid) : null;
+      const out = await decide({ thread: t ? { ...t, id } : null, member });
+      if (out.thread) {
+        const { create, id: _id, ...fields } = out.thread;
+        if (create) threads.set(id, fields);
+        else for (const [k, v] of Object.entries(fields)) setPath(threads.get(id), k, v);
+      }
+      if (out.message) {
+        const { id: mid, ...fields } = out.message;
+        messages.set(`${id}/${mid}`, fields);
+      }
+      if (out.updateMessage) Object.assign(messages.get(`${id}/${out.updateMessage.id}`), out.updateMessage.fields);
+      if (out.member && uid) await members.set(uid, out.member);
+      return out.result;
+    },
+    newId() {
+      return `m${++seq}`;
+    },
+    async setUsername(uid, username) {
+      let n = 0;
+      for (const t of threads.values()) {
+        if ((t.members ?? []).includes(uid)) {
+          t.usernames = { ...(t.usernames ?? {}), [uid]: username };
+          n += 1;
+        }
+      }
+      return n;
+    },
+    async blocks(uid) {
+      return [...(blocks.get(uid) ?? [])];
+    },
+    async setBlock(uid, other, on) {
+      const set = blocks.get(uid) ?? new Set();
+      if (on) set.add(other);
+      else set.delete(other);
+      blocks.set(uid, set);
+    },
+    async messagesByUid(uid) {
+      return [...messages.entries()].filter(([, m]) => m.uid === uid).map(([key, m]) => ({ ...m, id: key.split("/")[1], thread: key.split("/")[0] }));
+    },
+    async replaceWithMarker(id, remaining) {
+      for (const [key] of [...messages.entries()].filter(([k]) => k.startsWith(`${id}/`))) messages.delete(key);
+      const at = new Date().toISOString();
+      threads.set(id, { members: [remaining], gone: true, goneAt: at, lastMessageAt: at });
+    },
+    async deleteThread(id) {
+      for (const [key] of [...messages.entries()].filter(([k]) => k.startsWith(`${id}/`))) messages.delete(key);
+      threads.delete(id);
+    },
+    async deleteBlocks(uid) {
+      blocks.delete(uid);
+    },
+    async reported({ limit = 50 } = {}) {
+      return [...threads.entries()]
+        .filter(([, t]) => t.reportedAt)
+        .map(([id, t]) => ({ ...t, id }))
+        .sort((a, b) => (a.reportedAt < b.reportedAt ? 1 : -1))
+        .slice(0, limit);
     },
   };
 }

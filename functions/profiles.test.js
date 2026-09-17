@@ -82,3 +82,12 @@ test("a member's posts page by feed, newest first", async () => {
   await assert.rejects(listMemberPosts("ada_bikes", {}, deps), ValidationError);
   await assert.rejects(listMemberPosts("nobody", { feed: "pizza" }, deps), (e) => e.code === "not-found");
 });
+
+test("a block either way turns messages off on the profile", async () => {
+  const deps = await setup();
+  const blocks = async (uid) => (uid === "u2" ? ["u1"] : []);
+  assert.equal((await getProfile("ada_bikes", { uid: "u2" }, { ...deps, blocks })).messages, false, "bob blocked ada");
+  assert.equal((await getProfile("ada_bikes", { uid: "u3" }, { ...deps, blocks })).messages, true);
+  const mine = async (uid) => (uid === "u3" ? ["u1"] : []);
+  assert.equal((await getProfile("ada_bikes", { uid: "u3" }, { ...deps, blocks: mine })).messages, false, "the viewer blocked ada");
+});

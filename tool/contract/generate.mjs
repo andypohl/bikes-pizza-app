@@ -93,8 +93,13 @@ function javascript({ typed }) {
   }
   out.push(`/** The rules for comments on posts: lengths, windows, page sizes, report reasons and screening thresholds. */\n`);
   out.push(`export const COMMENTS${t(": CommentRules")} = ${JSON.stringify(comments, null, 2)};\n`);
-  out.push(`/** The rules for member profiles: the longest location. */\n`);
-  out.push(`export const MEMBERS${t(": { locationMaxLength: number }")} = ${JSON.stringify(members, null, 2)};\n`);
+  if (typed) {
+    out.push(
+      `export type MemberRules = {\n  locationMaxLength: number;\n  messages: { maxLength: number; editWindowMinutes: number; previewLength: number; emailedMessages: number; rateLimit: { seconds: number; perDay: number; newThreadsPerDay: number } };\n};\n`,
+    );
+  }
+  out.push(`/** The rules for member profiles and direct messages: the longest location, the message limits. */\n`);
+  out.push(`export const MEMBERS${t(": MemberRules")} = ${JSON.stringify(members, null, 2)};\n`);
   return out.join("\n");
 }
 
@@ -164,6 +169,9 @@ function dartComments() {
     `/// How many of the newest comment times a post carries (\`commentTimes\`).\nconst commentTimesKept = ${c.timesKept};\n`,
     dartMap("commentReportReasons", c.reportReasons, "The reasons a comment can be reported for, value to label, in display order."),
     `/// A member's location on their profile: the longest, in characters.\nconst memberLocationMaxLength = ${members.locationMaxLength};\n`,
+    `/// Direct messages: the longest message, in characters.\nconst messageMaxLength = ${members.messages.maxLength};\n`,
+    `/// How long after sending a message its author may still edit it.\nconst messageEditWindow = Duration(minutes: ${members.messages.editWindowMinutes});\n`,
+    `/// How much of the newest message a thread carries as its preview.\nconst messagePreviewLength = ${members.messages.previewLength};\n`,
   ].join("\n");
 }
 

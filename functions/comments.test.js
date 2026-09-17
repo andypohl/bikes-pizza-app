@@ -434,3 +434,21 @@ test("deleting a member removes their comments, likes, reports, reactions and no
   assert.deepEqual((await posts.get("detroit-slice")).reactions, { had: { yes: 0 } });
   assert.equal((await posts.get("detroit-slice")).commentCount, 2);
 });
+
+test("a member who blocked another does not see their comments", async () => {
+  const { deps, say } = await setup();
+  const top = await say(bob, "Bob's take");
+  await say(cal, "Cal replies", { parentId: top.id });
+  await say(ada, "Ada too", { parentId: top.id });
+  const blocks = async (uid) => (uid === "u1" ? ["u2"] : []);
+  const seen = await listComments("detroit-slice", {}, ada, { ...deps, blocks });
+  assert.deepEqual(seen.comments, []); // bob's top-level comment, and so its replies, gone from ada's view
+  const others = await listComments("detroit-slice", {}, cal, { ...deps, blocks });
+  assert.deepEqual(others.comments.map((c) => [c.id, c.replies.length]), [[top.id, 2]]);
+  const calTop = await say(cal, "Cal's own");
+  await say(bob, "Bob replies", { parentId: calTop.id });
+  const filtered = await listReplies("detroit-slice", calTop.id, ada, { ...deps, blocks });
+  assert.deepEqual(filtered.replies, []);
+  const failing = await listComments("detroit-slice", {}, ada, { ...deps, blocks: async () => { throw new Error("down"); } });
+  assert.equal(failing.comments.length, 2, "a failed blocks lookup hides nothing");
+});

@@ -193,6 +193,31 @@ rewrite serves `/member/index.html`, which reads the username from the
 path. The Message button and the "allow direct messages" switch come
 with direct messages.
 
+## Direct messages
+
+Members message each other one on one (`functions/threads.js`,
+`functions/thread_store.js`; the design in `docs/community-design.md`,
+the endpoints in `docs/api.md`). Two members share one thread that
+holds everything they have said to each other, divided into numbered
+conversations (a conversation ends when the two agree to continue by
+email, which is the next pull request). The app reads threads and
+messages live from Firestore, whose rules let a thread's two members
+read it, and writes through the API: a message goes through the comment
+text pipeline and the screening (banned words and strong toxicity
+refuse it; nothing is held, since nobody reviews private messages),
+moves the other member's unread count and the thread's preview, and is
+refused while either member has blocked the other. Members can edit a
+message for five minutes and delete it any time ("Message deleted" for
+both), block and unblock each other (a block freezes the thread with an
+event line, hides the Message button on the profile and hides the
+blocked member's comments from the blocker) and report a thread, which
+is the only way an admin can read it. One message every two seconds,
+500 a day, 20 new threads a day. Deleting an account deletes every
+thread the member was in, both sides' messages included, leaving the
+other member a marker that says the conversation is gone; usernames on
+threads follow renames; the export carries the member's messages. The
+app and website screens come in the next pull requests.
+
 ## Member submissions
 
 The Submit Pizza / Submit Bike form (`lib/screens/submit_screen.dart`) asks
