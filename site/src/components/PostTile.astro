@@ -57,6 +57,7 @@ const details = detailLine(post);
         {!titleAbove && <h3 class="text-lg font-medium mb-1">{post.title}</h3>}
         <p class="text-sm font-light tracking-wide opacity-90">
           {categoryOf(post)} · {formatDate(post.publishedAt)}
+          {post.commentCount > 0 && ` · ${post.commentCount} comment${post.commentCount === 1 ? '' : 's'}`}
         </p>
         {details && <p class="text-sm font-light tracking-wide opacity-90 mt-1">{details}</p>}
       </div>

@@ -156,7 +156,14 @@ opened on this device; a comment that mentions the member makes the post
 fully unread again (dot, tab counter, icon badge), through the mention
 notices the tracker fetches with its changes query. Comments never count
 as an edit of the post. Settings → Manage account → "Export my data"
-shares everything the member has as a JSON file. The design is in
+shares everything the member has as a JSON file. On the website
+(`site/src/components/Comments.astro`, `site/src/scripts/comments.ts`)
+the post page carries the count from build time, and once the Firebase
+session is known shows either "Sign in to read the comments" (the
+account page shares the origin, so the session is visible) or the live
+thread from the API with the same reply, like, edit, delete and report
+controls and a composer; coming back to the tab refreshes the thread.
+Gallery tiles show the count on hover. The design is in
 `docs/community-design.md`, the endpoints in `docs/api.md`, the rules
 (lengths, windows, thresholds, report reasons) in
 `contract/comments.json`, and the functions in `functions/comments.js`
