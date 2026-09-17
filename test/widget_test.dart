@@ -3655,18 +3655,22 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('the Admin tab appears on tablets for administrators only', (
+  testWidgets('phones get the Admin tab too, with pushed detail screens', (
     tester,
   ) async {
-    await pumpApp(tester, size: phone);
-    auth.admin = true;
-    await signInWithGoogle(tester);
-    expect(find.byKey(const Key('tab-admin')), findsNothing);
+    await settingsAsAdmin(tester, size: phone);
+    expect(find.byKey(const Key('admin-section')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('admin-submissions')));
+    await tester.pumpAndSettle();
+    expect(find.text('Submissions'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('submission-s1')));
+    await tester.pumpAndSettle();
+    expect(find.text('A fine bike.'), findsOneWidget);
+    expect(find.byKey(const Key('close-submission')), findsNothing);
+    expect(find.byKey(const Key('review-publish')), findsOneWidget);
   });
 
-  testWidgets('the Admin tab is hidden from members on tablets', (
-    tester,
-  ) async {
+  testWidgets('the Admin tab is hidden from members', (tester) async {
     await pumpApp(tester);
     await signInWithGoogle(tester);
     expect(find.byKey(const Key('tab-admin')), findsNothing);

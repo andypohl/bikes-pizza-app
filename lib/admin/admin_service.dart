@@ -4,7 +4,7 @@ import '../models/post_feed.dart';
 
 /// The admin side of the REST API (`docs/api.md`): the submissions review
 /// (what https://submissions.bikes.pizza/ does) and user administration
-/// (https://admin.bikes.pizza/), for the tablet screens in `lib/admin/`.
+/// (https://admin.bikes.pizza/), for the screens in `lib/admin/`.
 /// Every call needs the `admin` claim on a session that passed a second
 /// factor; the API answers `permission-denied` otherwise. Failures are
 /// [ApiException]s.

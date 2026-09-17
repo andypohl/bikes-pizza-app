@@ -6,7 +6,7 @@ import '../auth/auth_service.dart';
 import '../auth/session_expiry.dart';
 import '../widgets/status_message.dart';
 
-/// Shared bits of the tablet admin screens (`submissions_screen.dart`,
+/// Shared bits of the admin screens (`submissions_screen.dart`,
 /// `users_screen.dart`).
 
 final adminDateFormat = DateFormat.yMMMd().add_jm();

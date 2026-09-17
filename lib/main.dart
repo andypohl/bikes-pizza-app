@@ -151,8 +151,8 @@ class BikesPizzaApp extends StatelessWidget {
   final ThreadService? threads;
   final MessageTracker? messages;
 
-  /// The review and user administration screens for administrators on
-  /// tablets; null hides the Admin tab.
+  /// The review and user administration screens for administrators; null
+  /// hides the Admin tab.
   final AdminService? admin;
 
   /// Offers "Export my data" on the account screen; null leaves it out.
@@ -210,7 +210,7 @@ class BikesPizzaApp extends StatelessWidget {
 
 /// Root screen: a bottom navigation bar switching between the post feeds
 /// (News, Pizza and Bikes, plus All on tablets), the Store, Settings and,
-/// for administrators on tablets, Admin.
+/// for administrators, Admin.
 /// Each tab keeps its scroll position and loaded data because the pages
 /// live in an [IndexedStack]. The feed tabs carry the count of posts not
 /// opened since they changed, and the app icon their sum; the counts are
@@ -268,7 +268,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   String? _refreshedFor;
 
   /// Whether the signed-in account is an administrator, which adds the
-  /// Admin tab on tablets; checked once per account.
+  /// Admin tab; checked once per account.
   bool _admin = false;
   String? _adminFor;
 
@@ -366,7 +366,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     // website's front page); phones start at News to keep the bar short.
     final tablet = isTablet(context);
     final newsIndex = tablet ? 1 : 0;
-    final admin = tablet && _admin ? widget.admin : null;
+    final admin = _admin ? widget.admin : null;
     final pages = <Widget>[
       if (tablet)
         PostListScreen(
