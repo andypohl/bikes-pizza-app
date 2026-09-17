@@ -13,7 +13,8 @@ Five bottom-bar tabs:
 | Pizza    | Posts tagged `pizza`                                           |
 | Bikes    | Posts tagged `biking` or `off-road-biking`                     |
 | Store    | Product grid from Shopify, a cart, and Shopify checkout      |
-| Settings | Account (sign-in, username, newsletters, password, deletion), Posts (edit what you posted), theme; on tablets, Admin for administrators |
+| Settings | Account (sign-in, username, newsletters, password, deletion), Posts (edit what you posted), theme |
+| Admin    | On tablets, for signed-in administrators: review submissions and manage users |
 
 Tapping a post opens it in-app with the hero image and full HTML body. A
 toolbar button opens the post in the browser.
@@ -288,9 +289,9 @@ Markdown (headings, lists or links) is edited as plain text and, if
 changed, saved as plain paragraphs; the screen warns about that.
 
 **Admin on a tablet.** On an iPad or Android tablet (shortest side 600
-logical pixels or more), Settings shows an Admin section to a signed-in
-administrator with the same two tools as the web pages, on the same REST
-API (`lib/admin/`): **Review submissions** (`submissions_screen.dart`)
+logical pixels or more), the bottom bar gains an Admin tab for a signed-in
+administrator (`admin_screen.dart`) with the same two tools as the web
+pages, on the same REST API (`lib/admin/`): **Review submissions** (`submissions_screen.dart`)
 lists the queues, the website submit button switch, the submissions by
 status with paging, and each one in full with Queue to post / Apply edit,
 Save as draft, Reject and Remove from queue; **Manage users**

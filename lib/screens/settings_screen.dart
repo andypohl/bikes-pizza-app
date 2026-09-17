@@ -13,9 +13,6 @@ import '../posts/profile_service.dart';
 import '../posts/reaction_service.dart';
 import 'blocked_members_screen.dart';
 import 'profile_screen.dart';
-import '../admin/admin_service.dart';
-import '../admin/submissions_screen.dart';
-import '../admin/users_screen.dart';
 import '../app_settings.dart';
 import '../auth/auth_service.dart';
 import '../auth/passkey_service.dart';
@@ -24,7 +21,6 @@ import '../auth/sign_in_screen.dart';
 import '../config.dart';
 import '../posts/post_editor.dart';
 import '../submissions/photo_picker.dart';
-import '../widgets/layout.dart';
 import 'my_posts_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -35,7 +31,6 @@ class SettingsScreen extends StatelessWidget {
     this.passkeys,
     this.editor,
     this.photos,
-    this.admin,
     this.exporter,
     this.profiles,
     this.repository,
@@ -55,10 +50,6 @@ class SettingsScreen extends StatelessWidget {
   /// hides it.
   final PostEditor? editor;
   final PhotoPicker? photos;
-
-  /// The review and user administration screens, offered to
-  /// administrators on tablets; null hides the Admin section.
-  final AdminService? admin;
 
   /// Offers "Export my data" on the account screen; null leaves it out.
   final DataExporter? exporter;
@@ -95,8 +86,6 @@ class SettingsScreen extends StatelessWidget {
             comments: comments,
             threads: threads,
           ),
-          if (admin case final admin? when isTablet(context))
-            _AdminSection(auth: auth, admin: admin),
           const Divider(),
           const _SectionHeader('Appearance'),
           RadioGroup<ThemeMode>(
@@ -296,84 +285,6 @@ class _AccountSection extends StatelessWidget {
                 ),
               ),
           ],
-        );
-      },
-    );
-  }
-}
-
-/// Settings → Admin, on tablets only, for signed-in administrators: the
-/// submissions review and user administration that the web pages at
-/// submissions.bikes.pizza and admin.bikes.pizza offer. Nothing for
-/// anyone else.
-class _AdminSection extends StatefulWidget {
-  const _AdminSection({required this.auth, required this.admin});
-
-  final AuthService auth;
-  final AdminService admin;
-
-  @override
-  State<_AdminSection> createState() => _AdminSectionState();
-}
-
-class _AdminSectionState extends State<_AdminSection> {
-  String? _adminFor;
-  Future<bool>? _isAdmin;
-
-  Future<bool> _check(String uid) {
-    if (_adminFor != uid || _isAdmin == null) {
-      _adminFor = uid;
-      _isAdmin = widget.auth.isAdmin();
-    }
-    return _isAdmin!;
-  }
-
-  void _push(Widget screen) {
-    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<AppUser?>(
-      stream: widget.auth.userChanges,
-      initialData: widget.auth.currentUser,
-      builder: (context, snapshot) {
-        final user = snapshot.data;
-        if (user == null) return const SizedBox.shrink();
-        return FutureBuilder<bool>(
-          future: _check(user.uid),
-          builder: (context, admin) {
-            if (admin.data != true) return const SizedBox.shrink();
-            return Column(
-              key: const Key('admin-section'),
-              children: [
-                const Divider(),
-                const _SectionHeader('Admin'),
-                ListTile(
-                  key: const Key('admin-submissions'),
-                  leading: const Icon(Icons.rate_review_outlined),
-                  title: const Text('Review submissions'),
-                  subtitle: const Text(
-                    'Queue, draft or reject what members sent',
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _push(
-                    SubmissionsScreen(admin: widget.admin, auth: widget.auth),
-                  ),
-                ),
-                ListTile(
-                  key: const Key('admin-users'),
-                  leading: const Icon(Icons.manage_accounts_outlined),
-                  title: const Text('Manage users'),
-                  subtitle: const Text('Who has signed up, and their posts'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _push(
-                    UsersScreen(admin: widget.admin, auth: widget.auth),
-                  ),
-                ),
-              ],
-            );
-          },
         );
       },
     );
