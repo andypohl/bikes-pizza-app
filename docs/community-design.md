@@ -376,7 +376,7 @@ conversation is the unit the email diversion works on.
 | Unread | Per-conversation unread counts; a Messages button on the feed screens with the total; the app icon badge adds the total to the unread posts. In-app only, like comments; push later. |
 | Where | The app only, for now. The website's profile shows "Message in the app". |
 | Email | Either member can ask to continue by email. The other must agree; both are warned that their email address will be shown to the other. On agreement the app emails the conversation to the member who agreed, with Reply-To set to the one who asked, and the conversation ends with "(conversation continued by email)". |
-| Retention | Kept until deleted. Account deletion deletes the member's messages (the other member keeps the thread with "Message deleted" placeholders) and their side of every thread. |
+| Retention | Kept until deleted. When a member deletes their account, every thread they were in is deleted whole, messages from both sides included; the other member is left with nothing but a marker saying the thread is gone. |
 | Later | Groups, images, push notifications, messages on the website. |
 
 ### Storage
@@ -391,6 +391,9 @@ threads/{id}                       id = the two uids sorted and joined with "_"
   seenAt: {uid: ISO}               when each member last opened it
   blockedBy: [uid, ...]            members who blocked the other; empty when open
   reportedAt, reportedBy, reason   set by a report; lets admins read it
+  gone                             true on the marker left when the other member
+                                   deleted their account: members holds only the
+                                   remaining uid and every other field is dropped
   conversation                     1, 2, ...: which conversation is current
   conversationStartedAt            when the current one began
   emailRequest                     null, or {by: uid, at} while one member is
@@ -465,8 +468,11 @@ a website page served by a `/messages/**` Hosting rewrite that loads
 the Firebase session as the account page does, fetches the thread from
 the API, and renders every message read-only with the same bubbles.
 Signed out, or not a member of the thread, it says so and links to
-`/account/`. This is the first piece of messaging on the website; the
-composer stays app-only for now.
+`/account/`. When the thread is a `gone` marker, the page explains that
+the conversation is no longer available because the other member
+deleted their account, and that conversations are deleted with the
+accounts of the people in them. This is the first piece of messaging on
+the website; the composer stays app-only for now.
 
 The privacy page gains a paragraph: continuing a conversation by email
 shares your address with the other member, only when you agree.
@@ -517,6 +523,9 @@ GET    /api/admin/threads/{id}                  admin; a reported thread's messa
 - Signed-out or without a username: the Message button on profiles is
   hidden; the Messages button in the app bar shows "Sign in from
   Settings to message members".
+- A thread that becomes a `gone` marker leaves the list; if its screen
+  is open, it shows "This conversation is gone: the other member
+  deleted their account." and no composer.
 - The unread tracker learns a second total from the threads
   listener so the app icon badge is posts plus messages.
 - Settings gets "Blocked members" under "Manage account".
@@ -526,9 +535,12 @@ GET    /api/admin/threads/{id}                  admin; a reported thread's messa
 `deleteAccount` (and the admin's delete user) also: deletes the member's
 comments (a top-level comment with replies becomes `removed` with no
 author; the rest are deleted), their likes (moving counts down), their
-reports, reactions, notices, blocks, and their messages (each becomes
-"Message deleted" for the other member, and the conversation drops the
-deleted uid from `members`; a conversation with nobody left is deleted).
+reports, reactions, notices, blocks, and every thread they were in:
+all of its messages, from both members, are deleted, and the thread
+document is replaced by a marker (`gone: true`, `members` holding only
+the other member's uid) so the other member's app drops it from the
+list and the website's thread page can say why it is gone. The marker
+holds nothing the deleted member wrote or was called.
 `GET /api/me/export` returns a JSON document with the member's profile
 (including location), posts credited to them, comments, likes,
 reactions, and the messages they wrote, offered from the app's account
