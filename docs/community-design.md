@@ -17,7 +17,7 @@ messages were added on September 17.
 |---|---|
 | Who | Signed-in members (verified email) read and write. Signed-out visitors see the count and "Sign in to read the comments". |
 | Off switch | The post's author (or an admin) turns comments off per post; existing comments are kept but hidden while off. A sitewide switch in site settings, like the submit button. |
-| Text | Plain text with bold, italic and links; no images. A pasted bare URL becomes `[link](url)`. Length cap 1,000 characters. |
+| Text | Plain text with bold, italic and links; no images. A pasted bare URL becomes `[[link](url)]`, read as "[link]". Length cap 1,000 characters. |
 | Mentions | `@username` of an existing member; makes the post fully unread again for that member (the blue dot comes back). No email. |
 | Editing | Five-minute window, then an "(edited)" mark by the time. Delete any time. |
 | Shape | Top-level comments with one level of replies. Oldest first. Twenty top-level comments per page with "load more"; three replies shown, "show N more replies". |
@@ -90,7 +90,9 @@ only `strong`, `em`, `a` (with `rel="nofollow noopener"` and `target`)
 and line breaks. Before rendering:
 
 - A bare URL in the text (`https://…` not already inside a link) is
-  replaced with `[link](https://…)`, so the comment reads "[link]".
+  replaced with `[[link](https://…)]`, so the comment reads "[link]": a
+  link named "link", with the brackets shown so it does not pass for a
+  word of the sentence.
 - `@name` where `name` is an existing username becomes `**@name**` in the
   HTML and the member's uid goes in `mentions`. Unknown names stay plain.
 - Headings, images, code blocks, tables and raw HTML are stripped.

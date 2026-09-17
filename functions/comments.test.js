@@ -200,7 +200,7 @@ test("a comment is rendered, published, counted on the post and its mentions get
   const first = await say(ada, "Great slice, @bob and @Cal! https://x.y/z");
   assert.equal(first.id, "c1");
   assert.deepEqual([first.username, first.status, first.mine, first.parentId, first.likeCount, first.liked, first.replyCount], ["ada_bikes", "published", true, null, 0, false, 0]);
-  assert.equal(first.text, "Great slice, @bob and @Cal! [link](https://x.y/z)");
+  assert.equal(first.text, "Great slice, @bob and @Cal! [[link](https://x.y/z)]");
   assert.match(first.html, /<strong>@bob<\/strong> and <strong>@cal<\/strong>/);
   const post = await posts.get("detroit-slice");
   assert.equal(post.commentCount, 1);
