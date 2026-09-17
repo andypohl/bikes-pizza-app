@@ -225,7 +225,12 @@ the feed screens carries the unread total and opens the thread list
 count in bold); a thread is one bottom-aligned list of bubbles with
 "Load older messages" at the top, event lines centered, own messages
 editable for five minutes and deletable on long press, and a composer
-with the same toolbar as comments; the menu offers Block and Report. A
+with the same toolbar as comments; the menu offers Block and Report.
+Above the composer, "Continue this conversation in email" asks the
+other member (after a warning that the asker's address will be shown);
+the other side sees a card with Agree and Not now, the asker "Waiting
+for … to agree" with Cancel, and agreeing sends the email and ends the
+conversation with an event line. A
 profile's Message button opens the thread with that member; Settings →
 Blocked members lists blocks with Unblock; the account screen has
 "Allow direct messages". Threads and messages arrive live through the

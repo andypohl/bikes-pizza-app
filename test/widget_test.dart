@@ -532,6 +532,74 @@ class FakeThreadService implements ThreadService {
     yield* _controller(threadId).stream;
   }
 
+  final emailCalls = <(String, String)>[];
+
+  @override
+  Stream<Thread?> thread(String threadId) async* {
+    Thread? find(List<Thread> list) =>
+        list.where((t) => t.id == threadId).firstOrNull;
+    yield find(threadList);
+    yield* _threadsController.stream.map(find);
+  }
+
+  /// Replaces a thread in the list and tells the listeners.
+  void update(Thread thread) {
+    final index = threadList.indexWhere((t) => t.id == thread.id);
+    if (index >= 0) threadList[index] = thread;
+    emit();
+  }
+
+  @override
+  Future<void> requestEmail(String threadId) async {
+    emailCalls.add((threadId, 'request'));
+    if (fail) throw ApiException('Say something first.');
+    final t = threadList.firstWhere((t) => t.id == threadId);
+    update(_copy(t, emailRequestBy: 'g1'));
+  }
+
+  @override
+  Future<void> withdrawEmail(String threadId) async {
+    emailCalls.add((threadId, 'withdraw'));
+    final t = threadList.firstWhere((t) => t.id == threadId);
+    update(_copy(t, clearRequest: true));
+  }
+
+  @override
+  Future<void> agreeEmail(String threadId) async {
+    emailCalls.add((threadId, 'agree'));
+    final t = threadList.firstWhere((t) => t.id == threadId);
+    (messageLists[threadId] ??= []).add(
+      Message(
+        id: 'e${++_seq}',
+        kind: 'event',
+        event: 'emailed',
+        by: 'g1',
+        at: DateTime.now(),
+        conversation: t.conversation,
+      ),
+    );
+    update(_copy(t, clearRequest: true, conversation: t.conversation + 1));
+  }
+
+  static Thread _copy(
+    Thread t, {
+    String? emailRequestBy,
+    bool clearRequest = false,
+    int? conversation,
+  }) => Thread(
+    id: t.id,
+    otherUid: t.otherUid,
+    otherUsername: t.otherUsername,
+    lastText: t.lastText,
+    lastAt: t.lastAt,
+    unread: t.unread,
+    blocked: t.blocked,
+    blockedByMe: t.blockedByMe,
+    gone: t.gone,
+    conversation: conversation ?? t.conversation,
+    emailRequestBy: clearRequest ? null : emailRequestBy ?? t.emailRequestBy,
+  );
+
   @override
   Future<Thread> open(String username) async {
     opened.add(username);
@@ -558,6 +626,12 @@ class FakeThreadService implements ThreadService {
       text: text,
       html: '<p>$text</p>',
       at: DateTime.now(),
+      conversation:
+          threadList
+              .where((t) => t.id == threadId)
+              .map((t) => t.conversation)
+              .firstOrNull ??
+          1,
     );
     (messageLists[threadId] ??= []).add(message);
     emit();
@@ -4432,5 +4506,69 @@ void main() {
     await tester.tap(find.byKey(const Key('save-profile')));
     await tester.pumpAndSettle();
     expect(members!.updates.single.messages, isFalse);
+  });
+
+  testWidgets('a conversation can be taken to email: ask, wait, cancel; or '
+      'agree to the other side\'s request', (tester) async {
+    seedThread();
+    await pumpApp(tester);
+    await signInWithGoogle(tester);
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('messages-pizza')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('thread-g1_u2')));
+    await tester.pumpAndSettle();
+
+    // Asking, after the warning; then waiting, then taking it back.
+    await tester.tap(find.byKey(const Key('email-ask')));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('your email address will be shown'),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('email-ask-confirm')));
+    await tester.pumpAndSettle();
+    expect(threads!.emailCalls, [('g1_u2', 'request')]);
+    expect(find.byKey(const Key('email-waiting')), findsOneWidget);
+    expect(find.byKey(const Key('email-ask')), findsNothing);
+    await tester.tap(find.byKey(const Key('email-cancel')));
+    await tester.pumpAndSettle();
+    expect(threads!.emailCalls.last, ('g1_u2', 'withdraw'));
+    expect(find.byKey(const Key('email-ask')), findsOneWidget);
+
+    // The other side asks: a card with Agree and Not now.
+    threads!.update(
+      const Thread(
+        id: 'g1_u2',
+        otherUid: 'u2',
+        otherUsername: 'bob',
+        emailRequestBy: 'u2',
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('email-request')), findsOneWidget);
+    expect(
+      find.textContaining('Agreeing shares your email address'),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('email-agree')));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('they will see your email address'),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('email-agree-confirm')));
+    await tester.pumpAndSettle();
+    expect(threads!.emailCalls.last, ('g1_u2', 'agree'));
+    expect(find.text('Sent. Check your email.'), findsOneWidget);
+    expect(find.text('(conversation continued by email)'), findsOneWidget);
+    // The new conversation is empty, so there is nothing to ask about yet.
+    expect(find.byKey(const Key('email-ask')), findsNothing);
+    await tester.enterText(find.byKey(const Key('message-text')), 'Again');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('message-send')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('email-ask')), findsOneWidget);
   });
 }
