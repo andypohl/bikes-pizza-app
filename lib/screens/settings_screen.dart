@@ -3,6 +3,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../account/account_screen.dart';
+import '../account/data_export.dart';
 import '../account/member_service.dart';
 import '../admin/admin_service.dart';
 import '../admin/submissions_screen.dart';
@@ -27,6 +28,7 @@ class SettingsScreen extends StatelessWidget {
     this.editor,
     this.photos,
     this.admin,
+    this.exporter,
   });
 
   final AuthService auth;
@@ -44,6 +46,9 @@ class SettingsScreen extends StatelessWidget {
   /// administrators on tablets; null hides the Admin section.
   final AdminService? admin;
 
+  /// Offers "Export my data" on the account screen; null leaves it out.
+  final DataExporter? exporter;
+
   @override
   Widget build(BuildContext context) {
     final settings = AppSettingsScope.of(context);
@@ -59,6 +64,7 @@ class SettingsScreen extends StatelessWidget {
             passkeys: passkeys,
             editor: editor,
             photos: photos,
+            exporter: exporter,
           ),
           if (admin case final admin? when isTablet(context))
             _AdminSection(auth: auth, admin: admin),
@@ -107,6 +113,7 @@ class _AccountSection extends StatelessWidget {
     required this.passkeys,
     required this.editor,
     required this.photos,
+    this.exporter,
   });
 
   final AuthService auth;
@@ -114,6 +121,7 @@ class _AccountSection extends StatelessWidget {
   final PasskeyService? passkeys;
   final PostEditor? editor;
   final PhotoPicker? photos;
+  final DataExporter? exporter;
 
   @override
   Widget build(BuildContext context) {
@@ -179,6 +187,7 @@ class _AccountSection extends StatelessWidget {
                       auth: auth,
                       members: members,
                       passkeys: passkeys,
+                      exporter: exporter,
                     ),
                   ),
                 ),

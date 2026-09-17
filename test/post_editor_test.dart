@@ -200,4 +200,29 @@ void main() {
     expect(const PostEdit(pictures: []).isEmpty, isFalse);
     expect(const PostEdit().isEmpty, isTrue);
   });
+
+  test('the comments switch travels with an edit and reads back', () {
+    expect(const PostEdit(comments: false).toJson(), {'comments': false});
+    expect(const PostEdit(comments: false).isEmpty, isFalse);
+    expect(const PostEdit().isEmpty, isTrue);
+    expect(
+      EditablePost.fromJson({
+        'id': 'a',
+        'title': 'A',
+        'feed': 'pizza',
+        'publishedAt': '2026-09-01T12:00:00.000Z',
+        'commentsEnabled': false,
+      }).commentsEnabled,
+      isFalse,
+    );
+    expect(
+      EditablePost.fromJson({
+        'id': 'a',
+        'title': 'A',
+        'feed': 'pizza',
+        'publishedAt': '2026-09-01T12:00:00.000Z',
+      }).commentsEnabled,
+      isTrue,
+    );
+  });
 }

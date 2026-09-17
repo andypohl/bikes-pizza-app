@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:bikes_pizza/account/data_export.dart';
 import 'package:bikes_pizza/account/member_service.dart';
 import 'package:bikes_pizza/admin/admin_service.dart';
 import 'package:bikes_pizza/admin/submissions_screen.dart';
@@ -19,6 +20,7 @@ import 'package:bikes_pizza/main.dart';
 import 'package:bikes_pizza/models/post.dart';
 import 'package:bikes_pizza/models/post_feed.dart';
 import 'package:bikes_pizza/posts/app_badge.dart';
+import 'package:bikes_pizza/posts/comment_service.dart';
 import 'package:bikes_pizza/posts/post_editor.dart';
 import 'package:bikes_pizza/posts/reaction_service.dart';
 import 'package:bikes_pizza/posts/unread_tracker.dart';
@@ -75,14 +77,27 @@ class FakePostRepository implements PostRepository {
 
   /// What the unread counters see: every post of every feed (news pages
   /// included) changed after [since], each once.
+  /// When set, what [fetchChanges] answers instead of deriving it.
+  List<PostChange>? changes;
+
   @override
   Future<List<PostChange>> fetchChanges({required DateTime since}) async {
+    final fixed = changes;
+    if (fixed != null) return fixed;
     final seen = <String>{};
     return [
       for (final list in [...byFeed.values, ...?newsPages])
         for (final p in list)
-          if (p.changedAt.isAfter(since) && seen.add(p.id))
-            PostChange(id: p.id, feed: p.feed, changedAt: p.changedAt),
+          if ((p.changedAt.isAfter(since) ||
+                  (p.commentTimes.firstOrNull?.isAfter(since) ?? false)) &&
+              seen.add(p.id))
+            PostChange(
+              id: p.id,
+              feed: p.feed,
+              changedAt: p.changedAt,
+              commentedAt: p.commentTimes.firstOrNull,
+              commentTimes: p.commentTimes,
+            ),
     ];
   }
 }
@@ -504,6 +519,161 @@ class FakeReactionService implements ReactionService {
   }
 }
 
+/// In-memory comments: a thread per post (top-level comments with their
+/// shown replies), the full replies of a comment for "show more", an
+/// optional second page; records every call. New comments are Ada's
+/// (uid g1) and published unless [hold] is set.
+class FakeCommentService implements CommentService {
+  final threads = <String, List<Comment>>{};
+  final allReplies = <String, List<Comment>>{};
+  final counts = <String, int>{};
+  final nextPages = <String, List<Comment>>{};
+  final fetched = <(String, String?)>[];
+  final created = <(String, String, String?)>[];
+  final edited = <(String, String)>[];
+  final deleted = <String>[];
+  final likedIds = <String>{};
+  final likeTaps = <String>[];
+  final reported = <(String, String)>[];
+  List<Notice> noticeList = [];
+  final noticesAsked = <DateTime?>[];
+  bool hold = false;
+  bool fail = false;
+  int _seq = 100;
+
+  @override
+  Future<CommentPage> fetch(String postId, {String? after}) async {
+    fetched.add((postId, after));
+    if (fail) throw ApiException('Could not load the comments.');
+    final count = counts[postId] ?? threads[postId]?.length ?? 0;
+    if (after != null) {
+      return CommentPage(count: count, comments: nextPages[postId] ?? []);
+    }
+    return CommentPage(
+      count: count,
+      comments: threads[postId] ?? const [],
+      next: nextPages.containsKey(postId) ? 'more' : null,
+    );
+  }
+
+  @override
+  Future<List<Comment>> replies(String postId, String commentId) async =>
+      allReplies[commentId] ?? const [];
+
+  @override
+  Future<Comment> create(String postId, String text, {String? parentId}) async {
+    created.add((postId, text, parentId));
+    if (fail) throw ApiException('Could not post that.');
+    final comment = Comment(
+      id: 'c${++_seq}',
+      parentId: parentId,
+      uid: 'g1',
+      username: 'ada_bikes',
+      html: '<p>$text</p>',
+      text: text,
+      createdAt: DateTime.now(),
+      status: hold ? 'pending' : 'published',
+      hold: hold ? 'screen' : null,
+      mine: true,
+    );
+    if (!hold) counts[postId] = (counts[postId] ?? 0) + 1;
+    return comment;
+  }
+
+  @override
+  Future<Comment> edit(String postId, String commentId, String text) async {
+    edited.add((commentId, text));
+    if (fail) throw ApiException('Could not save that.');
+    return Comment(
+      id: commentId,
+      uid: 'g1',
+      username: 'ada_bikes',
+      html: '<p>$text</p>',
+      text: text,
+      createdAt: DateTime.now().subtract(const Duration(minutes: 1)),
+      editedAt: DateTime.now(),
+      mine: true,
+    );
+  }
+
+  @override
+  Future<void> delete(String postId, String commentId) async {
+    if (fail) throw ApiException('Could not delete that.');
+    deleted.add(commentId);
+  }
+
+  @override
+  Future<({bool liked, int likeCount})> like(
+    String postId,
+    String commentId,
+  ) async {
+    likeTaps.add(commentId);
+    if (fail) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      throw ApiException('Could not like that.');
+    }
+    if (likedIds.remove(commentId)) return (liked: false, likeCount: 0);
+    likedIds.add(commentId);
+    return (liked: true, likeCount: 1);
+  }
+
+  @override
+  Future<List<CommentLike>> likes(String postId, String commentId) async => [
+    CommentLike(username: 'bob', at: DateTime(2026, 9, 1)),
+    CommentLike(username: 'cal', at: DateTime(2026, 9, 2)),
+  ];
+
+  @override
+  Future<void> report(String postId, String commentId, String reason) async {
+    if (fail) throw ApiException('Could not report that.');
+    reported.add((commentId, reason));
+  }
+
+  @override
+  Future<List<Notice>> notices({DateTime? since}) async {
+    noticesAsked.add(since);
+    return noticeList;
+  }
+}
+
+/// Records export requests instead of sharing a file.
+class FakeDataExporter implements DataExporter {
+  int exports = 0;
+  bool fail = false;
+
+  @override
+  Future<void> export() async {
+    if (fail) throw ApiException('Could not export your data.');
+    exports += 1;
+  }
+}
+
+/// A comment in a thread, for the fake service.
+Comment _comment(
+  String id,
+  String username,
+  String text, {
+  String? parentId,
+  List<Comment> replies = const [],
+  int? replyCount,
+  bool mine = false,
+  bool liked = false,
+  int likeCount = 0,
+}) => Comment(
+  id: id,
+  parentId: parentId,
+  uid: username == 'ada_bikes' ? 'g1' : 'u-$username',
+  username: username,
+  html: '<p>$text</p>',
+  text: mine ? text : null,
+  createdAt: DateTime(2026, 9, 1, 12),
+  mine: mine,
+  liked: liked,
+  likeCount: likeCount,
+  replies: replies,
+  replyCount: replyCount ?? replies.length,
+);
+
 class FakePostEditor implements PostEditor {
   final posts = <String, EditablePost>{};
   List<PostSummary> mine = [];
@@ -862,11 +1032,17 @@ Post _post(
   List<PostImage> images = const [],
   DateTime? changedAt,
   Map<String, Map<String, int>> reactions = const {},
+  int commentCount = 0,
+  List<DateTime> commentTimes = const [],
+  bool commentsEnabled = true,
 }) => Post(
   id: title,
   images: images,
   changedAt: changedAt,
   reactions: reactions,
+  commentCount: commentCount,
+  commentTimes: commentTimes,
+  commentsEnabled: commentsEnabled,
   feed: bike != null
       ? 'bikes'
       : pizza != null
@@ -930,6 +1106,8 @@ void main() {
   late FakePostEditor editor;
   late FakeAdminService admin;
   FakeReactionService? reactions;
+  late FakeCommentService comments;
+  late FakeDataExporter exporter;
 
   setUp(() {
     PackageInfo.setMockInitialValues(
@@ -947,6 +1125,8 @@ void main() {
     photos = FakePhotoPicker();
     admin = FakeAdminService();
     reactions = FakeReactionService();
+    comments = FakeCommentService();
+    exporter = FakeDataExporter();
     editor = FakePostEditor()
       ..posts['Newest post'] = _editable('Newest post')
       ..posts['Older post'] = _editable(
@@ -1001,6 +1181,8 @@ void main() {
             'had': {'yes': 3},
             'fantastic': {'cheese': 2},
           },
+          commentCount: 2,
+          commentTimes: [DateTime(2025, 2, 3), DateTime(2025, 2, 2)],
         ),
       ],
       PostFeed.bikes: [
@@ -1013,6 +1195,7 @@ void main() {
             color: 'orange',
             type: 'mtb',
           ),
+          commentsEnabled: false,
         ),
       ],
     });
@@ -1029,7 +1212,9 @@ void main() {
         photos: photos,
         editor: editor,
         reactions: reactions,
+        comments: comments,
         admin: admin,
+        exporter: exporter,
         unread: unread,
         badge: badge,
       ),
@@ -3399,5 +3584,346 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('ada_bikes'), findsOneWidget);
+  });
+
+  testWidgets('comments show their count; signed out, a hint to sign in', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    // The tile carries the count.
+    expect(find.byKey(const Key('tile-comments')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('tile-comments')),
+        matching: find.text('2'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('tile-unseen')), findsNothing);
+    await tester.tap(find.text('Detroit style'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('comments')), findsOneWidget);
+    expect(find.text('2 comments'), findsOneWidget);
+    expect(
+      find.text('Sign in from Settings to read the comments.'),
+      findsOneWidget,
+    );
+    expect(comments.fetched, isEmpty);
+    expect(find.byKey(const Key('comment-composer')), findsNothing);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    // News posts take no comments.
+    await tester.tap(find.text('News'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('comments')), findsNothing);
+  });
+
+  testWidgets('a signed-in member reads the thread, replies, likes, edits, '
+      'deletes and reports', (tester) async {
+    comments.threads['Detroit style'] = [
+      _comment(
+        'c1',
+        'bob',
+        'Nice slice',
+        replies: [_comment('c2', 'cal', 'Agreed', parentId: 'c1')],
+        replyCount: 3,
+      ),
+    ];
+    comments.allReplies['c1'] = [
+      _comment('c2', 'cal', 'Agreed', parentId: 'c1'),
+      _comment('c3', 'dan', 'Yes', parentId: 'c1'),
+      _comment('c4', 'eve', 'Yum', parentId: 'c1'),
+    ];
+    comments.counts['Detroit style'] = 4;
+    await pumpApp(tester);
+    await signInWithGoogle(tester);
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Detroit style'));
+    await tester.pumpAndSettle();
+    expect(comments.fetched, [('Detroit style', null)]);
+    expect(find.text('4 comments'), findsOneWidget);
+    expect(find.byKey(const Key('comment-c1')), findsOneWidget);
+    expect(find.text('bob'), findsOneWidget);
+    expect(find.text('Nice slice', findRichText: true), findsOneWidget);
+    expect(find.byKey(const Key('comment-c2')), findsOneWidget);
+
+    // Two more replies are fetched on demand.
+    await tester.ensureVisible(
+      find.byKey(const Key('comment-more-replies-c1')),
+    );
+    await tester.tap(find.byKey(const Key('comment-more-replies-c1')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('comment-c4')), findsOneWidget);
+    expect(find.byKey(const Key('comment-more-replies-c1')), findsNothing);
+
+    // Liking shows at once; the count opens who liked it.
+    await tester.tap(find.byKey(const Key('comment-like-c1')));
+    await tester.pumpAndSettle();
+    expect(comments.likeTaps, ['c1']);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('comment-likes-c1')),
+        matching: find.text('1'),
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('comment-likes-c1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Liked by 2 members'), findsOneWidget);
+    expect(find.text('cal'), findsWidgets);
+    await tester.tapAt(const Offset(20, 20));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('comment-likes')), findsNothing);
+
+    // A reply goes under the comment it answers.
+    await tester.ensureVisible(find.byKey(const Key('comment-reply-c1')));
+    await tester.tap(find.byKey(const Key('comment-reply-c1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Replying to bob'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('comment-text')), 'Me too');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('comment-send')));
+    await tester.pumpAndSettle();
+    expect(comments.created, [('Detroit style', 'Me too', 'c1')]);
+    expect(find.byKey(const Key('comment-c101')), findsOneWidget);
+    expect(find.text('5 comments'), findsOneWidget);
+    expect(find.byKey(const Key('composer-mode')), findsNothing);
+
+    // A new top-level comment, with a bold word from the toolbar.
+    await tester.enterText(find.byKey(const Key('comment-text')), 'Great');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('comment-bold')));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('comment-text')))
+          .controller!
+          .text,
+      'Great****',
+    );
+    await tester.enterText(
+      find.byKey(const Key('comment-text')),
+      'Great **pie**',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('comment-send')));
+    await tester.pumpAndSettle();
+    expect(comments.created.last, ('Detroit style', 'Great **pie**', null));
+    expect(find.byKey(const Key('comment-c102')), findsOneWidget);
+    expect(find.text('6 comments'), findsOneWidget);
+
+    // Own comments can be edited for a while, and deleted.
+    await tester.ensureVisible(find.byKey(const Key('comment-menu-c102')));
+    await tester.tap(find.byKey(const Key('comment-menu-c102')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    expect(find.text('Editing your comment'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('comment-text')))
+          .controller!
+          .text,
+      'Great **pie**',
+    );
+    await tester.enterText(find.byKey(const Key('comment-text')), 'Great pie!');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('comment-send')));
+    await tester.pumpAndSettle();
+    expect(comments.edited, [('c102', 'Great pie!')]);
+    expect(find.text('(edited)'), findsOneWidget);
+
+    await tester.ensureVisible(find.byKey(const Key('comment-menu-c102')));
+    await tester.tap(find.byKey(const Key('comment-menu-c102')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('comment-delete-confirm')));
+    await tester.pumpAndSettle();
+    expect(comments.deleted, ['c102']);
+    expect(find.byKey(const Key('comment-c102')), findsNothing);
+    expect(find.text('5 comments'), findsOneWidget);
+
+    // Someone else's comment can be reported, not edited or deleted.
+    await tester.ensureVisible(find.byKey(const Key('comment-menu-c1')));
+    await tester.tap(find.byKey(const Key('comment-menu-c1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Edit'), findsNothing);
+    expect(find.text('Delete'), findsNothing);
+    await tester.tap(find.text('Report'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('report-spam')));
+    await tester.pumpAndSettle();
+    expect(comments.reported, [('c1', 'spam')]);
+    expect(find.text("Thanks. We'll take a look."), findsOneWidget);
+  });
+
+  testWidgets('a held comment waits for review; a failed post is told', (
+    tester,
+  ) async {
+    comments.hold = true;
+    comments.counts['Detroit style'] = 2;
+    await pumpApp(tester);
+    await signInWithGoogle(tester);
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Detroit style'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('comment-text')), 'Politics');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('comment-send')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('comment-pending-c101')), findsOneWidget);
+    expect(find.text('Your comment is waiting for review.'), findsOneWidget);
+    expect(find.text('2 comments'), findsOneWidget);
+    // Let that snackbar go, so the next one shows at once.
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+
+    comments.fail = true;
+    await tester.enterText(find.byKey(const Key('comment-text')), 'Again');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('comment-send')));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not post that.'), findsOneWidget);
+    // The text stays for another try.
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('comment-text')))
+          .controller!
+          .text,
+      'Again',
+    );
+  });
+
+  testWidgets('a post with comments off says so and fetches nothing', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    await signInWithGoogle(tester);
+    await tester.tap(find.text('Bikes'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1992 GT Outpost'));
+    await tester.pumpAndSettle();
+    expect(find.text('Comments are off for this post.'), findsOneWidget);
+    expect(comments.fetched, isEmpty);
+  });
+
+  testWidgets('more comments load on demand', (tester) async {
+    comments.threads['Detroit style'] = [_comment('c1', 'bob', 'First')];
+    comments.nextPages['Detroit style'] = [_comment('c5', 'cal', 'Later')];
+    await pumpApp(tester);
+    await signInWithGoogle(tester);
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Detroit style'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('comment-c5')), findsNothing);
+    await tester.ensureVisible(find.byKey(const Key('comments-load-more')));
+    await tester.tap(find.byKey(const Key('comments-load-more')));
+    await tester.pumpAndSettle();
+    expect(comments.fetched.last, ('Detroit style', 'more'));
+    expect(find.byKey(const Key('comment-c5')), findsOneWidget);
+    expect(find.byKey(const Key('comments-load-more')), findsNothing);
+  });
+
+  testWidgets('tiles say how many comments are new until the post is opened', (
+    tester,
+  ) async {
+    final unread = UnreadTracker(baseline: DateTime(2020));
+    await pumpApp(tester, unread: unread);
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('tile-unseen')), findsOneWidget);
+    expect(find.text('2+ new'), findsOneWidget);
+    await tester.tap(find.text('Detroit style'));
+    await tester.pumpAndSettle();
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('tile-unseen')), findsNothing);
+  });
+
+  testWidgets('a mention counts on the tabs once a verified member is in', (
+    tester,
+  ) async {
+    final unread = UnreadTracker(baseline: DateTime(2026, 1, 1));
+    final repo = await pumpApp(tester, unread: unread);
+    // Nothing changed since the baseline: no counters.
+    expect(unread.total, 0);
+    expect(comments.noticesAsked, isEmpty);
+    // A comment on the pizza post mentioned Ada last week.
+    repo.changes = [
+      PostChange(
+        id: 'Detroit style',
+        feed: 'pizza',
+        changedAt: DateTime(2025, 2, 1),
+        commentedAt: DateTime(2026, 9, 10),
+        commentTimes: [DateTime(2026, 9, 10)],
+      ),
+    ];
+    comments.noticeList = [
+      Notice(
+        id: 'n1',
+        kind: 'mention',
+        post: 'Detroit style',
+        at: DateTime(2026, 9, 10),
+      ),
+    ];
+    await signInWithGoogle(tester);
+    expect(comments.noticesAsked, [DateTime(2026, 1, 1)]);
+    expect(unread.unreadCount(PostFeed.pizza), 1);
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('unread-dot')), findsOneWidget);
+    await tester.tap(find.text('Detroit style'));
+    await tester.pumpAndSettle();
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('unread-dot')), findsNothing);
+    expect(unread.total, 0);
+  });
+
+  testWidgets('the edit screen switches comments off on the post', (
+    tester,
+  ) async {
+    await openPostAsMember(tester, 'Newest post');
+    await tester.tap(find.byKey(const Key('edit-post')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('comments-switch')));
+    expect(
+      tester
+          .widget<SwitchListTile>(find.byKey(const Key('comments-switch')))
+          .value,
+      isTrue,
+    );
+    await tester.tap(find.byKey(const Key('comments-switch')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('save')));
+    await tester.tap(find.byKey(const Key('save')));
+    await tester.pumpAndSettle();
+    expect(editor.saved.length, 1);
+    final (_, edit) = editor.saved.single;
+    expect(edit.comments, isFalse);
+    expect(edit.title, isNull);
+  });
+
+  testWidgets('the account screen exports the member\'s data', (tester) async {
+    members = FakeMemberService();
+    await pumpApp(tester);
+    await signInWithGoogle(tester); // lands on Settings
+    await tester.tap(find.byKey(const Key('manage-account')));
+    await tester.pumpAndSettle();
+    await scrollTo(tester, find.byKey(const Key('export-data')));
+    await tester.tap(find.byKey(const Key('export-data')));
+    await tester.pumpAndSettle();
+    expect(exporter.exports, 1);
+    exporter.fail = true;
+    await tester.tap(find.byKey(const Key('export-data')));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not export your data.'), findsOneWidget);
   });
 }

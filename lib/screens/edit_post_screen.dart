@@ -44,6 +44,7 @@ class _EditPostScreenState extends State<EditPostScreen> {
   String _color = '';
   String _type = '';
   String _style = '';
+  bool _comments = true;
   SubmissionPhoto? _photo;
 
   /// The additional pictures as the form shows them: the post's, minus
@@ -97,6 +98,7 @@ class _EditPostScreenState extends State<EditPostScreen> {
         _color = post.bike?.color ?? '';
         _type = post.bike?.type ?? '';
         _style = post.pizza?.style ?? '';
+        _comments = post.commentsEnabled;
         _pictures = [for (final image in post.images) KeptPicture(image)];
       });
     } on ApiException catch (e) {
@@ -139,6 +141,7 @@ class _EditPostScreenState extends State<EditPostScreen> {
       pictures: _picturesChanged(post) ? List.of(_pictures) : null,
       bike: bike,
       pizza: pizza,
+      comments: _comments != post.commentsEnabled ? _comments : null,
     );
   }
 
@@ -236,7 +239,20 @@ class _EditPostScreenState extends State<EditPostScreen> {
     final busy = _saving || _locked;
     final photo = _photo;
     final image = post.image;
-    final dirty = !_edit().isEmpty;
+    final edit = _edit();
+    final dirty = !edit.isEmpty;
+    // The comments switch is applied at once, so it can be saved on its
+    // own even while another edit waits for review.
+    final onlyComments =
+        edit.comments != null &&
+        PostEdit(comments: edit.comments).isEmpty == edit.isEmpty &&
+        edit.title == null &&
+        edit.story == null &&
+        edit.photo == null &&
+        edit.pictures == null &&
+        edit.bike == null &&
+        edit.pizza == null;
+    final canSave = !_saving && dirty && (!_locked || onlyComments);
 
     return Form(
       key: _formKey,
@@ -400,10 +416,26 @@ class _EditPostScreenState extends State<EditPostScreen> {
               onChanged: (v) => setState(() => _style = v),
             ),
           ],
+          if (galleryFeeds.contains(post.feed)) ...[
+            const SizedBox(height: 20),
+            SwitchListTile(
+              key: const Key('comments-switch'),
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Comments'),
+              subtitle: const Text(
+                'Members can comment on this post. Switching them off '
+                'hides the comments so far.',
+              ),
+              value: _comments,
+              onChanged: _saving
+                  ? null
+                  : (value) => setState(() => _comments = value),
+            ),
+          ],
           const SizedBox(height: 24),
           FilledButton.icon(
             key: const Key('save'),
-            onPressed: busy || !dirty ? null : _save,
+            onPressed: canSave ? _save : null,
             icon: _saving
                 ? const SizedBox.square(
                     dimension: 18,

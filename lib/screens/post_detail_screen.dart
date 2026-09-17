@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../auth/auth_service.dart';
 import '../data/post_repository.dart';
 import '../models/post.dart';
+import '../posts/comment_service.dart';
 import '../posts/post_editor.dart';
 import '../posts/reaction_service.dart';
 import '../submissions/photo_picker.dart';
@@ -20,6 +21,7 @@ class PostDetailScreen extends StatefulWidget {
     required this.post,
     this.repository,
     this.reactions,
+    this.comments,
     this.auth,
     this.editor,
     this.photos,
@@ -29,6 +31,7 @@ class PostDetailScreen extends StatefulWidget {
   final Post post;
   final PostRepository? repository;
   final ReactionService? reactions;
+  final CommentService? comments;
   final AuthService? auth;
   final PostEditor? editor;
   final PhotoPicker? photos;
@@ -76,6 +79,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           post: post,
           repository: widget.repository,
           reactions: widget.reactions,
+          comments: widget.comments,
           auth: auth,
         ),
       ),

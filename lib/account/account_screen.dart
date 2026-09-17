@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../auth/auth_service.dart';
 import '../auth/passkey_service.dart';
 import '../auth/session_expiry.dart';
+import '../api/api_client.dart';
+import 'data_export.dart';
 import 'member_service.dart';
 import 'totp_setup_screen.dart';
 
@@ -17,11 +19,15 @@ class AccountScreen extends StatefulWidget {
     required this.auth,
     required this.members,
     this.passkeys,
+    this.exporter,
   });
 
   final AuthService auth;
   final MemberService members;
   final PasskeyService? passkeys;
+
+  /// Offers "Export my data"; null leaves it out.
+  final DataExporter? exporter;
 
   @override
   State<AccountScreen> createState() => _AccountScreenState();
@@ -205,6 +211,10 @@ class _AccountScreenState extends State<AccountScreen> {
             const _Heading('Passkeys'),
             _PasskeySection(auth: widget.auth, passkeys: passkeys),
           ],
+          if (widget.exporter case final exporter?) ...[
+            const _Heading('Your data'),
+            _ExportTile(auth: widget.auth, exporter: exporter),
+          ],
           const SizedBox(height: 24),
           TextButton(
             key: const Key('sign-out'),
@@ -234,6 +244,56 @@ class _AccountScreenState extends State<AccountScreen> {
   static String _signInMethods(AppUser user) {
     final names = _providerNames(user);
     return names.isEmpty ? 'Signed in' : 'Signs in with ${names.join(' and ')}';
+  }
+}
+
+/// "Export my data": fetches everything the member has and hands the
+/// JSON file to the share sheet.
+class _ExportTile extends StatefulWidget {
+  const _ExportTile({required this.auth, required this.exporter});
+
+  final AuthService auth;
+  final DataExporter exporter;
+
+  @override
+  State<_ExportTile> createState() => _ExportTileState();
+}
+
+class _ExportTileState extends State<_ExportTile> {
+  bool _busy = false;
+
+  Future<void> _export() async {
+    setState(() => _busy = true);
+    try {
+      await widget.exporter.export();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      if (e.sessionExpired) return handleSessionExpired(context, widget.auth);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      key: const Key('export-data'),
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.download_outlined),
+      title: const Text('Export my data'),
+      subtitle: const Text(
+        'Your posts, comments, likes and reactions as a JSON file.',
+      ),
+      trailing: _busy
+          ? const SizedBox.square(
+              dimension: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.chevron_right),
+      onTap: _busy ? null : _export,
+    );
   }
 }
 

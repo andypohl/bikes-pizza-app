@@ -8,7 +8,8 @@ import 'unread_dot.dart';
 /// One row in a post list: thumbnail on the left, title and date on the
 /// right, plus a bike's brand, type and year or a pizza's style when known.
 /// [selected] tints the row, for the post open beside the list on a tablet;
-/// [unread] puts a blue dot before the title.
+/// [unread] puts a blue dot before the title. A post that takes comments
+/// shows how many it has, and [unseenComments] ("3 new") beside that.
 class PostTile extends StatelessWidget {
   const PostTile({
     super.key,
@@ -16,12 +17,14 @@ class PostTile extends StatelessWidget {
     this.onTap,
     this.selected = false,
     this.unread = false,
+    this.unseenComments,
   });
 
   final Post post;
   final VoidCallback? onTap;
   final bool selected;
   final bool unread;
+  final String? unseenComments;
 
   static const double thumbWidth = 112;
   static const double thumbHeight = 80;
@@ -84,6 +87,38 @@ class PostTile extends StatelessWidget {
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                    ),
+                  if (post.takesComments && post.commentCount > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Row(
+                        key: const Key('tile-comments'),
+                        children: [
+                          Icon(
+                            Icons.mode_comment_outlined,
+                            size: 14,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${post.commentCount}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          if (unseenComments != null) ...[
+                            const SizedBox(width: 8),
+                            Text(
+                              unseenComments!,
+                              key: const Key('tile-unseen'),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                 ],
               ),

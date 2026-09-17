@@ -8,8 +8,10 @@ import '../auth/auth_service.dart';
 import '../data/post_repository.dart';
 import '../models/post.dart';
 import '../models/post_feed.dart';
+import '../posts/comment_service.dart';
 import '../posts/reaction_service.dart';
 import '../screens/post_list_screen.dart';
+import 'comments_panel.dart';
 import 'reactions_panel.dart';
 import 'unread_dot.dart';
 
@@ -20,13 +22,15 @@ import 'unread_dot.dart';
 /// scrollable itself; the post screen and the news reader each put it in
 /// their own scroll view. With a [repository], the submitter's username
 /// opens the list of everything they have posted; with [reactions] (and
-/// [auth] to know who is signed in) members can react.
+/// [auth] to know who is signed in) members can react, and with
+/// [comments] read and write the comments under a bike or pizza post.
 class PostArticle extends StatelessWidget {
   const PostArticle({
     super.key,
     required this.post,
     this.repository,
     this.reactions,
+    this.comments,
     this.auth,
     this.unread = false,
   });
@@ -34,6 +38,7 @@ class PostArticle extends StatelessWidget {
   final Post post;
   final PostRepository? repository;
   final ReactionService? reactions;
+  final CommentService? comments;
   final AuthService? auth;
 
   /// Puts the blue unread dot before the title.
@@ -214,6 +219,8 @@ class PostArticle extends StatelessWidget {
               else if (post.summary.isNotEmpty)
                 Text(post.summary, style: theme.textTheme.bodyLarge),
               ?credit,
+              if (post.takesComments)
+                CommentsPanel(post: post, comments: comments, auth: auth),
             ],
           ),
         ),

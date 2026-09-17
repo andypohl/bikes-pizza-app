@@ -209,6 +209,9 @@ class Post {
     this.bike,
     this.pizza,
     this.reactions = const {},
+    this.commentCount = 0,
+    this.commentTimes = const [],
+    this.commentsEnabled = true,
   }) : changedAt = changedAt ?? publishedAt;
 
   /// The slug: the document id, the edit endpoints' id and the last part
@@ -254,6 +257,20 @@ class Post {
   /// someone reacts. Kept on the post so lists have it without a call.
   final Map<String, Map<String, int>> reactions;
 
+  /// How many published comments the post has, for lists.
+  final int commentCount;
+
+  /// When the newest published comments were written, newest first (the
+  /// functions keep the last twenty); the unread tracker counts the ones
+  /// written since the post was last opened.
+  final List<DateTime> commentTimes;
+
+  /// False when the post's author switched comments off.
+  final bool commentsEnabled;
+
+  /// Whether the post's feed takes comments at all (bikes and pizza).
+  bool get takesComments => galleryFeeds.contains(feed);
+
   /// Whichever structured details the post has, for display.
   PostDetails? get details => bike ?? pizza;
 
@@ -275,6 +292,8 @@ class Post {
     PizzaDetails? pizza,
     bool clearBike = false,
     bool clearPizza = false,
+    int? commentCount,
+    bool? commentsEnabled,
   }) => Post(
     id: id,
     feed: feed,
@@ -290,6 +309,9 @@ class Post {
     bike: clearBike ? null : bike ?? this.bike,
     pizza: clearPizza ? null : pizza ?? this.pizza,
     reactions: reactions,
+    commentCount: commentCount ?? this.commentCount,
+    commentTimes: commentTimes,
+    commentsEnabled: commentsEnabled ?? this.commentsEnabled,
   );
 
   /// Builds a post from a `posts` document (decoded from Firestore) or
@@ -327,8 +349,18 @@ class Post {
       bike: bike == null || bike.isEmpty ? null : bike,
       pizza: pizza == null || pizza.isEmpty ? null : pizza,
       reactions: PostReactions.parseCounts(json['reactions']),
+      commentCount: (json['commentCount'] as num?)?.toInt() ?? 0,
+      commentTimes: parseTimes(json['commentTimes']),
+      commentsEnabled: json['commentsEnabled'] != false,
     );
   }
+
+  /// A list of ISO instants as dates; anything else is left out.
+  static List<DateTime> parseTimes(Object? json) => [
+    if (json is List)
+      for (final t in json)
+        if (t is String) ?DateTime.tryParse(t),
+  ];
 
   /// Shortens plain text to one line of at most [max] characters.
   static String summarize(String text, {int max = 200}) {
