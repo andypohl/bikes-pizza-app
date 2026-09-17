@@ -15,14 +15,14 @@ giscus and Stream.
 | Who | Signed-in members (verified email) read and write. Signed-out visitors see the count and "Sign in to read the comments". |
 | Off switch | The post's author (or an admin) turns comments off per post; existing comments are kept but hidden while off. A sitewide switch in site settings, like the submit button. |
 | Text | Plain text with bold, italic and links; no images. A pasted bare URL becomes `[link](url)`. Length cap 1,000 characters. |
-| Mentions | `@username` of an existing member; makes the post unread for that member. No email. |
+| Mentions | `@username` of an existing member; makes the post fully unread again for that member (the blue dot comes back). No email. |
 | Editing | Five-minute window, then an "(edited)" mark by the time. Delete any time. |
 | Shape | Top-level comments with one level of replies. Oldest first. Twenty top-level comments per page with "load more"; three replies shown, "show N more replies". |
 | Likes | Like with a count; tapping the count lists who liked it. |
 | Screening | Automatic toxicity and topic scoring with thresholds; a banned word list that blocks; a suspicious word list that holds for review. Politics is held for review; swearing and slurs are blocked. |
 | Reports | Report with a reason (racism, misogyny, harassment or too mean, politics, spam, other). Hidden automatically after two reports from different members, until an admin decides. |
 | Post author | Can delete any comment on their own post. |
-| Notifications | In-app unread counters only: a reply to you, a mention of you, or a comment on your post makes that post unread. |
+| Notifications | In-app only. A mention makes the post unread (dot, tab counters, app badge). Any other comment the member has not seen puts a "new comments" count on the post's tile, with the post otherwise still read. |
 | Identity | Username only, not a link. |
 | Data | Comments and likes go in a member's data export; deleting the account deletes them. |
 | Website | Post pages fetch comments live for signed-in visitors. Tiles show the count. |
@@ -36,6 +36,9 @@ reactions; the rules deny client access to the subcollection):
 ```
 posts/{slug}
   commentCount             published comments, top-level and replies
+  commentedAt              when the newest published comment was written
+  commentTimes             [ISO, ...] of the newest 20 published comments, newest
+                           first; the app counts unseen comments from it
   commentsEnabled          missing or true means on; false means off
 
 posts/{slug}/comments/{id}
@@ -55,7 +58,7 @@ posts/{slug}/comments/{id}
 posts/{slug}/comments/{id}/likes/{uid}      { uid, username, at }
 posts/{slug}/comments/{id}/reports/{uid}    { uid, reason, at }
 
-members/{uid}/notices/{id}                  { kind: "reply" | "mention" | "comment", post, at }
+members/{uid}/notices/{id}                  { kind: "mention", post, comment, at }
 settings/moderation                         { banned: [word], suspicious: [word] }
 ```
 
@@ -67,7 +70,10 @@ that is removed and has no replies is deleted outright.
 
 `commentCount`, `likeCount`, `replyCount` and `reportCount` are moved in
 the same transaction as the write that changes them, as reaction tallies
-are. `commentsEnabled` is set through the post edit endpoint.
+are; `commentedAt` and `commentTimes` are rewritten from the newest
+published comments whenever one is published, hidden or removed. None of
+them touch `changedAt`: a comment does not make the post edited.
+`commentsEnabled` is set through the post edit endpoint.
 
 Usernames on comments and likes are kept in step by the rename path that
 already updates posts and reactions (a collection-group index on `uid`
@@ -116,8 +122,8 @@ GET    /api/posts/{id}/comments/{cid}/likes       usernames of everyone who like
 POST   /api/posts/{id}/comments/{cid}/report      {reason}; one per member per comment
 PATCH  /api/posts/{id}                            gains {comments: boolean}; author or admin
 
-GET    /api/me/notices?since=                     {notices: [{kind, post, at}]} for the
-                                                  unread counters
+GET    /api/me/notices?since=                     {notices: [{kind, post, comment, at}]}:
+                                                  the mentions, for the unread dots
 GET    /api/me/export                             everything the member has: posts they are
                                                   credited on, comments, likes, reactions
 
@@ -190,20 +196,41 @@ admin from the admin page. A removed comment with replies shows as
 
 ## Unread counters
 
-Today the counters watch `changedAt` on posts. Comments add a second
-source: notices under the member. When a comment is published (at write
-time, or when an admin approves it), the function writes a notice to:
+Today the counters watch `changedAt` on posts: a post changed after the
+tracker's baseline and not opened since is unread, gets the blue dot on
+its tile, and counts on its tab and the app icon. Comments add two more
+signals with different weights.
 
-- the post's author, kind `comment` (unless they wrote it);
-- the parent comment's author for a reply, kind `reply`;
-- each mentioned member, kind `mention`.
+**A mention makes the post fully unread.** When a comment that names
+the member is published (at write time, or when an admin approves it),
+the function writes a notice of kind `mention` under the member. The
+app's tracker fetches `GET /api/me/notices?since=<its baseline>` in the
+same refresh as the changes query, and a post with a mention newer than
+the time it was last opened is unread exactly as an edited post is: dot,
+tab counter, badge. Opening the post clears it. Nothing is written for
+replies to the member or comments on their posts; those fall under the
+next rule.
 
-The app's tracker fetches `GET /api/me/notices?since=<its baseline>` in
-the same refresh as the changes query, and a post with a notice newer
-than the time it was last opened counts as unread and gets the blue dot,
-exactly as an edit does. Opening the post marks it read as now. Notices
-older than 60 days are deleted by the nightly schedule. Signed-out, the
-counters work as today.
+**Any other unseen comment only adds a count.** The changes query also
+returns posts whose `commentedAt` is after the baseline, with their
+`commentTimes`. The tracker remembers when each post was last opened on
+this device (`opened[id]`, alongside the marks it keeps today), and a
+post's unseen comment count is the number of entries in `commentTimes`
+after the later of the baseline and `opened[id]`, shown as "20+" when
+all twenty are newer. The tile shows that count next to the total
+("12 comments · 3 new") and stays read otherwise: no dot, nothing on
+the tab counters or the badge. Opening the post sets `opened[id]` to now
+and the count goes away. As today, nothing before the baseline is ever
+unseen, so a fresh install starts clean; and the baseline only moves
+past a post once it has neither an unread change nor unseen comments, so
+the query stays small. `opened` entries are dropped with the marks once
+they fall behind the baseline.
+
+Mentions are the only notices for now; the `kind` field leaves room for
+others (replies, comments on the member's post) if that rule ever
+changes. Notices older than 60 days are deleted by the nightly
+schedule. Signed-out, the counters work as today and no comment counts
+are shown as new.
 
 ## App
 
@@ -220,7 +247,8 @@ counters work as today.
 - Comments off: "Comments are off for this post" and no composer.
 - The edit screen gets a "Comments" switch for the post's author and
   admins.
-- Tiles and the list rows show the count from `commentCount` on the post.
+- Tiles and the list rows show the count from `commentCount` on the post,
+  and "N new" after it while the tracker says some are unseen.
 - Tapping a like count opens a sheet listing usernames.
 - Errors from the API (blocked, rate-limited, off) show as they come, in
   a snackbar.
@@ -258,7 +286,8 @@ three copies as the rest of the contract is.
 
 - Rules: `posts/{slug}/comments/**` and `members/{uid}/notices/**` stay
   under the deny-all rule.
-- Indexes: `comments` collection group on `uid` (renames and deletion),
+- Indexes: `posts` on `commentedAt` for the changes query; `comments`
+  collection group on `uid` (renames and deletion),
   `likes` and `reports` collection groups on `uid`; `comments` single
   collection index on `status`, `parentId`, `createdAt` for the pages;
   admin queues on `status` and `createdAt`.
@@ -270,8 +299,8 @@ three copies as the rest of the contract is.
    moderation word lists, account deletion and export. Tests as for
    reactions. Enable the API through `infra/` for both projects.
 2. **App**: comment list, composer, likes sheet, report dialog, edit
-   window, unread notices, comments switch on the edit screen, counts on
-   tiles, data export.
+   window, mention notices and unseen comment counts in the tracker,
+   comments switch on the edit screen, counts on tiles, data export.
 3. **Admin page**: the Comments tab with the three queues and the word
    lists.
 4. **Website**: comments on post pages for signed-in visitors, counts on
