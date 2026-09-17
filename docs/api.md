@@ -314,7 +314,7 @@ room for palettes that take several.
 
 ```json
 {
-  "counts": { "had": { "yes": 12, "no": 3 }, "fantastic": { "cheese": 4, "sauce": 0, "toppings": 1, "price": 0 } },
+  "counts": { "had": { "yes": 12, "no": 3 }, "fantastic": { "crust": 2, "cheese": 4, "sauce": 0, "toppings": 1, "price": 0 } },
   "mine": { "had": ["yes"] },
   "who": { "had": { "yes": { "names": ["ada_bikes", "bob"], "more": 10 }, "no": { "names": [], "more": 3 } }, "fantastic": { … } }
 }

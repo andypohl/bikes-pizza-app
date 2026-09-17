@@ -217,6 +217,10 @@ export const REACTION_PALETTES = {
       "pick": "one",
       "options": [
         {
+          "value": "crust",
+          "title": "Crust"
+        },
+        {
           "value": "cheese",
           "title": "Cheese"
         },

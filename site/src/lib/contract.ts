@@ -221,6 +221,10 @@ export const REACTION_PALETTES: Record<string, ReactionPalette[]> = {
       "pick": "one",
       "options": [
         {
+          "value": "crust",
+          "title": "Crust"
+        },
+        {
           "value": "cheese",
           "title": "Cheese"
         },

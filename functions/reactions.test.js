@@ -73,7 +73,7 @@ test("public counts list every option of the feed's palettes, zero-filled, and d
   const counts = publicCounts({ feed: "pizza", reactions: { had: { yes: 4, maybe: 2 }, retired: { x: 1 } } });
   assert.deepEqual(counts, {
     had: { yes: 4, no: 0 },
-    fantastic: { cheese: 0, sauce: 0, toppings: 0, price: 0 },
+    fantastic: { crust: 0, cheese: 0, sauce: 0, toppings: 0, price: 0 },
   });
 });
 
@@ -97,7 +97,7 @@ test("members react, change their mind, and see the tallies, their own picks and
   const changed = await setReactions(pizza.slug, { picks: { had: ["no"] } }, ada, deps);
   assert.deepEqual(changed.mine, { had: ["no"] });
   assert.deepEqual(changed.counts.had, { yes: 0, no: 2 });
-  assert.deepEqual(changed.counts.fantastic, { cheese: 1, sauce: 0, toppings: 0, price: 0 });
+  assert.deepEqual(changed.counts.fantastic, { crust: 0, cheese: 1, sauce: 0, toppings: 0, price: 0 });
   assert.deepEqual(changed.who.had.no, { names: ["ada_bikes"], more: 1 });
   assert.deepEqual(changed.who.fantastic.cheese, { names: [], more: 1 });
 

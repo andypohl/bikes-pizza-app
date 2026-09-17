@@ -182,6 +182,7 @@ const reactionPalettes = <String, List<ReactionPalette>>{
       prompt: 'This pizza has fantastic',
       pickOne: true,
       options: [
+        ReactionOption('crust', 'Crust'),
         ReactionOption('cheese', 'Cheese'),
         ReactionOption('sauce', 'Sauce'),
         ReactionOption('toppings', 'Toppings'),

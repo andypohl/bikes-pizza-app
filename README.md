@@ -109,7 +109,7 @@ refresh when the app runs.
 
 Under a bike or pizza post's details, signed-in members answer the
 feed's fixed questions by tapping a chip: for a pizza, "I've had this
-pizza" (yes / no) and "This pizza has fantastic" (cheese, sauce,
+pizza" (yes / no) and "This pizza has fantastic" (crust, cheese, sauce,
 toppings, price); for a bike, "This bike looks" (stylish, comfortable,
 fast, rugged) and "My favorite part of this bike is its" (wheels, frame,
 gears/derailleurs, shifters, brakes, paint, bars, seat, pedals). Each
