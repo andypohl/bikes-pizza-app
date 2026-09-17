@@ -1,7 +1,8 @@
 // The text of a comment: a Markdown subset (bold, italic, links) rendered
 // to HTML once, when the comment is written, as post bodies are. Two
-// rewrites happen before rendering: a bare URL becomes `[link](url)` so
-// the comment reads "[link]" rather than a long address, and `@name` of an
+// rewrites happen before rendering: a bare URL becomes `[[link](url)]` so
+// the comment reads "[link]" (a link named "link", in brackets so it does
+// not pass for a word) rather than a long address, and `@name` of an
 // existing member is bolded and recorded as a mention. Everything else
 // Markdown could produce (headings, images, code, tables, raw HTML) is
 // stripped by the sanitizer, keeping only the text inside.
@@ -49,7 +50,7 @@ export function validateText(value) {
   return text;
 }
 
-/** `text` with every bare URL replaced by `[link](url)`; links already written as links are left alone. */
+/** `text` with every bare URL replaced by `[[link](url)]`; links already written as links are left alone. */
 export function linkBareUrls(text) {
   const kept = [];
   const held = text.replace(MARKDOWN_LINK, (match) => {
@@ -58,7 +59,7 @@ export function linkBareUrls(text) {
   });
   const linked = held.replace(BARE_URL, (url) => {
     const trimmed = url.replace(/[.,;:!?'"]+$/, "");
-    return `[link](${trimmed})${url.slice(trimmed.length)}`;
+    return `[[link](${trimmed})]${url.slice(trimmed.length)}`;
   });
   return linked.replace(new RegExp(`${HOLD}(\\d+)${HOLD}`, "g"), (_, i) => kept[Number(i)]);
 }

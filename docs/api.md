@@ -386,7 +386,8 @@ Every visible reply of one top-level comment, oldest first: `{ "id",
 Writes a comment: `{ "text": "…", "parentId": "c1" }` (`parentId` for
 a reply; a reply to a reply goes under the same top-level comment).
 The text is a Markdown subset (bold, italic, links; `contract/comments.json`
-caps it at 1,000 characters): a bare URL becomes `[link](url)`, and
+caps it at 1,000 characters): a bare URL becomes `[[link](url)]`, which
+reads as "[link]" with the brackets shown around the link, and
 `@name` of an existing member is bolded and puts a mention notice under
 that member. It is then screened, in order: banned words (the admin's
 list) refuse it with `400` and "That comment can't be posted."; Google's

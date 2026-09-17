@@ -18,10 +18,12 @@ test("validateText trims, requires something and caps the length", () => {
   assert.equal(validateText("x".repeat(MAX_LENGTH)).length, MAX_LENGTH);
 });
 
-test("linkBareUrls turns bare addresses into [link](url) and leaves written links alone", () => {
-  assert.equal(linkBareUrls("see https://a.b/c?d=1."), "see [link](https://a.b/c?d=1).");
-  assert.equal(linkBareUrls("(http://x.y/z) and https://q.r/s, ok"), "([link](http://x.y/z)) and [link](https://q.r/s), ok");
-  assert.equal(linkBareUrls("[mine](https://a.b/c) https://d.e"), "[mine](https://a.b/c) [link](https://d.e)");
+test("linkBareUrls turns bare addresses into [[link](url)] and leaves written links alone", () => {
+  assert.equal(linkBareUrls("see https://a.b/c?d=1."), "see [[link](https://a.b/c?d=1)].");
+  assert.equal(linkBareUrls("(http://x.y/z) and https://q.r/s, ok"), "([[link](http://x.y/z)]) and [[link](https://q.r/s)], ok");
+  assert.equal(linkBareUrls("[mine](https://a.b/c) https://d.e"), "[mine](https://a.b/c) [[link](https://d.e)]");
+  // Already rewritten text (an edit) is left as it is.
+  assert.equal(linkBareUrls("[[link](https://d.e)] again"), "[[link](https://d.e)] again");
   assert.equal(linkBareUrls("no links here, www.x.com neither"), "no links here, www.x.com neither");
 });
 
@@ -31,10 +33,10 @@ test("mentionedNames finds @names once each, not inside words or emails", () => 
 
 test("renderComment renders the subset, bolds known mentions and keeps unknown ones plain", async () => {
   const out = await renderComment("**Hi** _there_ @Ada_Bikes and @nobody, see https://a.b/c.", { lookup });
-  assert.equal(out.text, "**Hi** _there_ @Ada_Bikes and @nobody, see [link](https://a.b/c).");
+  assert.equal(out.text, "**Hi** _there_ @Ada_Bikes and @nobody, see [[link](https://a.b/c)].");
   assert.equal(
     out.html,
-    '<p><strong>Hi</strong> <em>there</em> <strong>@ada_bikes</strong> and @nobody, see <a href="https://a.b/c" rel="nofollow noopener" target="_blank">link</a>.</p>',
+    '<p><strong>Hi</strong> <em>there</em> <strong>@ada_bikes</strong> and @nobody, see [<a href="https://a.b/c" rel="nofollow noopener" target="_blank">link</a>].</p>',
   );
   assert.deepEqual(out.mentions, ["u1"]);
 });
