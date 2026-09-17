@@ -5,8 +5,8 @@ import 'admin_service.dart';
 import 'submissions_screen.dart';
 import 'users_screen.dart';
 
-/// The Admin tab, on tablets for signed-in administrators: the submissions
-/// review and user administration that the web pages at
+/// The Admin tab, for signed-in administrators on any device: the
+/// submissions review and user administration that the web pages at
 /// submissions.bikes.pizza and admin.bikes.pizza offer. The [HomeShell]
 /// only shows the tab once the account's admin claim has been checked.
 class AdminScreen extends StatelessWidget {

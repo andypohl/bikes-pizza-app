@@ -11,7 +11,7 @@ import 'admin_screens.dart';
 import 'admin_service.dart';
 
 /// User administration, as https://admin.bikes.pizza/ does it, for
-/// administrators on a tablet: every account ordered by most recent post,
+/// administrators: every account ordered by most recent post,
 /// and for one account its details, editable username, email and
 /// newsletters, a password reset, and deletion. On a landscape tablet the
 /// account opens beside the list; otherwise on its own screen.

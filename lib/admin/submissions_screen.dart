@@ -13,7 +13,7 @@ import 'admin_screens.dart';
 import 'admin_service.dart';
 
 /// The submissions review, as https://submissions.bikes.pizza/ does it,
-/// for administrators on a tablet: each feed's queue, the website's
+/// for administrators: each feed's queue, the website's
 /// submit button switch, the submissions filtered by status with paging,
 /// and a detail view with the review actions. On a landscape tablet the
 /// detail opens beside the list; otherwise on its own screen.
