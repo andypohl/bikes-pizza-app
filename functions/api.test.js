@@ -68,6 +68,26 @@ const service = {
     reactions: async (id, user) => calls.push(["posts.reactions", id, user.uid]) && { counts: {}, mine: {}, who: {} },
     react: async (id, data, user) => calls.push(["posts.react", id, data, user.uid]) && { counts: {}, mine: data.picks, who: {} },
   },
+  comments: {
+    list: async (id, query, user) => calls.push(["comments.list", id, { ...query }, user.uid]) && { count: 0, comments: [], next: null },
+    create: async (id, data, user) => {
+      calls.push(["comments.create", id, data, user.uid]);
+      if (data.text === "bad") throw new AppError("invalid-argument", "That comment can't be posted.");
+      return { comment: { id: "c1", status: "published" } };
+    },
+    edit: async (id, cid, data, user) => calls.push(["comments.edit", id, cid, data, user.uid]) && { comment: { id: cid } },
+    remove: async (id, cid, actor) => calls.push(["comments.remove", id, cid, actor.uid, actor.admin]) && { removed: cid },
+    replies: async (id, cid, user) => calls.push(["comments.replies", id, cid, user.uid]) && { id: cid, replies: [] },
+    like: async (id, cid, user) => calls.push(["comments.like", id, cid, user.uid]) && { liked: true, likeCount: 1 },
+    likes: async (id, cid, user) => calls.push(["comments.likes", id, cid, user.uid]) && { likes: [] },
+    report: async (id, cid, data, user) => calls.push(["comments.report", id, cid, data, user.uid]) && { reported: true, hidden: false },
+    notices: async (user, query) => calls.push(["comments.notices", user.uid, { ...query }]) && { notices: [] },
+    exportData: async (user) => calls.push(["comments.export", user.uid]) && { member: { uid: user.uid } },
+    queue: async (query, admin) => calls.push(["comments.queue", { ...query }, admin.uid]) && { queue: query.queue ?? "pending", comments: [] },
+    act: async (id, cid, action, admin) => calls.push(["comments.act", id, cid, action, admin.uid]) && { comment: { id: cid } },
+    moderation: async (admin) => calls.push(["comments.moderation", admin.uid]) && { banned: [], suspicious: [] },
+    setModeration: async (data, admin) => calls.push(["comments.setModeration", data, admin.uid]) && data,
+  },
   queue: {
     info: async (feed) => {
       if (feed === "news") throw new ValidationError("Unknown feed.");
@@ -308,4 +328,64 @@ test("the admin page's post routes need an admin with a second factor", async ()
   assert.deepEqual(removed.body, { removed: "p1" });
   assert.deepEqual(calls.at(-1), ["posts.remove", "p1", "a1"]);
   assert.equal((await call("/api/posts/p1", { token: "member", method: "DELETE" })).status, 403);
+});
+
+test("comment routes reach the service with the caller and answer its result", async () => {
+  calls.length = 0;
+  const post = (path, body, token = "member") => call(path, { token, method: "POST", body });
+  assert.equal((await call("/api/posts/p1/comments?after=c0", { token: "member" })).status, 200);
+  const created = await post("/api/posts/p1/comments", { text: "hi", parentId: "c0" });
+  assert.deepEqual([created.status, created.body.comment.id], [200, "c1"]);
+  const blocked = await post("/api/posts/p1/comments", { text: "bad" });
+  assert.deepEqual([blocked.status, blocked.body.error.code], [400, "invalid-argument"]);
+  assert.equal((await call("/api/posts/p1/comments/c1", { token: "member", method: "PATCH", body: { text: "edited" } })).status, 200);
+  assert.equal((await call("/api/posts/p1/comments/c1/replies", { token: "member" })).status, 200);
+  assert.equal((await post("/api/posts/p1/comments/c1/like")).status, 200);
+  assert.equal((await call("/api/posts/p1/comments/c1/likes", { token: "member" })).status, 200);
+  assert.equal((await post("/api/posts/p1/comments/c1/report", { reason: "spam" })).status, 200);
+  assert.equal((await call("/api/me/notices?since=2026-09-01T00:00:00.000Z", { token: "member" })).status, 200);
+  assert.equal((await call("/api/me/export", { token: "member" })).status, 200);
+  assert.deepEqual(calls, [
+    ["comments.list", "p1", { after: "c0" }, "u1"],
+    ["comments.create", "p1", { text: "hi", parentId: "c0" }, "u1"],
+    ["comments.create", "p1", { text: "bad" }, "u1"],
+    ["comments.edit", "p1", "c1", { text: "edited" }, "u1"],
+    ["comments.replies", "p1", "c1", "u1"],
+    ["comments.like", "p1", "c1", "u1"],
+    ["comments.likes", "p1", "c1", "u1"],
+    ["comments.report", "p1", "c1", { reason: "spam" }, "u1"],
+    ["comments.notices", "u1", { since: "2026-09-01T00:00:00.000Z" }],
+    ["comments.export", "u1"],
+  ]);
+  assert.equal((await call("/api/posts/p1/comments", { token: "unverified" })).status, 409);
+});
+
+test("deleting a comment passes an admin's powers only with a second factor", async () => {
+  calls.length = 0;
+  assert.equal((await call("/api/posts/p1/comments/c1", { token: "member", method: "DELETE" })).status, 200);
+  assert.equal((await call("/api/posts/p1/comments/c1", { token: "admin", method: "DELETE" })).status, 200);
+  assert.equal((await call("/api/posts/p1/comments/c1", { token: "admin2fa", method: "DELETE" })).status, 200);
+  assert.deepEqual(calls, [
+    ["comments.remove", "p1", "c1", "u1", false],
+    ["comments.remove", "p1", "c1", "a1", false],
+    ["comments.remove", "p1", "c1", "a1", true],
+  ]);
+});
+
+test("the comment review endpoints need an admin with a second factor", async () => {
+  calls.length = 0;
+  assert.equal((await call("/api/admin/comments?queue=reported", { token: "member" })).status, 403);
+  assert.equal((await call("/api/admin/comments?queue=reported", { token: "admin" })).status, 403);
+  assert.equal((await call("/api/admin/comments?queue=reported", { token: "admin2fa" })).status, 200);
+  assert.equal((await call("/api/admin/comments/p1/c1/approve", { token: "admin2fa", method: "POST" })).status, 200);
+  assert.equal((await call("/api/admin/moderation", { token: "admin2fa" })).status, 200);
+  const put = await call("/api/admin/moderation", { token: "admin2fa", method: "PUT", body: { banned: ["x"], suspicious: [] } });
+  assert.deepEqual([put.status, put.body], [200, { banned: ["x"], suspicious: [] }]);
+  assert.equal((await call("/api/admin/moderation", { token: "member", method: "PUT", body: {} })).status, 403);
+  assert.deepEqual(calls, [
+    ["comments.queue", { queue: "reported" }, "a1"],
+    ["comments.act", "p1", "c1", "approve", "a1"],
+    ["comments.moderation", "a1"],
+    ["comments.setModeration", { banned: ["x"], suspicious: [] }, "a1"],
+  ]);
 });

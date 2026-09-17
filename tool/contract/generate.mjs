@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Generates the language-specific copies of the facts in contract/*.json:
 // the feeds, the option lists for a post's structured details, the
-// reaction palettes, the username rule, the URL shape of a post's page and
-// the image limits.
+// reaction palettes, the comment rules, the username rule, the URL shape
+// of a post's page and the image limits.
 // Everything that reads them (the app, the Cloud Functions, the website,
 // the Studio) imports a generated file rather than keeping its own copy.
 //
@@ -22,6 +22,7 @@ const { timeZone, feeds } = read("feeds.json");
 const options = read("options.json");
 const rules = read("rules.json");
 const { palettes } = read("reactions.json");
+const comments = read("comments.json");
 
 const HEADER = "Generated from contract/*.json by tool/contract/generate.mjs. Do not edit; change the JSON and run the generator.";
 
@@ -84,6 +85,13 @@ function javascript({ typed }) {
   }
   out.push(`/** The reaction palettes of each feed, in display order; feeds without any take no reactions. */\n`);
   out.push(`export const REACTION_PALETTES${t(": Record<string, ReactionPalette[]>")} = ${JSON.stringify(palettes, null, 2)};\n`);
+  if (typed) {
+    out.push(
+      `export type CommentRules = {\n  maxLength: number;\n  editWindowMinutes: number;\n  pageSize: number;\n  repliesShown: number;\n  reportsToHide: number;\n  timesKept: number;\n  rateLimit: { seconds: number; perDay: number };\n  reportReasons: Option[];\n  screening: { blockCategories: string[]; block: number; hold: number; holdCategories: string[]; holdTopic: number };\n};\n`,
+    );
+  }
+  out.push(`/** The rules for comments on posts: lengths, windows, page sizes, report reasons and screening thresholds. */\n`);
+  out.push(`export const COMMENTS${t(": CommentRules")} = ${JSON.stringify(comments, null, 2)};\n`);
   return out.join("\n");
 }
 
@@ -116,6 +124,7 @@ function dart() {
   out.push(`const imageMaxUploadBytes = ${rules.image.maxUploadBytes};\n`);
   out.push(`/// How many additional photos a bike or pizza post may carry besides its main one.\nconst imageMaxExtra = ${rules.image.maxExtra};\n`);
   out.push(dartReactions());
+  out.push(dartComments());
   return out.join("\n");
 }
 
@@ -137,6 +146,20 @@ function dartReactions() {
     `/// One choice in a reaction palette: the stored value and its label.\nclass ReactionOption {\n  const ReactionOption(this.value, this.title);\n\n  final String value;\n  final String title;\n}\n`,
     `/// A question a member answers about a post by picking from fixed\n/// options: one of them ([pickOne]) or any number.\nclass ReactionPalette {\n  const ReactionPalette({\n    required this.key,\n    required this.prompt,\n    required this.pickOne,\n    required this.options,\n  });\n\n  /// Names the palette in a post's counts and a member's picks.\n  final String key;\n  final String prompt;\n  final bool pickOne;\n  final List<ReactionOption> options;\n\n  /// Whether [value] is one of the options.\n  bool has(String value) => options.any((o) => o.value == value);\n}\n`,
     `/// The reaction palettes of each feed, in display order; feeds without\n/// any take no reactions.\nconst reactionPalettes = <String, List<ReactionPalette>>{\n${feeds.join("\n")}\n};\n`,
+  ].join("\n");
+}
+
+/** The comment rules as Dart constants. */
+function dartComments() {
+  const c = comments;
+  return [
+    `/// Comments on posts: the longest comment, in characters.\nconst commentMaxLength = ${c.maxLength};\n`,
+    `/// How long after posting a comment its author may still edit it.\nconst commentEditWindow = Duration(minutes: ${c.editWindowMinutes});\n`,
+    `/// Top-level comments per page.\nconst commentPageSize = ${c.pageSize};\n`,
+    `/// Replies shown under a comment before "show more".\nconst commentRepliesShown = ${c.repliesShown};\n`,
+    `/// Reports from different members that hide a comment until an admin looks.\nconst commentReportsToHide = ${c.reportsToHide};\n`,
+    `/// How many of the newest comment times a post carries (\`commentTimes\`).\nconst commentTimesKept = ${c.timesKept};\n`,
+    dartMap("commentReportReasons", c.reportReasons, "The reasons a comment can be reported for, value to label, in display order."),
   ].join("\n");
 }
 

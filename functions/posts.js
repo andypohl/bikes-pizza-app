@@ -148,6 +148,10 @@ export function validateEdit(data, feed) {
   }
   if ("images" in data) edit.images = parseExtras(data.images ?? [], { keep: true });
   if ("publishedAt" in data) edit.publishedAt = instant(data.publishedAt, "Publish date");
+  if ("comments" in data) {
+    if (typeof data.comments !== "boolean") throw new ValidationError("comments must be true or false.");
+    edit.comments = data.comments;
+  }
   if ("bike" in data) {
     if (feed !== "bikes") throw new ValidationError("Only bike posts have bike details.");
     const bike = data.bike ?? {};
@@ -229,8 +233,18 @@ export async function applyEdit(posts, doc, edit, { imageBytes, extras, now = ne
  */
 export async function updatePost(slug, data, actor, deps) {
   const { posts, store, members, processImage, safeSearch, notify, siteUrl, log = () => {} } = deps;
-  const doc = await load(slug, actor, posts);
+  let doc = await load(slug, actor, posts);
   const edit = validateEdit(data, doc.feed);
+
+  // The comments switch changes nothing on the website, so the post's
+  // author flips it at once, with or without other changes alongside.
+  if ("comments" in edit) {
+    await posts.patch(doc.slug, { commentsEnabled: edit.comments });
+    log("post comments switched", { slug: doc.slug, by: actor.uid, enabled: edit.comments });
+    delete edit.comments;
+    doc = await posts.get(doc.slug);
+    if (Object.keys(edit).length === 0) return { status: "applied", post: editable(doc, siteUrl) };
+  }
 
   if (actor.admin) {
     let imageBytes;

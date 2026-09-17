@@ -312,3 +312,72 @@ export const REACTION_PALETTES: Record<string, ReactionPalette[]> = {
     }
   ]
 };
+
+export type CommentRules = {
+  maxLength: number;
+  editWindowMinutes: number;
+  pageSize: number;
+  repliesShown: number;
+  reportsToHide: number;
+  timesKept: number;
+  rateLimit: { seconds: number; perDay: number };
+  reportReasons: Option[];
+  screening: { blockCategories: string[]; block: number; hold: number; holdCategories: string[]; holdTopic: number };
+};
+
+/** The rules for comments on posts: lengths, windows, page sizes, report reasons and screening thresholds. */
+
+export const COMMENTS: CommentRules = {
+  "maxLength": 1000,
+  "editWindowMinutes": 5,
+  "pageSize": 20,
+  "repliesShown": 3,
+  "reportsToHide": 2,
+  "timesKept": 20,
+  "rateLimit": {
+    "seconds": 15,
+    "perDay": 200
+  },
+  "reportReasons": [
+    {
+      "value": "racism",
+      "title": "Racism"
+    },
+    {
+      "value": "misogyny",
+      "title": "Misogyny"
+    },
+    {
+      "value": "harassment",
+      "title": "Too mean or harassing"
+    },
+    {
+      "value": "politics",
+      "title": "Politics"
+    },
+    {
+      "value": "spam",
+      "title": "Spam"
+    },
+    {
+      "value": "other",
+      "title": "Something else"
+    }
+  ],
+  "screening": {
+    "blockCategories": [
+      "Toxic",
+      "Insult",
+      "Profanity",
+      "Derogatory",
+      "Sexual",
+      "Violent"
+    ],
+    "block": 0.8,
+    "hold": 0.5,
+    "holdCategories": [
+      "Politics"
+    ],
+    "holdTopic": 0.5
+  }
+};

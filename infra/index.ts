@@ -97,6 +97,7 @@ const services = [
   "iam",
   "iamcredentials",
   "identitytoolkit",
+  "language",
   "pubsub",
   "run",
   "secretmanager",

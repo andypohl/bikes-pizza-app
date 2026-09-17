@@ -27,12 +27,15 @@
 // postPizzaQueue:    feed at its posting times (schedule.js); each run that
 //                    posts something then asks GitHub to rebuild the
 //                    website (rebuild.js).
+// purgeNotices:      scheduled nightly; drops mention notices older than
+//                    sixty days (comments.js).
 // api:               HTTPS; the REST API behind /api/ on the submissions
 //                    Hosting site (list, fetch, review, create, queues,
 //                    site settings such as the website's submit button,
 //                    user administration, editing published posts
-//                    (posts.js) and members' reactions to them
-//                    (reactions.js)).
+//                    (posts.js), members' reactions to them
+//                    (reactions.js) and comments on them (comments.js,
+//                    screened with the Natural Language API, moderate.js)).
 
 import { GoogleAuth } from "google-auth-library";
 import { initializeApp } from "firebase-admin/app";
@@ -47,11 +50,14 @@ import { profile, validateUpdate } from "./account.js";
 import * as adminUsers from "./admin_users.js";
 import * as webauthn from "@simplewebauthn/server";
 import { createApi } from "./api.js";
+import { firestoreCommentStore } from "./comment_store.js";
+import * as commenting from "./comments.js";
 import { AppError, ValidationError, userFromClaims } from "./errors.js";
 import { processImage } from "./images.js";
 import { NEWSLETTERS, firestoreMemberStore, loadMember, updateMember as applyMemberUpdate } from "./members.js";
 import { firestorePostStore } from "./post_store.js";
 import { isMailConfigured, sendMail } from "./mail.js";
+import { moderateText } from "./moderate.js";
 import * as passkeys from "./passkeys.js";
 import * as postEditing from "./posts.js";
 import * as reactions from "./reactions.js";
@@ -114,6 +120,8 @@ const verifiedUser = (request) => userFromClaims(request.auth && { uid: request.
 
 /** Published posts and their photo renditions (post_store.js). */
 const posts = () => firestorePostStore(getFirestore(), getStorage().bucket());
+/** The comments under them, the mention notices and the word lists (comment_store.js). */
+const comments = () => firestoreCommentStore(getFirestore());
 
 /** Translates failures inside `work` into callable errors. */
 async function guarded(uid, what, work) {
@@ -178,6 +186,7 @@ export const deleteAccount = onCall({ region: "us-central1", secrets: [mailgunAp
     const result = await adminUsers.deleteUser(uid, {
       auth: getAuth(),
       members: firestoreMemberStore(getFirestore()),
+      cleanup: removeMemberData,
       notify: notifyDeleted(true),
       log: logger.warn,
     });
@@ -310,9 +319,26 @@ function notifyDeleted(requested) {
   };
 }
 
-// Cloud Vision (vision.js) is called with the function's own service account.
+// Cloud Vision (vision.js) and the Natural Language API (moderate.js) are
+// called with the function's own service account.
 const googleAuth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
 const safeSearch = (bytes) => inspectImage(bytes, { getToken: () => googleAuth.getAccessToken() });
+const moderate = (text) => moderateText(text, { getToken: () => googleAuth.getAccessToken() });
+
+/** What comments.js needs: the stores, the screening call, ids and the log. */
+const commentDeps = () => ({
+  posts: posts(),
+  comments: comments(),
+  members: firestoreMemberStore(getFirestore()),
+  settings: () => getSettings({ store: firestoreSiteSettings(getFirestore()) }),
+  moderate,
+  newId: () => getFirestore().collection("posts").doc().id,
+  siteUrl: siteUrl(),
+  log: logger.info,
+});
+
+/** What a deleted member left on other people's posts goes with them. */
+const removeMemberData = (uid) => commenting.deleteMemberData(uid, commentDeps());
 
 /** What the user-administration endpoints need: Auth admin, members, posts. */
 const userAdminDeps = () => ({
@@ -357,7 +383,7 @@ const service = {
       return result;
     },
     remove: async (uid, admin) => {
-      const result = await adminUsers.deleteUser(uid, { ...userAdminDeps(), notify: notifyDeleted(false) });
+      const result = await adminUsers.deleteUser(uid, { ...userAdminDeps(), cleanup: removeMemberData, notify: notifyDeleted(false) });
       logger.info("user deleted by admin", { uid, by: admin.uid });
       return result;
     },
@@ -399,6 +425,24 @@ const service = {
       await rebuildWebsite(`post ${id} removed by admin`);
       return result;
     },
+  },
+  // Comments change only the post's counts, which the app reads live and
+  // the website picks up at its next rebuild, so nothing is rebuilt here.
+  comments: {
+    list: (id, query, user) => commenting.listComments(id, query, user, commentDeps()),
+    create: (id, data, user) => commenting.createComment(id, data, user, commentDeps()),
+    edit: (id, cid, data, user) => commenting.editComment(id, cid, data, user, commentDeps()),
+    remove: (id, cid, actor) => commenting.deleteComment(id, cid, actor, commentDeps()),
+    replies: (id, cid, user) => commenting.listReplies(id, cid, user, commentDeps()),
+    like: (id, cid, user) => commenting.toggleLike(id, cid, user, commentDeps()),
+    likes: (id, cid, user) => commenting.listLikes(id, cid, user, commentDeps()),
+    report: (id, cid, data, user) => commenting.reportComment(id, cid, data, user, commentDeps()),
+    notices: (user, query) => commenting.listNotices(user, query, commentDeps()),
+    exportData: (user) => commenting.exportMember(user, commentDeps()),
+    queue: (query, admin) => commenting.adminQueue(query, admin, commentDeps()),
+    act: (id, cid, action, admin) => commenting.adminAct(id, cid, action, admin, commentDeps()),
+    moderation: () => commenting.getModeration(commentDeps()),
+    setModeration: (data, admin) => commenting.setModeration(data, admin, commentDeps()),
   },
   queue: {
     info: (feed) => subs.queueInfo(feed, { store: store() }),
@@ -445,6 +489,12 @@ const queueRunner = (feed) =>
 
 export const postBikesQueue = queueRunner("bikes");
 export const postPizzaQueue = queueRunner("pizza");
+
+/** Drops mention notices older than sixty days, every night. */
+export const purgeNotices = onSchedule({ schedule: "every day 04:30", timeZone: TIME_ZONE, region: "us-central1" }, async () => {
+  const purged = await commenting.purgeNotices({ comments: comments() });
+  logger.info("notices purged", { purged });
+});
 
 export const api = onRequest(
   { region: "us-central1", secrets: [mailgunApiKey, githubDispatchToken], ...heavy },

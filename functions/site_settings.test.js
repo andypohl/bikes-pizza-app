@@ -19,9 +19,9 @@ function memoryStore(initial = null) {
 const admin = { uid: "a1" };
 
 test("withDefaults fills in missing or malformed values", () => {
-  assert.deepEqual(withDefaults(null), { submitButton: true });
-  assert.deepEqual(withDefaults({ submitButton: false, other: 1 }), { submitButton: false });
-  assert.deepEqual(withDefaults({ submitButton: "no" }), { submitButton: true });
+  assert.deepEqual(withDefaults(null), { submitButton: true, comments: true });
+  assert.deepEqual(withDefaults({ submitButton: false, other: 1 }), { submitButton: false, comments: true });
+  assert.deepEqual(withDefaults({ submitButton: "no", comments: false }), { submitButton: true, comments: false });
 });
 
 test("validateSettings accepts known boolean settings only", () => {
@@ -36,9 +36,9 @@ test("validateSettings accepts known boolean settings only", () => {
 test("updateSettings stores the change and returns the full settings", async () => {
   const store = memoryStore();
   const now = () => new Date("2026-09-04T12:00:00Z");
-  assert.deepEqual(await getSettings({ store }), { submitButton: true });
+  assert.deepEqual(await getSettings({ store }), { submitButton: true, comments: true });
   const updated = await updateSettings({ submitButton: false }, admin, { store, now });
-  assert.deepEqual(updated, { submitButton: false });
-  assert.deepEqual(await getSettings({ store }), { submitButton: false });
+  assert.deepEqual(updated, { submitButton: false, comments: true });
+  assert.deepEqual(await getSettings({ store }), { submitButton: false, comments: true });
   assert.equal((await store.get()).updatedBy, "a1");
 });

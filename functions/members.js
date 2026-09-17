@@ -40,6 +40,8 @@ const RETIRED_FIELDS = ["name"];
  *   Reserves the username for the member (releasing their previous one)
  *   and stores it; throws {@link AppError} `already-exists` if someone else
  *   holds it.
+ * @property {(username: string) => Promise<{uid: string, username: string}|null>} uidByUsername
+ *   The member holding a username (any case), or null
  * @property {() => Promise<Map<string, MemberRecord>>} list  Every record by uid
  * @property {(uid: string) => Promise<void>} delete  Removes the record and its username reservation
  */
@@ -109,6 +111,12 @@ export function firestoreMemberStore(db) {
     async list() {
       const snap = await members.get();
       return new Map(snap.docs.map((doc) => [doc.id, doc.data()]));
+    },
+    async uidByUsername(username) {
+      const snap = await usernames.doc(usernameKey(username)).get();
+      if (!snap.exists) return null;
+      const { uid, username: stored } = snap.data();
+      return { uid, username: stored ?? username };
     },
     async delete(uid) {
       await db.runTransaction(async (tx) => {

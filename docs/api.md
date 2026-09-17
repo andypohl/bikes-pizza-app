@@ -267,9 +267,15 @@ Asks for changes to the fields given, leaving the rest alone:
   "image": { "data": "<base64>", "contentType": "image/jpeg" | "image/png" | "image/webp" },
   "images": [ { "keep": "<version>" } | { "data": "<base64>", "contentType": "…" }, ... ],
   "bike": { "brand": "…", "year": "…", "color": "…", "type": "…" },
-  "pizza": { "style": "…" }
+  "pizza": { "style": "…" },
+  "comments": true | false
 }
 ```
+
+`comments` switches comments on the post on or off. It changes nothing
+on the website, so it is applied at once for the post's author as well
+as for an administrator, with or without other changes alongside; sent
+alone by a member it answers `{ "status": "applied", "post": … }`.
 
 `images` replaces the additional pictures as a whole with the list given,
 in that order, at most four: `keep` names a picture the post already has
@@ -335,6 +341,146 @@ unanswered) and answers as the `GET` does, with everything as it now
 stands. Unknown palettes or options, or two picks for a palette that
 takes one, are `400`.
 
+### `GET /api/posts/{id}/comments`
+
+A page of the comments under a bike or pizza post, for any verified
+member (see `docs/community-design.md` for the design). Top-level
+comments come oldest first, `pageSize` (20) at a time, each with its
+first `repliesShown` (3) replies and how many replies it has; `?after=`
+takes the id of the last top-level comment seen to get the next page.
+
+```json
+{
+  "count": 12,
+  "comments": [
+    {
+      "id": "c1", "parentId": null, "uid": "u1", "username": "ada_bikes",
+      "html": "<p>Great slice, <strong>@bob</strong>!</p>",
+      "createdAt": "2026-09-10T10:00:00.000Z", "editedAt": null,
+      "status": "published", "removed": false,
+      "likeCount": 2, "liked": true, "replyCount": 4, "mine": false,
+      "replies": [ { "id": "c2", "parentId": "c1", … } ]
+    }
+  ],
+  "next": "c9"
+}
+```
+
+`count` is the post's published comments, `liked` whether the caller
+likes it and `mine` whether they wrote it (then `text`, the comment as
+written, is included too, for editing). A comment held for review
+(`status: "pending"`, with `hold`: `"screen"` or `"words"`) is shown only
+to its author; a comment the reports took down is shown to nobody; a
+removed comment with replies keeps its place as `{ "removed": true,
+"html": "", "username": null }`. News posts answer `409`, as does a post
+whose comments are switched off (or the sitewide switch, see site
+settings); a removed or unknown post `404`.
+
+### `GET /api/posts/{id}/comments/{cid}/replies`
+
+Every visible reply of one top-level comment, oldest first: `{ "id",
+"replies": [ … ] }`.
+
+### `POST /api/posts/{id}/comments`
+
+Writes a comment: `{ "text": "…", "parentId": "c1" }` (`parentId` for
+a reply; a reply to a reply goes under the same top-level comment).
+The text is a Markdown subset (bold, italic, links; `contract/comments.json`
+caps it at 1,000 characters): a bare URL becomes `[link](url)`, and
+`@name` of an existing member is bolded and puts a mention notice under
+that member. It is then screened, in order: banned words (the admin's
+list) refuse it with `400` and "That comment can't be posted."; Google's
+Natural Language moderation scores refuse it at the block threshold
+(Toxic, Insult, Profanity, Derogatory, Sexual, Violent at 0.8) or hold
+it at the hold threshold (0.5, or Politics at 0.5); suspicious words
+hold it. A held comment answers with `status: "pending"` and is shown to
+its author as waiting for review. Otherwise it is published at once.
+Answers `{ "comment": { … } }` as the `GET` shapes it. One comment per
+member every fifteen seconds and two hundred a day (`409` beyond that);
+a member without a username gets `409`.
+
+### `PATCH /api/posts/{id}/comments/{cid}`
+
+Replaces the text (`{ "text": "…" }`) of the caller's own comment
+within five minutes of writing it, screened again as a new comment is;
+`editedAt` is set. After the window, or on someone else's comment, `409`
+and `403`.
+
+### `DELETE /api/posts/{id}/comments/{cid}`
+
+Takes a comment down: its author, the author of the post it is under,
+or an admin with a second factor. A reply disappears; a top-level
+comment with published replies becomes a removed placeholder, without
+them it disappears. Answers `{ "removed": "<cid>", "by": "author" |
+"postAuthor" | "admin" }`.
+
+### `POST /api/posts/{id}/comments/{cid}/like`
+
+Likes a published comment, or takes the like back: `{ "liked": true,
+"likeCount": 3 }`.
+
+### `GET /api/posts/{id}/comments/{cid}/likes`
+
+Who liked it: `{ "likes": [ { "username": "bob", "at": "…" } ] }`,
+oldest first.
+
+### `POST /api/posts/{id}/comments/{cid}/report`
+
+Reports a comment with a reason from the contract's list
+(`racism`, `misogyny`, `harassment`, `politics`, `spam`, `other`):
+`{ "reason": "spam" }`. One report per member per comment, never one's
+own (`409`). The second distinct reporter hides the comment until an
+admin decides; answers `{ "reported": true, "hidden": false }`.
+
+### `GET /api/me/notices`
+
+The caller's mention notices, oldest first, after `?since=<ISO>` when
+given: `{ "notices": [ { "id", "kind": "mention", "post": "<slug>",
+"comment": "<cid>", "at": "…" } ] }`. The app's unread tracker fetches
+them with its changes query; a post with a notice newer than the last
+time it was opened is unread. Notices older than sixty days are deleted
+nightly.
+
+### `GET /api/me/export`
+
+Everything the member has, as one JSON document: their record (`member`:
+uid, email, username, newsletters, when it was created), the posts
+credited to them (`posts`), their comments (`comments`, with the text as
+written), likes (`likes`) and reactions (`reactions`), and `exportedAt`.
+
+### `GET /api/admin/comments` (admin)
+
+One of the review queues, `?queue=pending` (held by screening, the
+default), `reported` (reported at least once, most reported first) or
+`recent` (published, newest first), fifty at most:
+
+```json
+{
+  "queue": "reported",
+  "comments": [
+    {
+      "id": "c1", "uid": "u1", "username": "ada_bikes", "text": "…", "html": "…",
+      "status": "hidden", "hold": "reports", "reportCount": 2, "reports": ["spam", "politics"],
+      "screening": { "language": "en", "scores": { "Toxic": 0.12, … }, "matched": [], "reasons": [] },
+      "mentions": ["u2"], "post": { "id": "detroit-slice", "title": "Detroit slice", "feed": "pizza", "url": "…" }, …
+    }
+  ]
+}
+```
+
+### `POST /api/admin/comments/{id}/{cid}/approve` and `…/remove` (admin)
+
+`approve` publishes a pending or hidden comment (`{id}` is the post),
+clearing its reports and sending the mention notices it was waiting to
+send; `remove` takes it down as an admin. Answers `{ "comment": { … } }`.
+
+### `GET /api/admin/moderation` and `PUT /api/admin/moderation` (admin)
+
+The word lists the screening uses, `{ "banned": [ … ], "suspicious":
+[ … ] }`: words or phrases, matched as whole words regardless of case.
+`PUT` replaces both lists (each at most 500 entries of 40 characters)
+and answers them normalized.
+
 ### `GET /api/admin/posts` (admin)
 
 The news posts on the site, newest first, for the admin page's News
@@ -393,6 +539,12 @@ credit: null | { uid, username, name }
 source: null | { system: "submission" | "ghost", id, url }
 reactions: { <palette>: { <value>: <count> } }   how many members picked each
                            reaction option; absent until someone reacts
+commentCount,              published comments; absent until someone comments
+commentedAt (ISO),         when the newest published comment was written
+commentTimes: [ISO, ...]   the newest 20 published comment times, newest
+                           first; the app counts unseen comments from them
+commentsEnabled            false when the post's author switched comments off;
+                           absent or true otherwise
 createdAt, updatedAt
 ```
 
@@ -402,6 +554,16 @@ Each member's own picks are under the post at
 the same transaction, and copies the username there (as on `credit`) so
 reactors can be named without a lookup each. Those records are not
 readable by clients; the API above serves them.
+
+Comments are under the post too, at `posts/{slug}/comments/{id}`:
+`{ uid, username, parentId, text, html, mentions, notified, createdAt,
+editedAt, status, hold, removedBy, screening, likedBy: [uid],
+replyCount, reportCount }`, with each like at `…/likes/{uid}` (`{ uid,
+username, at }`) and each report at `…/reports/{uid}` (`{ uid, reason,
+at }`). Mention notices are at `members/{uid}/notices/{id}` and the
+moderation word lists at `settings/moderation`. None of these are
+readable by clients; the comment endpoints serve them. Neither comments
+nor reactions touch `changedAt`.
 
 A photo's renditions (the main one's and each additional picture's
 alike) are in Cloud Storage at
@@ -420,13 +582,14 @@ changing them needs the `admin` claim.
 ### `GET /api/site/settings`
 
 ```json
-{ "submitButton": true }
+{ "submitButton": true, "comments": true }
 ```
 
 `submitButton` says whether bikes.pizza shows the "Submit a bike or pizza"
 button and accepts submissions on `/submit/` (when off, that page explains
-that website submissions are closed and points at the app). Served with
-`Cache-Control: no-store`.
+that website submissions are closed and points at the app). `comments`
+is the sitewide switch for comments on posts: off, every comment
+endpoint answers `409`. Served with `Cache-Control: no-store`.
 
 ### `POST /api/site/settings`
 

@@ -131,7 +131,7 @@ GET    /api/me/export                             everything the member has: pos
                                                   credited on, comments, likes, reactions
 
 GET    /api/admin/comments?queue=pending|reported|recent   admin
-POST   /api/admin/comments/{cid}/approve|remove|restore    admin
+POST   /api/admin/comments/{id}/{cid}/approve|remove       admin; {id} is the post
 GET    /api/admin/moderation                               admin; the word lists
 PUT    /api/admin/moderation                               admin; {banned, suspicious}
 ```
@@ -189,8 +189,9 @@ queues: pending (held by screening), reported (hidden or reported once),
 and recent (everything published, newest first). Each row shows the
 comment, the post, the author, what the screening saw and the report
 reasons, with Approve (publish a pending or hidden comment; clears the
-reports), Remove (status `removed`, `removedBy: "admin"`) and, on the
-same tab, the two word lists as editable text areas. Admins need the
+reports; a hidden comment is restored this way) and Remove (status
+`removed`, `removedBy: "admin"`) and, on the same tab, the two word
+lists as editable text areas. Admins need the
 second factor as elsewhere.
 
 Removing a comment: the author or the post's author from the app, an
