@@ -359,6 +359,29 @@ const threadDeps = () => ({
   members: firestoreMemberStore(getFirestore()),
   comments: comments(),
   moderate,
+  siteUrl: siteUrl(),
+  // Continuing by email: addresses from Firebase Auth, the mail through Mailgun.
+  emailOf: async (uid) => {
+    try {
+      return (await getAuth().getUser(uid)).email ?? null;
+    } catch {
+      return null;
+    }
+  },
+  send: isMailConfigured({ apiKey: mailgunApiKey.value(), domain: mailgunDomain.value().trim() })
+    ? ({ to, replyTo, subject, text, html }) =>
+        sendMail({
+          apiKey: mailgunApiKey.value(),
+          domain: mailgunDomain.value().trim(),
+          apiBase: mailgunApiBase.value(),
+          from: fromEmail.value().trim() || `postmaster@${mailgunDomain.value().trim()}`,
+          to,
+          replyTo,
+          subject,
+          text,
+          html,
+        })
+    : null,
   log: logger.info,
 });
 
@@ -495,6 +518,9 @@ const service = {
     edit: (id, mid, data, user) => messaging.editMessage(id, mid, data, user, threadDeps()),
     remove: (id, mid, user) => messaging.deleteMessage(id, mid, user, threadDeps()),
     seen: (id, user) => messaging.markSeen(id, user, threadDeps()),
+    requestEmail: (id, user) => messaging.requestEmail(id, user, threadDeps()),
+    withdrawEmail: (id, user) => messaging.withdrawEmail(id, user, threadDeps()),
+    agreeEmail: (id, user) => messaging.agreeEmail(id, user, threadDeps()),
     report: (id, data, user) => messaging.reportThread(id, data, user, threadDeps()),
     block: (username, on, user) => messaging.setBlock(username, on, user, threadDeps()),
     blocks: (user) => messaging.listBlocks(user, threadDeps()),

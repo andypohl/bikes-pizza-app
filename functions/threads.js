@@ -14,6 +14,7 @@ import { AppError, ValidationError } from "./errors.js";
 import { REASONS } from "./comments.js";
 import { screenText } from "./moderate.js";
 import { threadId } from "./thread_store.js";
+import { EMAILED_MESSAGES, conversationEmail } from "./thread_email.js";
 import { validateUsername } from "./account.js";
 
 export const RULES = MEMBERS.messages;
@@ -354,6 +355,111 @@ export async function listBlocks(user, { threads, members }) {
     blocked.push({ uid, username: record?.username ?? "" });
   }
   return { blocked };
+}
+
+// ---- continuing by email --------------------------------------------------------
+
+/** The other member of a two-member thread. */
+const otherOf = (thread, uid) => (thread.members ?? []).find((m) => m !== uid);
+
+/**
+ * Asks to continue the current conversation by email: sets the request
+ * on the thread for the other member to agree to. Refused while one is
+ * pending, while either has blocked the other, and when the conversation
+ * has no messages yet.
+ */
+export async function requestEmail(id, user, { threads, now = () => new Date(), log = () => {} }) {
+  checkId(id);
+  const thread = await threads.get(id);
+  memberOf(thread, user.uid);
+  const count = await threads.conversationCount(id, thread.conversation ?? 1);
+  await threads.transact(id, {}, ({ thread: current }) => {
+    memberOf(current, user.uid);
+    if ((current.blockedBy ?? []).length) throw new AppError("permission-denied", "This conversation is closed.");
+    if (current.emailRequest) throw new AppError("failed-precondition", "A request to continue by email is already waiting.");
+    if (count === 0) throw new AppError("failed-precondition", "Say something first.");
+    return { thread: { emailRequest: { by: user.uid, at: now().toISOString() } }, result: null };
+  });
+  log("email requested", { thread: id, by: user.uid });
+  return { requested: true };
+}
+
+/**
+ * Takes the pending request back (the asker cancels) or turns it down
+ * (the other member declines). Either way it is cleared and a quiet
+ * `declined` event marks the spot.
+ */
+export async function withdrawEmail(id, user, { threads, now = () => new Date(), log = () => {} }) {
+  checkId(id);
+  const at = now().toISOString();
+  const mid = threads.newId();
+  const who = await threads.transact(id, {}, ({ thread }) => {
+    memberOf(thread, user.uid);
+    if (!thread.emailRequest) throw new AppError("failed-precondition", "There is no request to continue by email.");
+    const role = thread.emailRequest.by === user.uid ? "cancelled" : "declined";
+    return {
+      thread: { emailRequest: null },
+      message: { id: mid, kind: "event", event: "declined", by: user.uid, at, conversation: thread.conversation ?? 1, createdAt: at },
+      result: role,
+    };
+  });
+  log(`email request ${who}`, { thread: id, by: user.uid });
+  return { withdrawn: true };
+}
+
+/**
+ * The other member agrees: the app emails them the conversation's newest
+ * messages with Reply-To set to the asker, the conversation ends with an
+ * `emailed` event, and the next message starts the next one. `emailOf(uid)`
+ * looks an address up in Firebase Auth; `send({to, replyTo, subject, text,
+ * html})` sends the mail; without it (mail not configured) the request is
+ * refused rather than silently dropped.
+ */
+export async function agreeEmail(id, user, deps) {
+  const { threads, emailOf, send, siteUrl, now = () => new Date(), log = () => {} } = deps;
+  checkId(id);
+  const thread = await threads.get(id);
+  memberOf(thread, user.uid);
+  const request = thread.emailRequest;
+  if (!request) throw new AppError("failed-precondition", "There is no request to continue by email.");
+  if (request.by === user.uid) throw new AppError("failed-precondition", "The other member has to agree.");
+  if (!send) throw new AppError("unavailable", "Email is not set up right now. Try again later.");
+  const askerUid = request.by;
+  const [askerEmail, agreerEmail] = await Promise.all([emailOf(askerUid), emailOf(user.uid)]);
+  if (!askerEmail || !agreerEmail) throw new AppError("failed-precondition", "One of you has no email address on file.");
+  const conversation = thread.conversation ?? 1;
+  const [messages, total] = await Promise.all([
+    threads.conversationMessages(id, conversation, { limit: EMAILED_MESSAGES }),
+    threads.conversationCount(id, conversation),
+  ]);
+  const site = siteUrl.replace(/\/+$/, "");
+  const mail = conversationEmail({
+    messages,
+    total,
+    asker: { uid: askerUid, username: thread.usernames?.[askerUid] ?? "a member", email: askerEmail },
+    agreer: { uid: user.uid, username: thread.usernames?.[user.uid] ?? "you", email: agreerEmail },
+    previousUrl: `${site}/messages/${encodeURIComponent(id)}/`,
+    siteUrl: site,
+  });
+  await send({ to: agreerEmail, replyTo: askerEmail, ...mail });
+  const at = now().toISOString();
+  const mid = threads.newId();
+  await threads.transact(id, {}, ({ thread: current }) => {
+    memberOf(current, user.uid);
+    return {
+      thread: {
+        emailRequest: null,
+        conversation: (current.conversation ?? 1) + 1,
+        conversationStartedAt: at,
+        lastMessageAt: at,
+        last: { uid: user.uid, text: "(conversation continued by email)", at },
+      },
+      message: { id: mid, kind: "event", event: "emailed", by: user.uid, at, conversation: current.conversation ?? 1, createdAt: at },
+      result: null,
+    };
+  });
+  log("conversation continued by email", { thread: id, agreedBy: user.uid, askedBy: askerUid, messages: messages.length, total });
+  return { emailed: true, conversation: conversation + 1 };
 }
 
 // ---- deletion, export, admin ---------------------------------------------------

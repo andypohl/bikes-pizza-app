@@ -236,8 +236,24 @@ Blocked members lists blocks with Unblock; the account screen has
 "Allow direct messages". Threads and messages arrive live through the
 Firestore SDK (`cloud_firestore`, the app's one direct Firestore read
 for member data), the writes go through the API, and the app icon's
-badge counts unread messages with unread posts. Continuing by email and
-the website's thread page come in the next pull request.
+badge counts unread messages with unread posts.
+
+Either member can ask to continue the current conversation by email;
+the other has to agree, and both are warned that their address will be
+shown. On agreement (`functions/thread_email.js`, `agreeEmail` in
+`functions/threads.js`) the app emails the conversation's newest ten
+messages to the member who agreed, drawn as chat bubbles in an HTML
+part (the asker's on the right in the app's teal; real, selectable
+text) with a plain-text part alongside, from the Mailgun sender with
+Reply-To set to the asker, and a "Previous messages" link to the
+website's read-only thread page (`/messages/<thread>/`,
+`site/src/pages/messages/index.astro` and
+`site/src/scripts/thread_page.ts`, served through a Hosting rewrite;
+it needs the site's Firebase session and says so when the thread is
+gone because the other member deleted their account). The conversation
+ends with an "(conversation continued by email)" line and the next
+message starts a new one. The privacy page describes the address
+sharing.
 
 ## Member submissions
 
