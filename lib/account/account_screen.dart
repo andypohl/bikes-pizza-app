@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../auth/auth_service.dart';
+import '../contract.dart';
 import '../auth/passkey_service.dart';
 import '../auth/session_expiry.dart';
 import '../api/api_client.dart';
@@ -38,6 +39,7 @@ class _AccountScreenState extends State<AccountScreen> {
   String? _error;
   final _formKey = GlobalKey<FormState>();
   final _username = TextEditingController();
+  final _location = TextEditingController();
   final _selected = <String>{};
   bool _saving = false;
 
@@ -50,6 +52,7 @@ class _AccountScreenState extends State<AccountScreen> {
   @override
   void dispose() {
     _username.dispose();
+    _location.dispose();
     super.dispose();
   }
 
@@ -76,6 +79,7 @@ class _AccountScreenState extends State<AccountScreen> {
   void _apply(MemberProfile profile) {
     _profile = profile;
     _username.text = profile.username;
+    _location.text = profile.location;
     _selected
       ..clear()
       ..addAll([
@@ -92,6 +96,7 @@ class _AccountScreenState extends State<AccountScreen> {
       final profile = await widget.members.update(
         username: _username.text.trim(),
         newsletters: _selected.toList(),
+        location: _location.text.trim(),
       );
       if (!mounted) return;
       setState(() => _apply(profile));
@@ -156,18 +161,34 @@ class _AccountScreenState extends State<AccountScreen> {
             ),
           Form(
             key: _formKey,
-            child: TextFormField(
-              key: const Key('username'),
-              controller: _username,
-              autocorrect: false,
-              enableSuggestions: false,
-              autofillHints: const [AutofillHints.username],
-              maxLength: 24,
-              decoration: const InputDecoration(
-                labelText: 'Username',
-                helperText: usernameRule,
-              ),
-              validator: validateUsername,
+            child: Column(
+              children: [
+                TextFormField(
+                  key: const Key('username'),
+                  controller: _username,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  autofillHints: const [AutofillHints.username],
+                  maxLength: 24,
+                  decoration: const InputDecoration(
+                    labelText: 'Username',
+                    helperText: usernameRule,
+                  ),
+                  validator: validateUsername,
+                ),
+                TextFormField(
+                  key: const Key('location'),
+                  controller: _location,
+                  textCapitalization: TextCapitalization.words,
+                  maxLength: memberLocationMaxLength,
+                  decoration: const InputDecoration(
+                    labelText: 'Location',
+                    helperText:
+                        'Shown on your profile. A city, a region, '
+                        'or nothing at all.',
+                  ),
+                ),
+              ],
             ),
           ),
           if (profile.newsletters.isNotEmpty) ...[

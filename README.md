@@ -172,6 +172,27 @@ mention and link rewrites) and `functions/comment_store.js` (Firestore).
 Deleting an account removes the member's comments, likes, reactions and
 notices; `GET /api/me/export` hands a member everything they have.
 
+## Profiles
+
+Every username is a link to the member's profile: when they joined (the
+Firebase user's creation time, copied onto the member record), the
+location they chose to share (a free-text field on the account screen
+and page, sixty characters, checked against the banned word list) and
+how many pizzas and bikes they have posted, each opening those posts.
+The profile is public: `GET /api/members/{username}` needs no token
+(`functions/profiles.js`), and `…/posts?feed=` pages the member's posts
+in one feed. In the app (`lib/screens/profile_screen.dart`,
+`lib/posts/profile_service.dart`) the credit line on a post, a comment's
+author and the names in the likes sheet open it, the counts open a
+filtered post list ("Pizzas by ada_bikes"), and Settings → "Your
+profile" shows members their own. On the website `/member/<username>/`
+is the profile: the header (`site/src/components/ProfileHeader.astro`,
+filled from the API by `site/src/scripts/profile.ts`) over the member's
+posts by feed; members without posts have no built page, so a Hosting
+rewrite serves `/member/index.html`, which reads the username from the
+path. The Message button and the "allow direct messages" switch come
+with direct messages.
+
 ## Member submissions
 
 The Submit Pizza / Submit Bike form (`lib/screens/submit_screen.dart`) asks

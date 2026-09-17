@@ -68,6 +68,10 @@ const service = {
     reactions: async (id, user) => calls.push(["posts.reactions", id, user.uid]) && { counts: {}, mine: {}, who: {} },
     react: async (id, data, user) => calls.push(["posts.react", id, data, user.uid]) && { counts: {}, mine: data.picks, who: {} },
   },
+  members: {
+    profile: async (username, viewer) => calls.push(["members.profile", username, viewer?.uid ?? null]) && { username, counts: { pizza: 1, bikes: 0 } },
+    posts: async (username, query) => calls.push(["members.posts", username, { ...query }]) && { username, posts: [] },
+  },
   comments: {
     list: async (id, query, user) => calls.push(["comments.list", id, { ...query }, user.uid]) && { count: 0, comments: [], next: null },
     create: async (id, data, user) => {
@@ -389,3 +393,25 @@ test("the comment review endpoints need an admin with a second factor", async ()
     ["comments.setModeration", { banned: ["x"], suspicious: [] }, "a1"],
   ]);
 });
+
+test("profiles are public, and say who is looking when a token is sent", async () => {
+  calls.length = 0;
+  const anon = await call("/api/members/ada_bikes");
+  assert.equal(anon.status, 200);
+  assert.equal(anon.body.username, "ada_bikes");
+  const seen = await call("/api/members/ada_bikes", { token: "member" });
+  assert.equal(seen.status, 200);
+  const bad = await call("/api/members/ada_bikes", { token: "nope" });
+  assert.equal(bad.status, 200);
+  const unverified = await call("/api/members/ada_bikes", { token: "unverified" });
+  assert.equal(unverified.status, 200);
+  assert.equal((await call("/api/members/ada_bikes/posts?feed=pizza&page=2")).status, 200);
+  assert.deepEqual(calls, [
+    ["members.profile", "ada_bikes", null],
+    ["members.profile", "ada_bikes", "u1"],
+    ["members.profile", "ada_bikes", null],
+    ["members.profile", "ada_bikes", null],
+    ["members.posts", "ada_bikes", { feed: "pizza", page: "2" }],
+  ]);
+});
+

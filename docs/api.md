@@ -445,7 +445,8 @@ nightly.
 ### `GET /api/me/export`
 
 Everything the member has, as one JSON document: their record (`member`:
-uid, email, username, newsletters, when it was created), the posts
+uid, email, username, location, the messages switch, newsletters, when
+they joined and when the record was created), the posts
 credited to them (`posts`), their comments (`comments`, with the text as
 written), likes (`likes`) and reactions (`reactions`), and `exportedAt`.
 
@@ -517,6 +518,40 @@ fixed, 2048px long edge, JPEG), kept under `posts/inline/` in Cloud
 Storage where it is public and cached like the renditions, and answered
 as `{ "url", "width", "height" }` for the Markdown `![alt](url)`. Not
 inspected, as with other admin uploads.
+
+## Members
+
+Public profiles: what a username opens, in the app and on the website.
+No token is needed; one sent along only tells the API who is looking.
+
+### `GET /api/members/{username}`
+
+```json
+{
+  "uid": "…",
+  "username": "ada_bikes",
+  "joinedAt": "2025-03-04T05:06:07.000Z",
+  "location": "Madison, WI",
+  "counts": { "pizza": 12, "bikes": 3 },
+  "messages": true
+}
+```
+
+`joinedAt` is when the Firebase user was created (null for a record
+from before it was kept, until the member next signs in); `location` is
+what the member typed on their account screen, empty when unset;
+`counts` are their published posts per gallery feed; `messages` says
+whether the caller may start a conversation with them (false when the
+member turned messages off, when the caller is signed out, or when
+they are looking at themselves). Usernames match regardless of case. An
+unknown username answers `404`. Served with `Cache-Control: no-store`.
+
+### `GET /api/members/{username}/posts`
+
+`?feed=pizza|bikes&page=1&pageSize=15`: a page of the member's
+published posts in that feed, newest first, each shaped as `GET
+/api/posts/{id}` reads (`id`, `title`, `url`, `image`, …), with
+`hasMore`. Any other feed answers `400`.
 
 ## Posts in Firestore
 

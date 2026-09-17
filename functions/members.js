@@ -7,7 +7,8 @@
 import { FieldValue } from "firebase-admin/firestore";
 
 import { usernameKey } from "./account.js";
-import { AppError } from "./errors.js";
+import { AppError, ValidationError } from "./errors.js";
+import { matchWords } from "./moderate.js";
 
 /** The newsletters a member can choose from. */
 export const NEWSLETTERS = [
@@ -29,6 +30,9 @@ const RETIRED_FIELDS = ["name"];
  * @property {string} email
  * @property {string} username  Empty until the member chooses one
  * @property {string[]} newsletters  IDs from {@link NEWSLETTERS}
+ * @property {string} [joinedAt]  ISO; when the Firebase user was created
+ * @property {string} [location]  Shown on the public profile; "" when unset
+ * @property {boolean} [messages]  False when other members may not message them
  */
 
 /**
@@ -48,22 +52,28 @@ const RETIRED_FIELDS = ["name"];
 
 /**
  * The member's record, created with defaults on first use. Keeps the email
- * in step with the Firebase user so the record stays findable, and drops
- * fields that are no longer kept (the name, from before usernames).
+ * in step with the Firebase user so the record stays findable, drops
+ * fields that are no longer kept (the name, from before usernames), and
+ * fills in `joinedAt` from `joinedAt(uid)` (the Firebase user's creation
+ * time) when the record has none.
  *
  * @param {{uid: string, email: string}} user
- * @param {{store: MemberStore, now?: () => Date}} deps
+ * @param {{store: MemberStore, now?: () => Date, joinedAt?: (uid: string) => Promise<string|null>}} deps
  * @returns {Promise<MemberRecord>}
  */
-export async function loadMember(user, { store, now = () => new Date() }) {
+export async function loadMember(user, { store, now = () => new Date(), joinedAt }) {
   const existing = await store.get(user.uid);
   if (existing) {
     const stale = RETIRED_FIELDS.filter((field) => field in existing);
     if (stale.length) await store.remove(user.uid, stale);
-    if (existing.email !== user.email) {
-      await store.set(user.uid, { email: user.email, updatedAt: now() });
+    const patch = {};
+    if (existing.email !== user.email) patch.email = user.email;
+    if (!existing.joinedAt && joinedAt) {
+      const at = await joinedAt(user.uid).catch(() => null);
+      if (at) patch.joinedAt = at;
     }
-    const record = { ...existing, email: user.email, username: existing.username ?? "" };
+    if (Object.keys(patch).length) await store.set(user.uid, { ...patch, updatedAt: now() });
+    const record = { ...existing, ...patch, email: user.email, username: existing.username ?? "" };
     for (const field of stale) delete record[field];
     return record;
   }
@@ -71,6 +81,7 @@ export async function loadMember(user, { store, now = () => new Date() }) {
     email: user.email,
     username: "",
     newsletters: [...DEFAULT_NEWSLETTERS],
+    joinedAt: (joinedAt && (await joinedAt(user.uid).catch(() => null))) || now().toISOString(),
   };
   await store.set(user.uid, { ...record, createdAt: now(), updatedAt: now() });
   return record;
@@ -79,14 +90,18 @@ export async function loadMember(user, { store, now = () => new Date() }) {
 /**
  * Applies a validated patch (see `validateUpdate` in account.js) and returns
  * the updated record. A username goes through the store's reservation so
- * two members can never share one.
+ * two members can never share one; a location is checked against the
+ * banned word list (`banned`, when given).
  *
  * @param {{uid: string}} user
- * @param {{username?: string, newsletters?: string[]}} patch
- * @param {{store: MemberStore, now?: () => Date}} deps
+ * @param {{username?: string, newsletters?: string[], location?: string, messages?: boolean}} patch
+ * @param {{store: MemberStore, now?: () => Date, banned?: () => Promise<string[]>}} deps
  */
-export async function updateMember(user, patch, { store, now = () => new Date() }) {
+export async function updateMember(user, patch, { store, now = () => new Date(), banned }) {
   const { username, ...rest } = patch;
+  if (rest.location && banned && matchWords(rest.location, await banned()).length) {
+    throw new ValidationError("That location can't be used.");
+  }
   if (username !== undefined) await store.setUsername(user.uid, username);
   await store.set(user.uid, { ...rest, updatedAt: now() });
   return store.get(user.uid);

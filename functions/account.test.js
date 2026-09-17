@@ -12,6 +12,8 @@ test("profile flags the newsletters the member receives", () => {
   assert.deepEqual(profile(member, newsletters), {
     email: "a@b.c",
     username: "ada",
+    location: "",
+    messages: true,
     newsletters: [
       { id: "n1", name: "Weekly", description: "Every Friday", subscribed: true },
       { id: "n2", name: "Extras", description: "", subscribed: false },
@@ -21,6 +23,21 @@ test("profile flags the newsletters the member receives", () => {
 
 test("profile shows an empty username until one is chosen", () => {
   assert.equal(profile({ email: "a@b.c", newsletters: [] }, newsletters).username, "");
+});
+
+test("profile carries the location and the messages switch", () => {
+  const p = profile({ email: "a@b.c", username: "ada", location: "Madison, WI", messages: false }, newsletters);
+  assert.equal(p.location, "Madison, WI");
+  assert.equal(p.messages, false);
+});
+
+test("validateUpdate takes a location (trimmed, capped) and the messages switch", () => {
+  assert.deepEqual(validateUpdate({ location: "  Madison,   WI " }, newsletters), { location: "Madison, WI" });
+  assert.deepEqual(validateUpdate({ location: "" }, newsletters), { location: "" });
+  assert.deepEqual(validateUpdate({ messages: false }, newsletters), { messages: false });
+  assert.throws(() => validateUpdate({ location: "x".repeat(61) }, newsletters), ValidationError);
+  assert.throws(() => validateUpdate({ location: 5 }, newsletters), ValidationError);
+  assert.throws(() => validateUpdate({ messages: "no" }, newsletters), ValidationError);
 });
 
 test("validateUsername accepts letters, digits and underscores and trims", () => {

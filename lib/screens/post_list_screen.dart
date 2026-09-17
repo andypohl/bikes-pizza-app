@@ -7,6 +7,7 @@ import '../models/post.dart';
 import '../models/post_feed.dart';
 import '../posts/comment_service.dart';
 import '../posts/post_editor.dart';
+import '../posts/profile_service.dart';
 import '../posts/reaction_service.dart';
 import '../posts/unread_tracker.dart';
 import '../submissions/photo_picker.dart';
@@ -43,6 +44,7 @@ class PostListScreen extends StatefulWidget {
     this.editor,
     this.reactions,
     this.comments,
+    this.profiles,
     this.credit,
     this.unread,
   });
@@ -50,6 +52,9 @@ class PostListScreen extends StatefulWidget {
   final PostFeed feed;
   final PostRepository repository;
   final UnreadTracker? unread;
+
+  /// Lets usernames open profiles; null keeps them as post lists.
+  final ProfileService? profiles;
 
   /// Lets signed-in members react to bike and pizza posts; null shows
   /// only the tallies.
@@ -179,6 +184,7 @@ class _PostListScreenState extends State<PostListScreen> {
           repository: widget.repository,
           reactions: widget.reactions,
           comments: widget.comments,
+          profiles: widget.profiles,
           auth: widget.auth,
           editor: widget.editor,
           photos: widget.photos,
@@ -186,6 +192,16 @@ class _PostListScreenState extends State<PostListScreen> {
         ),
       ),
     );
+  }
+
+  /// "Posts by ada", or "Pizzas by ada" for one feed.
+  String get _creditTitle {
+    final credit = widget.credit!;
+    final feed = widget.feed;
+    final what = feed == PostFeed.all
+        ? 'Posts'
+        : '${feedNounLabel(feed.feeds.single)}s';
+    return '$what by ${credit.username}';
   }
 
   /// Shows an edited post in the list (and beside it) as it now reads.
@@ -244,7 +260,7 @@ class _PostListScreenState extends State<PostListScreen> {
       appBar: AppBar(
         title: Text(
           widget.credit != null
-              ? 'Posts by ${widget.credit!.username}'
+              ? _creditTitle
               : widget.feed == PostFeed.all
               ? 'bikes.pizza'
               : widget.feed.label,
@@ -271,6 +287,7 @@ class _PostListScreenState extends State<PostListScreen> {
                           repository: widget.repository,
                           reactions: widget.reactions,
                           comments: widget.comments,
+                          profiles: widget.profiles,
                           auth: auth,
                           editor: widget.editor,
                           photos: photos,
@@ -354,6 +371,7 @@ class _PostPane extends StatelessWidget {
     required this.onClose,
     this.reactions,
     this.comments,
+    this.profiles,
     this.auth,
     this.editor,
     this.photos,
@@ -365,6 +383,7 @@ class _PostPane extends StatelessWidget {
   final VoidCallback onClose;
   final ReactionService? reactions;
   final CommentService? comments;
+  final ProfileService? profiles;
   final AuthService? auth;
   final PostEditor? editor;
   final PhotoPicker? photos;
@@ -413,6 +432,7 @@ class _PostPane extends StatelessWidget {
               repository: repository,
               reactions: reactions,
               comments: comments,
+              profiles: profiles,
               auth: auth,
             ),
           ),

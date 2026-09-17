@@ -9,8 +9,10 @@ import '../data/post_repository.dart';
 import '../models/post.dart';
 import '../models/post_feed.dart';
 import '../posts/comment_service.dart';
+import '../posts/profile_service.dart';
 import '../posts/reaction_service.dart';
 import '../screens/post_list_screen.dart';
+import '../screens/profile_screen.dart';
 import 'comments_panel.dart';
 import 'reactions_panel.dart';
 import 'unread_dot.dart';
@@ -31,6 +33,7 @@ class PostArticle extends StatelessWidget {
     this.repository,
     this.reactions,
     this.comments,
+    this.profiles,
     this.auth,
     this.unread = false,
   });
@@ -39,6 +42,10 @@ class PostArticle extends StatelessWidget {
   final PostRepository? repository;
   final ReactionService? reactions;
   final CommentService? comments;
+
+  /// Lets usernames open a profile; without it the credit opens the
+  /// member's post list.
+  final ProfileService? profiles;
   final AuthService? auth;
 
   /// Puts the blue unread dot before the title.
@@ -60,12 +67,36 @@ class PostArticle extends StatelessWidget {
   void _openMember(BuildContext context, PostCredit credit) {
     final repository = this.repository;
     if (repository == null) return;
+    final profiles = this.profiles;
+    if (profiles != null && credit.username.isNotEmpty) {
+      openProfile(context, credit.username);
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => PostListScreen(
           feed: PostFeed.all,
           repository: repository,
           credit: credit,
+        ),
+      ),
+    );
+  }
+
+  /// Opens [username]'s profile, when profiles are available.
+  void openProfile(BuildContext context, String username) {
+    final profiles = this.profiles;
+    final repository = this.repository;
+    if (profiles == null || repository == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProfileScreen(
+          username: username,
+          profiles: profiles,
+          repository: repository,
+          auth: auth,
+          reactions: reactions,
+          comments: comments,
         ),
       ),
     );
@@ -220,7 +251,14 @@ class PostArticle extends StatelessWidget {
                 Text(post.summary, style: theme.textTheme.bodyLarge),
               ?credit,
               if (post.takesComments)
-                CommentsPanel(post: post, comments: comments, auth: auth),
+                CommentsPanel(
+                  post: post,
+                  comments: comments,
+                  auth: auth,
+                  onOpenProfile: profiles == null || repository == null
+                      ? null
+                      : (username) => openProfile(context, username),
+                ),
             ],
           ),
         ),

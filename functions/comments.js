@@ -484,7 +484,10 @@ export async function exportMember(user, { posts, comments, members, siteUrl, no
       uid: user.uid,
       email: user.email,
       username: record?.username ?? "",
+      location: record?.location ?? "",
+      messages: record?.messages !== false,
       newsletters: record?.newsletters ?? [],
+      joinedAt: record?.joinedAt ?? null,
       createdAt: record?.createdAt?.toDate?.()?.toISOString?.() ?? record?.createdAt ?? null,
     },
     posts: credited.map((doc) => {

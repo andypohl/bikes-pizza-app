@@ -1,10 +1,15 @@
 ---
-// Every post a member has submitted, newest first. Reached from the
-// "Submitted by" link on a post. Built for each member with a username and
-// at least one post; the page moves when the username changes, since the
-// path is the username.
+// A member's profile: when they joined, the location they chose to share,
+// how many pizzas and bikes they have posted, and those posts by feed.
+// Built for each member with a username and at least one post (the page
+// moves when the username changes, since the path is the username); the
+// header's dates and counts are fetched from the API when the page loads
+// (scripts/profile.ts). Members without posts are served by the fallback
+// page (index.astro) through a Hosting rewrite.
 import Layout from '../../layouts/Layout.astro';
 import PostGrid from '../../components/PostGrid.astro';
+import ProfileHeader from '../../components/ProfileHeader.astro';
+import { categoryOf, type GalleryPost } from '../../lib/posts';
 
 export async function getStaticPaths() {
   const { getGalleryPosts, membersOf } = await import('../../lib/posts');
@@ -15,15 +20,34 @@ export async function getStaticPaths() {
   }));
 }
 
+interface Props {
+  username: string;
+  posts: GalleryPost[];
+}
+
 const { username, posts } = Astro.props;
-const noun = posts.length === 1 ? 'post' : 'posts';
+const pizzas = posts.filter((post) => categoryOf(post) === 'Pizza');
+const bikes = posts.filter((post) => categoryOf(post) === 'Bikes');
 ---
 
-<Layout title={`Posts by ${username} | bikes.pizza`} description={`Bikes and pizzas submitted by ${username}.`}>
+<Layout title={`${username} | bikes.pizza`} description={`Bikes and pizzas submitted by ${username}.`}>
   <main class="container mx-auto px-6 pt-10 pb-16">
-    <h1 class="text-3xl font-light tracking-wide mb-10 text-ink">
-      {posts.length} {noun} by <span class="font-medium">{username}</span>
-    </h1>
-    <PostGrid posts={posts} />
+    <ProfileHeader username={username} pizzas={pizzas.length} bikes={bikes.length} />
+    {
+      pizzas.length > 0 && (
+        <section id="pizzas" class="mt-12">
+          <h2 class="text-2xl font-light tracking-wide mb-6 text-ink">Pizzas</h2>
+          <PostGrid posts={pizzas} />
+        </section>
+      )
+    }
+    {
+      bikes.length > 0 && (
+        <section id="bikes" class="mt-12">
+          <h2 class="text-2xl font-light tracking-wide mb-6 text-ink">Bikes</h2>
+          <PostGrid posts={bikes} eager={0} />
+        </section>
+      )
+    }
   </main>
 </Layout>

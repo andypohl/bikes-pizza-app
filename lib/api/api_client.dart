@@ -48,8 +48,13 @@ class ApiClient {
 
   final http.Client _client;
 
-  Future<Map<String, dynamic>> get(String path, {Map<String, String>? query}) =>
-      _send('GET', path, query: query);
+  /// With [optionalAuth], a request goes out without a token when nobody
+  /// is signed in (the public endpoints) rather than failing.
+  Future<Map<String, dynamic>> get(
+    String path, {
+    Map<String, String>? query,
+    bool optionalAuth = false,
+  }) => _send('GET', path, query: query, optionalAuth: optionalAuth);
 
   Future<Map<String, dynamic>> post(String path, {Object? body}) =>
       _send('POST', path, body: body);
@@ -72,14 +77,15 @@ class ApiClient {
     String path, {
     Map<String, String>? query,
     Object? body,
+    bool optionalAuth = false,
   }) async {
     final idToken = await token();
-    if (idToken == null) {
+    if (idToken == null && !optionalAuth) {
       throw ApiException(sessionExpiredMessage, sessionExpired: true);
     }
     final request = http.Request(method, uri(path, query: query))
-      ..headers['Authorization'] = 'Bearer $idToken'
       ..headers['Accept'] = 'application/json';
+    if (idToken != null) request.headers['Authorization'] = 'Bearer $idToken';
     if (body != null) {
       request.headers['Content-Type'] = 'application/json';
       request.body = jsonEncode(body);

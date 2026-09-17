@@ -592,10 +592,12 @@ copies as the rest of the contract is.
 4. **Website**: comments on post pages for signed-in visitors, counts on
    tiles.
 5. **Profiles**: `joinedAt`, `location` and `messages` on the member
-   record and the account surfaces (app and website), the two profile
-   endpoints, the profile screen and filtered post list in the app,
-   usernames as links everywhere, the website profile header and the
-   `/member/**` rewrite.
+   record, the location on the account surfaces (app and website), the
+   two profile endpoints, the profile screen and filtered post list in
+   the app, usernames as links everywhere, the website profile header
+   and the `/member/**` rewrite. The Message button and the "allow
+   direct messages" switch wait for the direct message pull requests,
+   where they mean something.
 6. **Direct messages, functions**: threads, messages, seen, block,
    report, the admin queue, rules and indexes, deletion and export.
 7. **Direct messages, app**: the Messages button and list, the thread

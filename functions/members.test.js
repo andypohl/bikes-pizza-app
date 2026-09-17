@@ -41,8 +41,31 @@ const now = () => new Date("2026-01-02T03:04:05Z");
 test("loadMember creates a record with defaults on first use", async () => {
   const store = memoryStore();
   const member = await loadMember({ uid: "u1", email: "a@b.c" }, { store, now });
-  assert.deepEqual(member, { email: "a@b.c", username: "", newsletters: DEFAULT_NEWSLETTERS });
+  assert.deepEqual(member, { email: "a@b.c", username: "", newsletters: DEFAULT_NEWSLETTERS, joinedAt: now().toISOString() });
   assert.deepEqual(store.docs.get("u1").createdAt, now());
+});
+
+test("loadMember takes the join date from the Firebase user, and fills it in for older records", async () => {
+  const store = memoryStore();
+  const joinedAt = async (uid) => (uid === "u1" ? "2025-03-04T05:06:07.000Z" : null);
+  const fresh = await loadMember({ uid: "u1", email: "a@b.c" }, { store, now, joinedAt });
+  assert.equal(fresh.joinedAt, "2025-03-04T05:06:07.000Z");
+  await store.set("u2", { email: "b@b.c", username: "bob", newsletters: [] });
+  const older = await loadMember({ uid: "u2", email: "b@b.c" }, { store, now, joinedAt: async () => "2024-01-01T00:00:00.000Z" });
+  assert.equal(older.joinedAt, "2024-01-01T00:00:00.000Z");
+  assert.equal(store.docs.get("u2").joinedAt, "2024-01-01T00:00:00.000Z");
+  const unknown = await loadMember({ uid: "u3", email: "c@b.c" }, { store, now, joinedAt: async () => { throw new Error("auth down"); } });
+  assert.equal(unknown.joinedAt, now().toISOString());
+});
+
+test("updateMember refuses a location with a banned word, and keeps the rest", async () => {
+  const store = memoryStore();
+  await loadMember({ uid: "u1", email: "a@b.c" }, { store, now });
+  const banned = async () => ["darn"];
+  await assert.rejects(updateMember({ uid: "u1" }, { location: "Darn City" }, { store, now, banned }), /can't be used/);
+  const updated = await updateMember({ uid: "u1" }, { location: "Madison, WI", messages: false }, { store, now, banned });
+  assert.equal(updated.location, "Madison, WI");
+  assert.equal(updated.messages, false);
 });
 
 test("loadMember returns the existing record and keeps the email current", async () => {

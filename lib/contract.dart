@@ -248,3 +248,6 @@ const commentReportReasons = <String, String>{
   'spam': 'Spam',
   'other': 'Something else',
 };
+
+/// A member's location on their profile: the longest, in characters.
+const memberLocationMaxLength = 60;

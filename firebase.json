@@ -118,7 +118,13 @@
         }
       ],
       "cleanUrls": true,
-      "trailingSlash": true
+      "trailingSlash": true,
+      "rewrites": [
+        {
+          "source": "/member/**",
+          "destination": "/member/index.html"
+        }
+      ]
     },
     {
       "target": "account",

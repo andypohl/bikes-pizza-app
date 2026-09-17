@@ -23,6 +23,7 @@ const options = read("options.json");
 const rules = read("rules.json");
 const { palettes } = read("reactions.json");
 const comments = read("comments.json");
+const members = read("members.json");
 
 const HEADER = "Generated from contract/*.json by tool/contract/generate.mjs. Do not edit; change the JSON and run the generator.";
 
@@ -92,6 +93,8 @@ function javascript({ typed }) {
   }
   out.push(`/** The rules for comments on posts: lengths, windows, page sizes, report reasons and screening thresholds. */\n`);
   out.push(`export const COMMENTS${t(": CommentRules")} = ${JSON.stringify(comments, null, 2)};\n`);
+  out.push(`/** The rules for member profiles: the longest location. */\n`);
+  out.push(`export const MEMBERS${t(": { locationMaxLength: number }")} = ${JSON.stringify(members, null, 2)};\n`);
   return out.join("\n");
 }
 
@@ -160,6 +163,7 @@ function dartComments() {
     `/// Reports from different members that hide a comment until an admin looks.\nconst commentReportsToHide = ${c.reportsToHide};\n`,
     `/// How many of the newest comment times a post carries (\`commentTimes\`).\nconst commentTimesKept = ${c.timesKept};\n`,
     dartMap("commentReportReasons", c.reportReasons, "The reasons a comment can be reported for, value to label, in display order."),
+    `/// A member's location on their profile: the longest, in characters.\nconst memberLocationMaxLength = ${members.locationMaxLength};\n`,
   ].join("\n");
 }
 
