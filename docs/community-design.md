@@ -1,12 +1,15 @@
-# Comments: design
+# Comments, profiles and direct messages: design
 
 Members can comment on bike and pizza posts, reply once, like comments and
 report them; the post's author can turn comments off; text is screened
 before it is shown; administrators review what the screening or reports
-hold back. This document fixes the design so it can be built in a few
-pull requests. It follows the decisions taken on September 16, 2026 after
-a survey of Disqus, Hyvor Talk, Remark42, Comentario, Coral, Cusdis,
-giscus and Stream.
+hold back. Every username links to a profile with the member's join date,
+location and post counts, and from the profile members can message each
+other one on one. This document fixes the design so it can be built in a
+series of pull requests. The comments part follows the decisions taken on
+September 16, 2026 after a survey of Disqus, Hyvor Talk, Remark42,
+Comentario, Coral, Cusdis, giscus and Stream; profiles and direct
+messages were added on September 17.
 
 ## Decisions
 
@@ -23,7 +26,7 @@ giscus and Stream.
 | Reports | Report with a reason (racism, misogyny, harassment or too mean, politics, spam, other). Hidden automatically after two reports from different members, until an admin decides. |
 | Post author | Can delete any comment on their own post. |
 | Notifications | In-app only. A mention makes the post unread (dot, tab counters, app badge). Any other comment the member has not seen puts a "new comments" count on the post's tile, with the post otherwise still read. |
-| Identity | Username only, not a link. |
+| Identity | Username, linking to the member's profile (see Profiles below). |
 | Data | Comments and likes go in a member's data export; deleting the account deletes them. |
 | Website | Post pages fetch comments live for signed-in visitors. Tiles show the count. |
 | Later | Auto-translation of comments in other languages, with a "(translated, show original)" note. |
@@ -265,32 +268,223 @@ and "Sign in to read the comments" linking to `/account/`. The count in
 tiles comes from the post at build time, so it is as fresh as the last
 rebuild. Comments do not trigger site rebuilds.
 
+## Profiles
+
+A profile is what a username opens: on posts (the credit line), comments
+and like lists in the app, and on the website's post pages and comments.
+Reaction tooltips stay plain text, since a hover cannot be tapped. It
+shows:
+
+- the username;
+- "Joined <month day, year>";
+- the location, when the member has set one;
+- "N pizzas" and "N bikes", each opening the member's published posts in
+  that feed, newest first;
+- a "Message" button (signed-in members, not on their own profile; see
+  Direct messages).
+
+Nothing else: no email, no name, no bio, no avatar. The profile is public
+on the website, as the member's post list already is; the app shows it
+to anyone as well, with the Message button only for signed-in members.
+
+### Storage
+
+`members/{uid}` gains:
+
+```
+joinedAt     copied from the Firebase user's creation time the first time
+             the record is loaded without one (older records) or created
+location     up to 60 characters, free text, optional; "" when unset
+messages     missing or true: others may start a conversation; false hides
+             the Message button and refuses new conversations
+```
+
+The post counts are not stored: the API counts them with Firestore
+aggregation queries on `posts` (`credit.uid`, `feed`, published) when
+the profile is fetched. The two queries are cheap and always right.
+
+The location is set on the account screen in the app and on the account
+page on the website, labeled "Location (shown on your profile)". It is
+trimmed, checked against the banned word list, and otherwise free: a
+city, a region, "somewhere in Ohio". Nothing geocodes it.
+
+### API
+
+```
+GET  /api/members/{username}          public; -> {username, joinedAt, location,
+                                      counts: {pizza, bikes}, messages: boolean}
+                                      404 when no member has the username
+GET  /api/members/{username}/posts?feed=pizza|bikes&page=
+                                      public; the member's published posts in one
+                                      feed, newest first, as the feed pages are
+```
+
+The `member` callable's record and `updateMember`'s patch gain
+`location` and `messages`. `messages` in the profile reply is false when
+the member has turned messages off, when the caller is blocked by them,
+or when the caller is signed out.
+
+### App
+
+- `ProfileScreen(username)` reached by tapping a username anywhere it is
+  shown. The credit line on a post, the author line on a comment and the
+  names in the likes sheet become taps.
+- The counts open a `PostListScreen` filtered to the member and feed;
+  `fetchPosts(feed, uid:)` already does the query, so the screen gets a
+  title ("Pizzas by ada_bikes") and no submit button.
+- The member's own profile is reachable from Settings, above "Manage
+  account", so they can see what others see.
+- The account screen gets the location field and an "Allow direct
+  messages" switch.
+
+### Website
+
+`/member/<username>/` exists today as the static grid of a member's
+posts, built for members with at least one post. It becomes the profile:
+a header with the join date, location and counts fetched from
+`GET /api/members/<username>` when the page loads, then the grid split
+by feed with the two counts as anchors into it. For members with no
+posts there is no static page, so a Hosting rewrite sends
+`/member/**` to a single `member/index.html` that reads the username
+from the path and renders the header alone; static pages take precedence
+over rewrites, so members with posts keep their built page. The Message
+button on the website opens the app (see Direct messages).
+
+## Direct messages
+
+One-on-one conversations between members, from the Message button on a
+profile. The design leaves room for groups (a conversation has a list
+of members) but nothing creates one with more than two yet.
+
+### Decisions
+
+| Area | Decision |
+|---|---|
+| Who | Signed-in members with a verified email and a username. Either member of a conversation may write; anyone may start one with a member who has not turned messages off or blocked them. |
+| Text | Same rules as comments: bold, italic, links, bare URLs to "[link]", 1,000 characters, no images. @mentions are plain text. |
+| Editing | Five-minute window with "(edited)"; delete any time, leaving "Message deleted" for both. |
+| Screening | Banned words block. Toxicity scores at or above the block threshold block; nothing is held, since nobody reviews private messages. |
+| Blocking | A member can block another from the profile or the conversation. Blocking ends the conversation for both (it stays readable, nothing more can be sent), hides the Message button, and hides the blocked member's comments from the blocker. |
+| Reports | A member can report a conversation with a reason; that lets admins read it. Admins cannot read conversations that have not been reported. |
+| Unread | Per-conversation unread counts; a Messages button on the feed screens with the total; the app icon badge adds the total to the unread posts. In-app only, like comments; push later. |
+| Where | The app only, for now. The website's profile shows "Message in the app". |
+| Retention | Kept until deleted. Account deletion deletes the member's messages (the other member keeps the conversation with "Message deleted" placeholders) and their side of every conversation. |
+| Later | Groups, images, push notifications, messages on the website. |
+
+### Storage
+
+```
+conversations/{id}                 id = the two uids sorted and joined with "_"
+  members: [uidA, uidB]
+  usernames: {uid: username}       copied, kept in step by the rename path
+  createdAt, lastMessageAt
+  last: {uid, text, at}            the newest message's first 100 characters
+  unread: {uid: n}                 messages the member has not seen
+  seenAt: {uid: ISO}               when each member last opened it
+  blockedBy: [uid, ...]            members who blocked the other; empty when open
+  reportedAt, reportedBy, reason   set by a report; lets admins read it
+
+conversations/{id}/messages/{mid}
+  uid, text, html, createdAt, editedAt, deletedAt
+  screening                        as on comments
+
+members/{uid}/blocks/{otherUid}    { at }
+```
+
+The app reads conversations and messages straight from Firestore with
+snapshot listeners, so a conversation updates live while it is open and
+the list reorders as messages arrive; the rules allow a signed-in member
+to read a conversation whose `members` include their uid, and its
+messages by looking the parent up. Everything is written through the
+API: a message goes through the text pipeline and screening, moves the
+other member's unread count and `last`, and refuses when either member
+has blocked the other. Opening a conversation posts `seen`, which zeroes
+the member's count and stamps `seenAt`. This is the one place the app
+reads Firestore directly for member data; the comments stay on the API
+because their pages, screening states and counts are easier to shape
+there, and because live updates matter less under a post than in a chat.
+
+### API
+
+```
+GET    /api/me/conversations                    the member's conversations, newest
+                                                first, with unread counts (fallback
+                                                for the website and tests; the app
+                                                listens instead)
+POST   /api/me/conversations                    {username} -> the conversation with
+                                                that member, created if needed; 403
+                                                when they have messages off or
+                                                either has blocked the other
+POST   /api/conversations/{id}/messages         {text} -> the message; 1 per 2 s and
+                                                500 a day per member; 20 new
+                                                conversations a day
+PATCH  /api/conversations/{id}/messages/{mid}   {text} within five minutes
+DELETE /api/conversations/{id}/messages/{mid}   own message
+POST   /api/conversations/{id}/seen             zeroes the caller's unread count
+POST   /api/conversations/{id}/report           {reason}; same reasons as comments
+POST   /api/members/{username}/block            and DELETE to unblock
+GET    /api/me/blocks                           usernames the member has blocked
+
+GET    /api/admin/conversations?queue=reported  admin; the reported conversations
+GET    /api/admin/conversations/{id}            admin; a reported conversation's
+                                                messages
+```
+
+### App
+
+- A Messages button (envelope) in the app bar of the feed screens, with
+  the unread total as a badge; it opens the conversation list: username,
+  the last message's preview, its time, and the unread count in bold.
+- A conversation screen: messages in bubbles, own on the right, with
+  times; the composer at the bottom with the same toolbar as comments; a
+  menu with Block and Report. Own messages get Edit (five minutes) and
+  Delete on long press.
+- Signed-out or without a username: the Message button on profiles is
+  hidden; the Messages button in the app bar shows "Sign in from
+  Settings to message members".
+- The unread tracker learns a second total from the conversations
+  listener so the app icon badge is posts plus messages.
+- Settings gets "Blocked members" under "Manage account".
+
 ## Account deletion and export
 
 `deleteAccount` (and the admin's delete user) also: deletes the member's
 comments (a top-level comment with replies becomes `removed` with no
 author; the rest are deleted), their likes (moving counts down), their
-reports, reactions and notices. `GET /api/me/export` returns a JSON
-document with the member's profile, posts credited to them, comments,
-likes and reactions, offered from the app's account screen as "Export my
-data" (the app saves the file through the share sheet).
+reports, reactions, notices, blocks, and their messages (each becomes
+"Message deleted" for the other member, and the conversation drops the
+deleted uid from `members`; a conversation with nobody left is deleted).
+`GET /api/me/export` returns a JSON document with the member's profile
+(including location), posts credited to them, comments, likes,
+reactions, and the messages they wrote, offered from the app's account
+screen as "Export my data" (the app saves the file through the share
+sheet).
 
 ## Contract
 
 `contract/comments.json` adds: `maxLength` (1000), `editWindowMinutes`
 (5), `pageSize` (20), `repliesShown` (3), `reportsToHide` (2), the report
-reasons with labels, and the screening thresholds. Generated into the
-three copies as the rest of the contract is.
+reasons with labels, and the screening thresholds. `contract/members.json`
+adds `locationMaxLength` (60) and the message limits (`maxLength` 1000,
+`editWindowMinutes` 5, `previewLength` 100). Generated into the three
+copies as the rest of the contract is.
 
 ## Firestore
 
-- Rules: `posts/{slug}/comments/**` and `members/{uid}/notices/**` stay
-  under the deny-all rule.
-- Indexes: `posts` on `commentedAt` for the changes query; `comments`
-  collection group on `uid` (renames and deletion),
-  `likes` and `reports` collection groups on `uid`; `comments` single
-  collection index on `status`, `parentId`, `createdAt` for the pages;
-  admin queues on `status` and `createdAt`.
+- Rules: `posts/{slug}/comments/**`, `members/{uid}/notices/**` and
+  `members/{uid}/blocks/**` stay under the deny-all rule.
+  `conversations/{id}` is readable by a signed-in user whose uid is in
+  `members`, and `conversations/{id}/messages/{mid}` by one whose uid is
+  in the parent's `members` (a `get()` in the rule); nothing is writable
+  by clients.
+- Indexes: `posts` on `commentedAt` for the changes query and on
+  `credit.uid`, `feed`, `publishedAt` for the profile counts and lists;
+  `comments` collection group on `uid` (renames and deletion), `likes`
+  and `reports` collection groups on `uid`; `comments` single collection
+  index on `status`, `parentId`, `createdAt` for the pages; admin queues
+  on `status` and `createdAt`; `conversations` on `members`
+  (array-contains) and `lastMessageAt` for the list; `messages`
+  collection group on `uid` for deletion and export.
 
 ## Pull requests
 
@@ -305,6 +499,15 @@ three copies as the rest of the contract is.
    lists.
 4. **Website**: comments on post pages for signed-in visitors, counts on
    tiles.
+5. **Profiles**: `joinedAt`, `location` and `messages` on the member
+   record and the account surfaces (app and website), the two profile
+   endpoints, the profile screen and filtered post list in the app,
+   usernames as links everywhere, the website profile header and the
+   `/member/**` rewrite.
+6. **Direct messages, functions**: conversations, messages, seen, block,
+   report, the admin queue, rules and indexes, deletion and export.
+7. **Direct messages, app**: the Messages button and list, the
+   conversation screen, blocking and reporting, the badge total.
 
 Each leaves `main` deployable; the app does nothing visible until the
 functions are deployed.
