@@ -17,6 +17,8 @@ import 'package:bikes_pizza/auth/auth_service.dart';
 import 'package:bikes_pizza/auth/passkey_service.dart';
 import 'package:bikes_pizza/data/post_repository.dart';
 import 'package:bikes_pizza/main.dart';
+import 'package:bikes_pizza/messages/message_tracker.dart';
+import 'package:bikes_pizza/messages/thread_service.dart';
 import 'package:bikes_pizza/models/post.dart';
 import 'package:bikes_pizza/models/post_feed.dart';
 import 'package:bikes_pizza/posts/app_badge.dart';
@@ -320,7 +322,14 @@ class FakeMemberService implements MemberService {
   int loads = 0;
   int deletions = 0;
   final updates =
-      <({String? username, List<String>? newsletters, String? location})>[];
+      <
+        ({
+          String? username,
+          List<String>? newsletters,
+          String? location,
+          bool? messages,
+        })
+      >[];
   MemberProfile profile = const MemberProfile(
     email: 'member@example.com',
     username: 'oldname',
@@ -356,6 +365,7 @@ class FakeMemberService implements MemberService {
       username: username,
       newsletters: newsletters,
       location: location,
+      messages: messages,
     ));
     profile = MemberProfile(
       email: profile.email,
@@ -480,6 +490,129 @@ class FakeSubmissionService implements SubmissionService {
 /// (applied) according to [applies].
 /// In-memory reactions: tallies per post, one member's picks (the fake
 /// auth has one account at a time), and what was asked for.
+/// In-memory direct messages: threads and their messages as streams that
+/// update when the fake writes; records every call. Sent messages are
+/// Ada's (uid g1).
+class FakeThreadService implements ThreadService {
+  final threadList = <Thread>[];
+  final messageLists = <String, List<Message>>{};
+  final blockList = <BlockedMember>[];
+  final _threadsController = StreamController<List<Thread>>.broadcast();
+  final _messageControllers = <String, StreamController<List<Message>>>{};
+  final opened = <String>[];
+  final sent = <(String, String)>[];
+  final edited = <(String, String, String)>[];
+  final deleted = <(String, String)>[];
+  final seen = <String>[];
+  final reported = <(String, String)>[];
+  final blockCalls = <(String, bool)>[];
+  bool fail = false;
+  int _seq = 10;
+
+  StreamController<List<Message>> _controller(String id) => _messageControllers
+      .putIfAbsent(id, () => StreamController<List<Message>>.broadcast());
+
+  /// Pushes the current lists to whoever listens, as Firestore would.
+  void emit() {
+    _threadsController.add(List.of(threadList));
+    for (final entry in _messageControllers.entries) {
+      entry.value.add(List.of(messageLists[entry.key] ?? const []));
+    }
+  }
+
+  @override
+  Stream<List<Thread>> threads() async* {
+    yield List.of(threadList);
+    yield* _threadsController.stream;
+  }
+
+  @override
+  Stream<List<Message>> messages(String threadId, {int limit = 50}) async* {
+    yield List.of(messageLists[threadId] ?? const []);
+    yield* _controller(threadId).stream;
+  }
+
+  @override
+  Future<Thread> open(String username) async {
+    opened.add(username);
+    if (fail) throw ApiException('You can\'t message this member.');
+    final existing = threadList.where((t) => t.otherUsername == username);
+    if (existing.isNotEmpty) return existing.first;
+    final thread = Thread(
+      id: 'g1_$username',
+      otherUid: 'u-$username',
+      otherUsername: username,
+    );
+    threadList.add(thread);
+    emit();
+    return thread;
+  }
+
+  @override
+  Future<Message> send(String threadId, String text) async {
+    sent.add((threadId, text));
+    if (fail) throw ApiException('That message can\'t be sent.');
+    final message = Message(
+      id: 'm${++_seq}',
+      uid: 'g1',
+      text: text,
+      html: '<p>$text</p>',
+      at: DateTime.now(),
+    );
+    (messageLists[threadId] ??= []).add(message);
+    emit();
+    return message;
+  }
+
+  @override
+  Future<Message> edit(String threadId, String messageId, String text) async {
+    edited.add((threadId, messageId, text));
+    final list = messageLists[threadId] ?? [];
+    final index = list.indexWhere((m) => m.id == messageId);
+    final was = list[index];
+    final now = Message(
+      id: was.id,
+      uid: was.uid,
+      text: text,
+      html: '<p>$text</p>',
+      at: was.at,
+      editedAt: DateTime.now(),
+    );
+    list[index] = now;
+    emit();
+    return now;
+  }
+
+  @override
+  Future<void> delete(String threadId, String messageId) async {
+    deleted.add((threadId, messageId));
+    final list = messageLists[threadId] ?? [];
+    final index = list.indexWhere((m) => m.id == messageId);
+    final was = list[index];
+    list[index] = Message(id: was.id, uid: was.uid, at: was.at, deleted: true);
+    emit();
+  }
+
+  @override
+  Future<void> markSeen(String threadId) async {
+    seen.add(threadId);
+  }
+
+  @override
+  Future<void> report(String threadId, String reason) async {
+    reported.add((threadId, reason));
+  }
+
+  @override
+  Future<void> block(String username, {required bool on}) async {
+    blockCalls.add((username, on));
+    if (!on) blockList.removeWhere((b) => b.username == username);
+  }
+
+  @override
+  Future<List<BlockedMember>> blocks() async => List.of(blockList);
+}
+
 /// In-memory public profiles by username (any case); records fetches.
 class FakeProfileService implements ProfileService {
   final profiles = <String, PublicProfile>{
@@ -489,6 +622,7 @@ class FakeProfileService implements ProfileService {
       joinedAt: DateTime(2025, 3, 4),
       location: 'Madison, WI',
       counts: const {'pizza': 2, 'bikes': 1},
+      messages: true,
     ),
   };
   final fetched = <String>[];
@@ -1145,6 +1279,8 @@ void main() {
   late FakeCommentService comments;
   late FakeDataExporter exporter;
   FakeProfileService? profiles;
+  FakeThreadService? threads;
+  MessageTracker? messages;
 
   setUp(() {
     PackageInfo.setMockInitialValues(
@@ -1165,6 +1301,7 @@ void main() {
     comments = FakeCommentService();
     exporter = FakeDataExporter();
     profiles = FakeProfileService();
+    threads = FakeThreadService();
     editor = FakePostEditor()
       ..posts['Newest post'] = _editable('Newest post')
       ..posts['Older post'] = _editable(
@@ -1204,6 +1341,11 @@ void main() {
     useSize(tester, size);
     auth = FakeAuthService();
     passkeys?.auth = auth;
+    final threadService = threads;
+    messages = threadService == null
+        ? null
+        : MessageTracker(service: threadService, auth: auth);
+    if (messages != null) addTearDown(messages!.dispose);
     final repo = FakePostRepository(newsPages: newsPages, {
       PostFeed.all: [
         _post('Newest post', DateTime(2025, 4, 12), credit: _ada),
@@ -1252,6 +1394,8 @@ void main() {
         reactions: reactions,
         comments: comments,
         profiles: profiles,
+        threads: threads,
+        messages: messages,
         admin: admin,
         exporter: exporter,
         unread: unread,
@@ -4067,5 +4211,226 @@ void main() {
     await tester.pumpAndSettle();
     expect(members!.updates.single.location, 'Madison, WI');
     expect(members!.profile.location, 'Madison, WI');
+  });
+
+  Message chat(String id, String uid, String text, {DateTime? at}) => Message(
+    id: id,
+    uid: uid,
+    text: text,
+    html: '<p>$text</p>',
+    at: at ?? DateTime.now().subtract(const Duration(minutes: 1)),
+  );
+
+  void seedThread() {
+    threads!.threadList.add(
+      Thread(
+        id: 'g1_u2',
+        otherUid: 'u2',
+        otherUsername: 'bob',
+        lastText: 'See you there',
+        lastAt: DateTime.now(),
+        unread: 2,
+      ),
+    );
+    threads!.messageLists['g1_u2'] = [
+      chat('m1', 'u2', 'Hi Ada', at: DateTime(2026, 9, 1, 9)),
+      chat('m2', 'g1', 'Hello Bob'),
+      Message(
+        id: 'e1',
+        kind: 'event',
+        event: 'blocked',
+        by: 'u2',
+        at: DateTime(2026, 9, 1, 10),
+      ),
+      chat('m3', 'u2', 'See you there'),
+    ];
+  }
+
+  testWidgets('the Messages button asks signed-out readers to sign in, and '
+      'shows the unread count once they are', (tester) async {
+    seedThread();
+    final badge = FakeAppBadge();
+    await pumpApp(
+      tester,
+      unread: UnreadTracker(baseline: DateTime(2020)),
+      badge: badge,
+    );
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('messages-pizza')));
+    await tester.pump();
+    expect(
+      find.text('Sign in from Settings to message members.'),
+      findsOneWidget,
+    );
+    expect(badge.updates.last, 4); // the unread posts alone
+
+    await signInWithGoogle(tester);
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    final button = tester.widget<Badge>(
+      find.descendant(
+        of: find.byKey(const Key('messages-pizza')),
+        matching: find.byType(Badge),
+      ),
+    );
+    expect(button.isLabelVisible, isTrue);
+    expect((button.label as Text).data, '2');
+    expect(badge.updates.last, 6); // posts plus messages
+  });
+
+  testWidgets('the thread list opens a conversation, which is read, replied '
+      'to, edited and deleted', (tester) async {
+    seedThread();
+    await pumpApp(tester);
+    await signInWithGoogle(tester);
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('messages-pizza')));
+    await tester.pumpAndSettle();
+    expect(find.text('Messages'), findsOneWidget);
+    expect(find.text('bob'), findsOneWidget);
+    expect(find.text('See you there'), findsOneWidget);
+    expect(find.byKey(const Key('thread-unread-g1_u2')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('thread-g1_u2')));
+    await tester.pumpAndSettle();
+    expect(threads!.seen, contains('g1_u2'));
+    expect(find.text('Hi Ada', findRichText: true), findsOneWidget);
+    expect(find.text('Hello Bob', findRichText: true), findsOneWidget);
+    expect(find.text('(bob blocked this conversation)'), findsOneWidget);
+
+    await tester.enterText(find.byKey(const Key('message-text')), 'On my way');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('message-send')));
+    await tester.pumpAndSettle();
+    expect(threads!.sent, [('g1_u2', 'On my way')]);
+    expect(find.text('On my way', findRichText: true), findsOneWidget);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('message-text')))
+          .controller!
+          .text,
+      '',
+    );
+
+    // Own messages: edit within the window, then delete.
+    await tester.longPress(find.byKey(const Key('message-m2')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('message-edit')));
+    await tester.pumpAndSettle();
+    expect(find.text('Editing your message'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('message-text')))
+          .controller!
+          .text,
+      'Hello Bob',
+    );
+    await tester.enterText(find.byKey(const Key('message-text')), 'Hello Bob!');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('message-send')));
+    await tester.pumpAndSettle();
+    expect(threads!.edited, [('g1_u2', 'm2', 'Hello Bob!')]);
+    expect(find.text('Hello Bob!', findRichText: true), findsOneWidget);
+    expect(find.textContaining('edited'), findsOneWidget);
+
+    await tester.longPress(find.byKey(const Key('message-m2')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('message-delete')));
+    await tester.pumpAndSettle();
+    expect(threads!.deleted, [('g1_u2', 'm2')]);
+    expect(find.text('Message deleted'), findsOneWidget);
+
+    // Someone else's message has no menu.
+    await tester.longPress(find.byKey(const Key('message-m1')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('message-delete')), findsNothing);
+  });
+
+  testWidgets('a conversation can be reported and the other member blocked', (
+    tester,
+  ) async {
+    seedThread();
+    await pumpApp(tester);
+    await signInWithGoogle(tester);
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('messages-pizza')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('thread-g1_u2')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('thread-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Report'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('report-harassment')));
+    await tester.pumpAndSettle();
+    expect(threads!.reported, [('g1_u2', 'harassment')]);
+    expect(find.text("Thanks. We'll take a look."), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('thread-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Block'));
+    await tester.pumpAndSettle();
+    expect(find.text('Block bob?'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('block-confirm')));
+    await tester.pumpAndSettle();
+    expect(threads!.blockCalls, [('bob', true)]);
+    expect(find.byKey(const Key('thread-blocked')), findsOneWidget);
+    expect(find.byKey(const Key('message-text')), findsNothing);
+    await tester.tap(find.byKey(const Key('thread-menu')));
+    await tester.pumpAndSettle();
+    expect(find.text('Unblock'), findsOneWidget);
+  });
+
+  testWidgets('a profile offers Message when the member takes them', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    await signInWithGoogle(tester);
+    await tester.tap(find.text('All'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Newest post'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('credit-link')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('profile-message')));
+    await tester.pumpAndSettle();
+    expect(threads!.opened, ['ada_bikes']);
+    expect(find.widgetWithText(AppBar, 'ada_bikes'), findsOneWidget);
+    expect(find.text('Say hello.'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('message-text')), 'Nice bike');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('message-send')));
+    await tester.pumpAndSettle();
+    expect(threads!.sent, [('g1_ada_bikes', 'Nice bike')]);
+    expect(find.text('Nice bike', findRichText: true), findsOneWidget);
+  });
+
+  testWidgets('Settings lists blocked members with Unblock, and the account '
+      'screen has the messages switch', (tester) async {
+    members = FakeMemberService();
+    threads!.blockList.add(const BlockedMember(uid: 'u2', username: 'bob'));
+    await pumpApp(tester);
+    await signInWithGoogle(tester);
+    await tester.tap(find.byKey(const Key('blocked-members')));
+    await tester.pumpAndSettle();
+    expect(find.text('bob'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('unblock-u2')));
+    await tester.pumpAndSettle();
+    expect(threads!.blockCalls, [('bob', false)]);
+    expect(find.text('Nobody is blocked'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('manage-account')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('allow-messages')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('save-profile')));
+    await tester.pumpAndSettle();
+    expect(members!.updates.single.messages, isFalse);
   });
 }

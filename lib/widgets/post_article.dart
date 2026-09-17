@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../auth/auth_service.dart';
 import '../data/post_repository.dart';
+import '../messages/thread_service.dart';
 import '../models/post.dart';
 import '../models/post_feed.dart';
 import '../posts/comment_service.dart';
@@ -34,6 +35,7 @@ class PostArticle extends StatelessWidget {
     this.reactions,
     this.comments,
     this.profiles,
+    this.threads,
     this.auth,
     this.unread = false,
   });
@@ -42,6 +44,9 @@ class PostArticle extends StatelessWidget {
   final PostRepository? repository;
   final ReactionService? reactions;
   final CommentService? comments;
+
+  /// Lets a profile offer Message.
+  final ThreadService? threads;
 
   /// Lets usernames open a profile; without it the credit opens the
   /// member's post list.
@@ -97,6 +102,7 @@ class PostArticle extends StatelessWidget {
           auth: auth,
           reactions: reactions,
           comments: comments,
+          threads: threads,
         ),
       ),
     );

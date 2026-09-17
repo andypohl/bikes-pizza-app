@@ -215,8 +215,24 @@ is the only way an admin can read it. One message every two seconds,
 500 a day, 20 new threads a day. Deleting an account deletes every
 thread the member was in, both sides' messages included, leaving the
 other member a marker that says the conversation is gone; usernames on
-threads follow renames; the export carries the member's messages. The
-app and website screens come in the next pull requests.
+threads follow renames; the export carries the member's messages.
+
+In the app (`lib/messages/thread_service.dart`,
+`lib/messages/message_tracker.dart`, `lib/screens/messages_screen.dart`,
+`lib/screens/thread_screen.dart`) an envelope button in the app bar of
+the feed screens carries the unread total and opens the thread list
+(the other member, the newest message's preview and time, the unread
+count in bold); a thread is one bottom-aligned list of bubbles with
+"Load older messages" at the top, event lines centered, own messages
+editable for five minutes and deletable on long press, and a composer
+with the same toolbar as comments; the menu offers Block and Report. A
+profile's Message button opens the thread with that member; Settings →
+Blocked members lists blocks with Unblock; the account screen has
+"Allow direct messages". Threads and messages arrive live through the
+Firestore SDK (`cloud_firestore`, the app's one direct Firestore read
+for member data), the writes go through the API, and the app icon's
+badge counts unread messages with unread posts. Continuing by email and
+the website's thread page come in the next pull request.
 
 ## Member submissions
 

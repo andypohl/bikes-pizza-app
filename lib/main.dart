@@ -14,6 +14,8 @@ import 'auth/auth_service.dart';
 import 'auth/passkey_service.dart';
 import 'firebase_options.dart';
 import 'firebase_options_dev.dart';
+import 'messages/message_tracker.dart';
+import 'messages/thread_service.dart';
 import 'data/firestore_post_repository.dart';
 import 'data/post_repository.dart';
 import 'models/post_feed.dart';
@@ -55,6 +57,7 @@ Future<Widget> _loadApp() async {
   final auth = FirebaseAuthService();
   // The REST API (editing posts) signs its requests with the same session.
   final api = ApiClient(baseUrl: ApiConfig.baseUrl, token: auth.idToken);
+  final threads = LiveThreadService(api, auth);
   return BikesPizzaApp(
     settings: settings,
     repository: FirestorePostRepository(
@@ -73,6 +76,8 @@ Future<Widget> _loadApp() async {
     reactions: ApiReactionService(api),
     comments: ApiCommentService(api),
     profiles: ApiProfileService(api),
+    threads: threads,
+    messages: MessageTracker(service: threads, auth: auth),
     admin: ApiAdminService(api),
     exporter: ApiDataExporter(api),
     unread: unread,
@@ -96,6 +101,8 @@ class BikesPizzaApp extends StatelessWidget {
     this.reactions,
     this.comments,
     this.profiles,
+    this.threads,
+    this.messages,
     this.admin,
     this.exporter,
     this.unread,
@@ -136,6 +143,12 @@ class BikesPizzaApp extends StatelessWidget {
   /// Opens a member's profile from their username; null leaves usernames
   /// opening the member's post list.
   final ProfileService? profiles;
+
+  /// Direct messages: the Messages button on the feed screens, the
+  /// Message button on profiles and the thread screens; null hides them.
+  /// [messages] follows the threads for the badges.
+  final ThreadService? threads;
+  final MessageTracker? messages;
 
   /// The review and user administration screens for administrators on
   /// tablets; null hides Settings → Admin.
@@ -181,6 +194,8 @@ class BikesPizzaApp extends StatelessWidget {
             reactions: reactions,
             comments: comments,
             profiles: profiles,
+            threads: threads,
+            messages: messages,
             admin: admin,
             exporter: exporter,
             unread: unread,
@@ -213,6 +228,8 @@ class HomeShell extends StatefulWidget {
     this.reactions,
     this.comments,
     this.profiles,
+    this.threads,
+    this.messages,
     this.admin,
     this.exporter,
     this.unread,
@@ -231,6 +248,8 @@ class HomeShell extends StatefulWidget {
   final ReactionService? reactions;
   final CommentService? comments;
   final ProfileService? profiles;
+  final ThreadService? threads;
+  final MessageTracker? messages;
   final AdminService? admin;
   final DataExporter? exporter;
   final UnreadTracker? unread;
@@ -251,6 +270,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     widget.unread?.addListener(_showBadge);
+    widget.messages?.addListener(_showBadge);
     // Signing in or out changes whose mentions count.
     _users = widget.auth.userChanges.listen((user) {
       if (user?.uid != _refreshedFor) _refreshUnread();
@@ -262,6 +282,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     widget.unread?.removeListener(_showBadge);
+    widget.messages?.removeListener(_showBadge);
     _users?.cancel();
     super.dispose();
   }
@@ -287,12 +308,12 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     );
   }
 
-  /// Puts the unread total on the app icon; the first time there is one,
-  /// asks for the permission that needs (iOS).
+  /// Puts the unread total (posts plus messages) on the app icon; the
+  /// first time there is one, asks for the permission that needs (iOS).
   Future<void> _showBadge() async {
     final unread = widget.unread;
     if (unread == null) return;
-    final total = unread.total;
+    final total = unread.total + (widget.messages?.unread ?? 0);
     if (total == _shownBadge) return;
     _shownBadge = total;
     if (total > 0 && !unread.badgeAsked) {
@@ -330,6 +351,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           reactions: widget.reactions,
           comments: widget.comments,
           profiles: widget.profiles,
+          threads: widget.threads,
+          messages: widget.messages,
           unread: widget.unread,
         ),
       NewsScreen(
@@ -351,6 +374,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         reactions: widget.reactions,
         comments: widget.comments,
         profiles: widget.profiles,
+        threads: widget.threads,
+        messages: widget.messages,
         unread: widget.unread,
       ),
       PostListScreen(
@@ -364,6 +389,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         reactions: widget.reactions,
         comments: widget.comments,
         profiles: widget.profiles,
+        threads: widget.threads,
+        messages: widget.messages,
         unread: widget.unread,
       ),
       StoreScreen(
@@ -383,6 +410,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         repository: widget.repository,
         reactions: widget.reactions,
         comments: widget.comments,
+        threads: widget.threads,
+        messages: widget.messages,
       ),
     ];
     // A window can shrink below tablet width; keep the index in range.
