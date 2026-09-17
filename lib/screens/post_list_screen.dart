@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../account/member_service.dart';
 import '../auth/auth_service.dart';
 import '../data/post_repository.dart';
+import '../messages/message_tracker.dart';
+import '../messages/thread_service.dart';
 import '../models/post.dart';
 import '../models/post_feed.dart';
 import '../posts/comment_service.dart';
@@ -17,6 +19,7 @@ import '../widgets/layout.dart';
 import '../widgets/post_article.dart';
 import '../widgets/post_tile.dart';
 import '../widgets/status_message.dart';
+import 'messages_screen.dart';
 import 'post_detail_screen.dart';
 import 'submit_screen.dart';
 
@@ -45,6 +48,8 @@ class PostListScreen extends StatefulWidget {
     this.reactions,
     this.comments,
     this.profiles,
+    this.threads,
+    this.messages,
     this.credit,
     this.unread,
   });
@@ -55,6 +60,13 @@ class PostListScreen extends StatefulWidget {
 
   /// Lets usernames open profiles; null keeps them as post lists.
   final ProfileService? profiles;
+
+  /// With [auth], puts the Messages button in the app bar of a feed
+  /// (not of a member's post list) and lets profiles offer Message.
+  final ThreadService? threads;
+
+  /// The unread count on the Messages button.
+  final MessageTracker? messages;
 
   /// Lets signed-in members react to bike and pizza posts; null shows
   /// only the tallies.
@@ -185,11 +197,32 @@ class _PostListScreenState extends State<PostListScreen> {
           reactions: widget.reactions,
           comments: widget.comments,
           profiles: widget.profiles,
+          threads: widget.threads,
           auth: widget.auth,
           editor: widget.editor,
           photos: widget.photos,
           onChanged: _replace,
         ),
+      ),
+    );
+  }
+
+  void _openMessages(AuthService auth, ThreadService threads) {
+    final user = auth.currentUser;
+    if (user == null || !user.emailVerified) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sign in from Settings to message members.'),
+        ),
+      );
+      return;
+    }
+    final tracker = widget.messages;
+    if (tracker == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            MessagesScreen(tracker: tracker, service: threads, auth: auth),
       ),
     );
   }
@@ -256,6 +289,8 @@ class _PostListScreenState extends State<PostListScreen> {
     final split = isLandscapeTablet(context);
     final selected = _selected;
 
+    final threads = widget.threads;
+    final tracker = widget.messages;
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -265,6 +300,25 @@ class _PostListScreenState extends State<PostListScreen> {
               ? 'bikes.pizza'
               : widget.feed.label,
         ),
+        actions: [
+          if (widget.credit == null &&
+              auth != null &&
+              threads != null &&
+              tracker != null)
+            ListenableBuilder(
+              listenable: tracker,
+              builder: (context, _) => IconButton(
+                key: Key('messages-${widget.feed.name}'),
+                tooltip: 'Messages',
+                icon: Badge.count(
+                  count: tracker.unread,
+                  isLabelVisible: tracker.unread > 0,
+                  child: const Icon(Icons.mail_outline),
+                ),
+                onPressed: () => _openMessages(auth, threads),
+              ),
+            ),
+        ],
       ),
       body: split
           ? Row(
@@ -288,6 +342,7 @@ class _PostListScreenState extends State<PostListScreen> {
                           reactions: widget.reactions,
                           comments: widget.comments,
                           profiles: widget.profiles,
+                          threads: widget.threads,
                           auth: auth,
                           editor: widget.editor,
                           photos: photos,
@@ -372,6 +427,7 @@ class _PostPane extends StatelessWidget {
     this.reactions,
     this.comments,
     this.profiles,
+    this.threads,
     this.auth,
     this.editor,
     this.photos,
@@ -384,6 +440,7 @@ class _PostPane extends StatelessWidget {
   final ReactionService? reactions;
   final CommentService? comments;
   final ProfileService? profiles;
+  final ThreadService? threads;
   final AuthService? auth;
   final PostEditor? editor;
   final PhotoPicker? photos;
@@ -433,6 +490,7 @@ class _PostPane extends StatelessWidget {
               reactions: reactions,
               comments: comments,
               profiles: profiles,
+              threads: threads,
               auth: auth,
             ),
           ),

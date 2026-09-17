@@ -6,9 +6,12 @@ import '../account/account_screen.dart';
 import '../account/data_export.dart';
 import '../account/member_service.dart';
 import '../data/post_repository.dart';
+import '../messages/message_tracker.dart';
+import '../messages/thread_service.dart';
 import '../posts/comment_service.dart';
 import '../posts/profile_service.dart';
 import '../posts/reaction_service.dart';
+import 'blocked_members_screen.dart';
 import 'profile_screen.dart';
 import '../admin/admin_service.dart';
 import '../admin/submissions_screen.dart';
@@ -38,6 +41,8 @@ class SettingsScreen extends StatelessWidget {
     this.repository,
     this.reactions,
     this.comments,
+    this.threads,
+    this.messages,
   });
 
   final AuthService auth;
@@ -64,6 +69,10 @@ class SettingsScreen extends StatelessWidget {
   final ReactionService? reactions;
   final CommentService? comments;
 
+  /// Offers "Blocked members" and lets the member's own profile message.
+  final ThreadService? threads;
+  final MessageTracker? messages;
+
   @override
   Widget build(BuildContext context) {
     final settings = AppSettingsScope.of(context);
@@ -84,6 +93,7 @@ class SettingsScreen extends StatelessWidget {
             repository: repository,
             reactions: reactions,
             comments: comments,
+            threads: threads,
           ),
           if (admin case final admin? when isTablet(context))
             _AdminSection(auth: auth, admin: admin),
@@ -137,6 +147,7 @@ class _AccountSection extends StatelessWidget {
     this.repository,
     this.reactions,
     this.comments,
+    this.threads,
   });
 
   final AuthService auth;
@@ -149,6 +160,7 @@ class _AccountSection extends StatelessWidget {
   final PostRepository? repository;
   final ReactionService? reactions;
   final CommentService? comments;
+  final ThreadService? threads;
 
   /// Opens the member's own profile, once their username is known.
   Future<void> _openOwnProfile(BuildContext context) async {
@@ -177,6 +189,7 @@ class _AccountSection extends StatelessWidget {
             auth: auth,
             reactions: reactions,
             comments: comments,
+            threads: threads,
           ),
         ),
       );
@@ -268,6 +281,20 @@ class _AccountSection extends StatelessWidget {
               )
             else if (members != null)
               _VerifyEmailTile(auth: auth, members: members),
+            if (threads case final threads? when user.emailVerified)
+              ListTile(
+                key: const Key('blocked-members'),
+                leading: const Icon(Icons.block_outlined),
+                title: const Text('Blocked members'),
+                subtitle: const Text('Members you have blocked'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        BlockedMembersScreen(service: threads, auth: auth),
+                  ),
+                ),
+              ),
           ],
         );
       },

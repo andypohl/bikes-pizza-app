@@ -41,6 +41,7 @@ class _AccountScreenState extends State<AccountScreen> {
   final _username = TextEditingController();
   final _location = TextEditingController();
   final _selected = <String>{};
+  bool _messages = true;
   bool _saving = false;
 
   @override
@@ -80,6 +81,7 @@ class _AccountScreenState extends State<AccountScreen> {
     _profile = profile;
     _username.text = profile.username;
     _location.text = profile.location;
+    _messages = profile.messages;
     _selected
       ..clear()
       ..addAll([
@@ -97,6 +99,7 @@ class _AccountScreenState extends State<AccountScreen> {
         username: _username.text.trim(),
         newsletters: _selected.toList(),
         location: _location.text.trim(),
+        messages: _messages,
       );
       if (!mounted) return;
       setState(() => _apply(profile));
@@ -190,6 +193,17 @@ class _AccountScreenState extends State<AccountScreen> {
                 ),
               ],
             ),
+          ),
+          SwitchListTile(
+            key: const Key('allow-messages'),
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Allow direct messages'),
+            subtitle: const Text(
+              'Other members can start a conversation with you from your '
+              'profile.',
+            ),
+            value: _messages,
+            onChanged: _saving ? null : (on) => setState(() => _messages = on),
           ),
           if (profile.newsletters.isNotEmpty) ...[
             const SizedBox(height: 8),
