@@ -60,6 +60,7 @@ import { isMailConfigured, sendMail } from "./mail.js";
 import { moderateText } from "./moderate.js";
 import * as passkeys from "./passkeys.js";
 import * as postEditing from "./posts.js";
+import * as profiles from "./profiles.js";
 import * as reactions from "./reactions.js";
 import { inspectImage } from "./vision.js";
 import { requestRebuild } from "./rebuild.js";
@@ -136,12 +137,18 @@ async function guarded(uid, what, work) {
   }
 }
 
+/** When the Firebase user was created, as an ISO instant, for the profile's "Joined". */
+const joinedAt = async (uid) => {
+  const { metadata } = await getAuth().getUser(uid);
+  return metadata.creationTime ? new Date(metadata.creationTime).toISOString() : null;
+};
+
 /** Runs `work` with the caller's member record. */
 function withMember(request, what, work) {
   return guarded(request.auth?.uid, what, async () => {
     const user = verifiedUser(request);
     const store = firestoreMemberStore(getFirestore());
-    const member = await loadMember(user, { store });
+    const member = await loadMember(user, { store, joinedAt });
     return work({ user, store, member });
   });
 }
@@ -156,7 +163,9 @@ export const member = onCall(memberOptions, (request) =>
 export const updateMember = onCall(memberOptions, (request) =>
   withMember(request, "save your changes", async ({ user, store }) => {
     const patch = validateUpdate(request.data, NEWSLETTERS);
-    const updated = await applyMemberUpdate(user, patch, { store });
+    // A location goes past the banned word list, as comments do.
+    const banned = async () => (await comments().getModeration()).banned;
+    const updated = await applyMemberUpdate(user, patch, { store, banned });
     logger.info("member updated", { uid: user.uid, fields: Object.keys(patch) });
     if ("username" in patch) {
       // Best effort: the posts and reactions carry the username; if this
@@ -443,6 +452,11 @@ const service = {
     act: (id, cid, action, admin) => commenting.adminAct(id, cid, action, admin, commentDeps()),
     moderation: () => commenting.getModeration(commentDeps()),
     setModeration: (data, admin) => commenting.setModeration(data, admin, commentDeps()),
+  },
+  // Public profiles: what a username opens (profiles.js).
+  members: {
+    profile: (username, viewer) => profiles.getProfile(username, viewer, { members: firestoreMemberStore(getFirestore()), posts: posts() }),
+    posts: (username, query) => profiles.listMemberPosts(username, query, { members: firestoreMemberStore(getFirestore()), posts: posts(), siteUrl: siteUrl() }),
   },
   queue: {
     info: (feed) => subs.queueInfo(feed, { store: store() }),

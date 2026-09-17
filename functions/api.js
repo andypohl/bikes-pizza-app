@@ -13,6 +13,8 @@
 //   GET  /api/queue/:feed/countdown-time {feed, length, nextPostAt, seconds, countdown, clock}
 //   POST /api/queue/:feed/remove        admin; {id}
 //   GET  /api/site/settings             public (no token); {submitButton}
+//   GET  /api/members/:username         public (a token, if sent, says who is looking); the profile
+//   GET  /api/members/:username/posts   public; ?feed=pizza|bikes&page= — the member's posts in one feed
 //   POST /api/site/settings             admin; {submitButton: boolean}
 //   GET  /api/posts                     verified user; the posts credited to them
 //   GET  /api/posts/:id                 the credited member, or an admin
@@ -96,6 +98,20 @@ export function createApi({ verifyToken, service, log = () => {} }) {
       return service.site.settings();
     }),
   );
+
+  // Profiles are public; a token, when one is sent, only tells the service
+  // who is looking (for whether they may message the member).
+  const members = service.members;
+  if (members) {
+    app.get(
+      "/api/members/:username",
+      wrap(async (req, res) => {
+        res.set("Cache-Control", "no-store");
+        return members.profile(req.params.username, await optionalUser(req, verifyToken));
+      }),
+    );
+    app.get("/api/members/:username/posts", wrap((req) => members.posts(req.params.username, req.query)));
+  }
 
   const api = express.Router();
   api.use(authMiddleware(verifyToken));
@@ -221,6 +237,17 @@ export function createApi({ verifyToken, service, log = () => {} }) {
   });
 
   return app;
+}
+
+/** The verified user behind a bearer token, or null when there is none or it does not check out. */
+async function optionalUser(req, verifyToken) {
+  const [scheme, token] = (req.get("authorization") ?? "").split(" ");
+  if (scheme !== "Bearer" || !token) return null;
+  try {
+    return userFromClaims(await verifyToken(token));
+  } catch {
+    return null;
+  }
 }
 
 function authMiddleware(verifyToken) {

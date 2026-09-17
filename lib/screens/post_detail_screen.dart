@@ -5,6 +5,7 @@ import '../data/post_repository.dart';
 import '../models/post.dart';
 import '../posts/comment_service.dart';
 import '../posts/post_editor.dart';
+import '../posts/profile_service.dart';
 import '../posts/reaction_service.dart';
 import '../submissions/photo_picker.dart';
 import '../widgets/edit_post_button.dart';
@@ -22,6 +23,7 @@ class PostDetailScreen extends StatefulWidget {
     this.repository,
     this.reactions,
     this.comments,
+    this.profiles,
     this.auth,
     this.editor,
     this.photos,
@@ -32,6 +34,7 @@ class PostDetailScreen extends StatefulWidget {
   final PostRepository? repository;
   final ReactionService? reactions;
   final CommentService? comments;
+  final ProfileService? profiles;
   final AuthService? auth;
   final PostEditor? editor;
   final PhotoPicker? photos;
@@ -80,6 +83,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           repository: widget.repository,
           reactions: widget.reactions,
           comments: widget.comments,
+          profiles: widget.profiles,
           auth: auth,
         ),
       ),

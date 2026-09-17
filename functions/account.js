@@ -2,7 +2,7 @@
 // profile the account page and the app show, and validating the changes
 // they send back.
 
-import { USERNAME_PATTERN, USERNAME_RULE } from "./contract.js";
+import { MEMBERS, USERNAME_PATTERN, USERNAME_RULE } from "./contract.js";
 import { ValidationError } from "./errors.js";
 
 export { USERNAME_PATTERN, USERNAME_RULE, ValidationError };
@@ -25,13 +25,25 @@ export function validateUsername(value) {
   return username;
 }
 
+/** The location as the member wrote it, trimmed, or throws; empty clears it. */
+export function validateLocation(value) {
+  if (typeof value !== "string") throw new ValidationError("Location must be text.");
+  const location = value.replace(/\s+/g, " ").trim();
+  if (location.length > MEMBERS.locationMaxLength) {
+    throw new ValidationError(`Location must be ${MEMBERS.locationMaxLength} characters or fewer.`);
+  }
+  return location;
+}
+
 /**
  * The profile the account page shows: contact details plus every newsletter
- * the member could receive, flagged with whether they currently do. A
- * member without a username (signed up before usernames existed, or through
- * Google or Apple) gets an empty string; the clients ask them to choose one.
+ * the member could receive, flagged with whether they currently do, the
+ * location shown on their public profile and whether other members may
+ * message them. A member without a username (signed up before usernames
+ * existed, or through Google or Apple) gets an empty string; the clients
+ * ask them to choose one.
  *
- * @param {{email: string, username?: string|null, newsletters?: string[]}} member
+ * @param {{email: string, username?: string|null, newsletters?: string[], location?: string, messages?: boolean}} member
  * @param {{id: string, name: string, description?: string|null}[]} newsletters
  */
 export function profile(member, newsletters) {
@@ -39,6 +51,8 @@ export function profile(member, newsletters) {
   return {
     email: member.email,
     username: member.username ?? "",
+    location: member.location ?? "",
+    messages: member.messages !== false,
     newsletters: newsletters.map((n) => ({
       id: n.id,
       name: n.name,
@@ -55,7 +69,7 @@ export function profile(member, newsletters) {
  *
  * @param {unknown} data  The callable's request data
  * @param {{id: string}[]} allowed  Newsletters the member may pick from
- * @returns {{username?: string, newsletters?: string[]}}
+ * @returns {{username?: string, newsletters?: string[], location?: string, messages?: boolean}}
  */
 export function validateUpdate(data, allowed) {
   if (!data || typeof data !== "object" || Array.isArray(data)) {
@@ -63,6 +77,11 @@ export function validateUpdate(data, allowed) {
   }
   const patch = {};
   if ("username" in data) patch.username = validateUsername(data.username);
+  if ("location" in data) patch.location = validateLocation(data.location);
+  if ("messages" in data) {
+    if (typeof data.messages !== "boolean") throw new ValidationError("messages must be true or false.");
+    patch.messages = data.messages;
+  }
   if ("newsletters" in data) {
     const ids = data.newsletters;
     if (!Array.isArray(ids) || ids.some((id) => typeof id !== "string")) {

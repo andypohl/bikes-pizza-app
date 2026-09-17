@@ -26,12 +26,17 @@ class CommentsPanel extends StatefulWidget {
     required this.post,
     this.comments,
     this.auth,
+    this.onOpenProfile,
     this.now,
   });
 
   final Post post;
   final CommentService? comments;
   final AuthService? auth;
+
+  /// Called with a username when one is tapped (the author of a comment,
+  /// or a name in the likes sheet); null leaves them plain.
+  final ValueChanged<String>? onOpenProfile;
 
   /// The clock, for the edit window; tests pin it.
   final DateTime Function()? now;
@@ -335,8 +340,15 @@ class _CommentsPanelState extends State<CommentsPanel> {
             ),
             for (final like in likes)
               ListTile(
+                key: Key('like-${like.username}'),
                 leading: const Icon(Icons.favorite, size: 18),
                 title: Text(like.username),
+                onTap: widget.onOpenProfile == null
+                    ? null
+                    : () {
+                        Navigator.of(context).pop();
+                        widget.onOpenProfile!(like.username);
+                      },
               ),
           ],
         ),
@@ -481,6 +493,7 @@ class _CommentsPanelState extends State<CommentsPanel> {
               onDelete: _delete,
               onReport: _report,
               onMoreReplies: _moreReplies,
+              onOpenProfile: widget.onOpenProfile,
             ),
             const SizedBox(height: 12),
           ],
@@ -543,6 +556,7 @@ class _CommentTile extends StatelessWidget {
     required this.onDelete,
     required this.onReport,
     required this.onMoreReplies,
+    this.onOpenProfile,
     this.reply = false,
   });
 
@@ -558,6 +572,7 @@ class _CommentTile extends StatelessWidget {
   final ValueChanged<Comment> onDelete;
   final ValueChanged<Comment> onReport;
   final ValueChanged<Comment> onMoreReplies;
+  final ValueChanged<String>? onOpenProfile;
   final bool reply;
 
   static final _dateFormat = DateFormat.yMMMd().add_jm();
@@ -590,7 +605,20 @@ class _CommentTile extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             spacing: 8,
             children: [
-              Text(comment.username, style: theme.textTheme.labelLarge),
+              if (onOpenProfile != null && comment.username.isNotEmpty)
+                InkWell(
+                  key: Key('comment-author-${comment.id}'),
+                  onTap: () => onOpenProfile!(comment.username),
+                  borderRadius: BorderRadius.circular(4),
+                  child: Text(
+                    comment.username,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                )
+              else
+                Text(comment.username, style: theme.textTheme.labelLarge),
               Text(
                 _dateFormat.format(comment.createdAt.toLocal()),
                 style: muted,
@@ -689,6 +717,7 @@ class _CommentTile extends StatelessWidget {
                     onDelete: onDelete,
                     onReport: onReport,
                     onMoreReplies: onMoreReplies,
+                    onOpenProfile: onOpenProfile,
                     reply: true,
                   ),
                 if (hidden > 0)

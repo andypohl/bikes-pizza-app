@@ -20,6 +20,7 @@ import 'models/post_feed.dart';
 import 'posts/app_badge.dart';
 import 'posts/comment_service.dart';
 import 'posts/post_editor.dart';
+import 'posts/profile_service.dart';
 import 'posts/reaction_service.dart';
 import 'posts/unread_tracker.dart';
 import 'screens/news_screen.dart';
@@ -71,6 +72,7 @@ Future<Widget> _loadApp() async {
     editor: ApiPostEditor(api),
     reactions: ApiReactionService(api),
     comments: ApiCommentService(api),
+    profiles: ApiProfileService(api),
     admin: ApiAdminService(api),
     exporter: ApiDataExporter(api),
     unread: unread,
@@ -93,6 +95,7 @@ class BikesPizzaApp extends StatelessWidget {
     this.editor,
     this.reactions,
     this.comments,
+    this.profiles,
     this.admin,
     this.exporter,
     this.unread,
@@ -129,6 +132,10 @@ class BikesPizzaApp extends StatelessWidget {
   /// posts, and feeds their mention notices to the unread counters;
   /// null shows only the counts.
   final CommentService? comments;
+
+  /// Opens a member's profile from their username; null leaves usernames
+  /// opening the member's post list.
+  final ProfileService? profiles;
 
   /// The review and user administration screens for administrators on
   /// tablets; null hides Settings → Admin.
@@ -173,6 +180,7 @@ class BikesPizzaApp extends StatelessWidget {
             editor: editor,
             reactions: reactions,
             comments: comments,
+            profiles: profiles,
             admin: admin,
             exporter: exporter,
             unread: unread,
@@ -204,6 +212,7 @@ class HomeShell extends StatefulWidget {
     this.editor,
     this.reactions,
     this.comments,
+    this.profiles,
     this.admin,
     this.exporter,
     this.unread,
@@ -221,6 +230,7 @@ class HomeShell extends StatefulWidget {
   final PostEditor? editor;
   final ReactionService? reactions;
   final CommentService? comments;
+  final ProfileService? profiles;
   final AdminService? admin;
   final DataExporter? exporter;
   final UnreadTracker? unread;
@@ -319,6 +329,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           editor: widget.editor,
           reactions: widget.reactions,
           comments: widget.comments,
+          profiles: widget.profiles,
           unread: widget.unread,
         ),
       NewsScreen(
@@ -339,6 +350,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         editor: widget.editor,
         reactions: widget.reactions,
         comments: widget.comments,
+        profiles: widget.profiles,
         unread: widget.unread,
       ),
       PostListScreen(
@@ -351,6 +363,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         editor: widget.editor,
         reactions: widget.reactions,
         comments: widget.comments,
+        profiles: widget.profiles,
         unread: widget.unread,
       ),
       StoreScreen(
@@ -366,6 +379,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         photos: widget.photos,
         admin: widget.admin,
         exporter: widget.exporter,
+        profiles: widget.profiles,
+        repository: widget.repository,
+        reactions: widget.reactions,
+        comments: widget.comments,
       ),
     ];
     // A window can shrink below tablet width; keep the index in range.

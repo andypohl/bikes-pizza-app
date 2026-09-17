@@ -5,6 +5,11 @@ import 'package:url_launcher/url_launcher.dart';
 import '../account/account_screen.dart';
 import '../account/data_export.dart';
 import '../account/member_service.dart';
+import '../data/post_repository.dart';
+import '../posts/comment_service.dart';
+import '../posts/profile_service.dart';
+import '../posts/reaction_service.dart';
+import 'profile_screen.dart';
 import '../admin/admin_service.dart';
 import '../admin/submissions_screen.dart';
 import '../admin/users_screen.dart';
@@ -29,6 +34,10 @@ class SettingsScreen extends StatelessWidget {
     this.photos,
     this.admin,
     this.exporter,
+    this.profiles,
+    this.repository,
+    this.reactions,
+    this.comments,
   });
 
   final AuthService auth;
@@ -49,6 +58,12 @@ class SettingsScreen extends StatelessWidget {
   /// Offers "Export my data" on the account screen; null leaves it out.
   final DataExporter? exporter;
 
+  /// With [repository], offers "Your profile" (what other members see).
+  final ProfileService? profiles;
+  final PostRepository? repository;
+  final ReactionService? reactions;
+  final CommentService? comments;
+
   @override
   Widget build(BuildContext context) {
     final settings = AppSettingsScope.of(context);
@@ -65,6 +80,10 @@ class SettingsScreen extends StatelessWidget {
             editor: editor,
             photos: photos,
             exporter: exporter,
+            profiles: profiles,
+            repository: repository,
+            reactions: reactions,
+            comments: comments,
           ),
           if (admin case final admin? when isTablet(context))
             _AdminSection(auth: auth, admin: admin),
@@ -114,6 +133,10 @@ class _AccountSection extends StatelessWidget {
     required this.editor,
     required this.photos,
     this.exporter,
+    this.profiles,
+    this.repository,
+    this.reactions,
+    this.comments,
   });
 
   final AuthService auth;
@@ -122,6 +145,45 @@ class _AccountSection extends StatelessWidget {
   final PostEditor? editor;
   final PhotoPicker? photos;
   final DataExporter? exporter;
+  final ProfileService? profiles;
+  final PostRepository? repository;
+  final ReactionService? reactions;
+  final CommentService? comments;
+
+  /// Opens the member's own profile, once their username is known.
+  Future<void> _openOwnProfile(BuildContext context) async {
+    final members = this.members;
+    final profiles = this.profiles;
+    final repository = this.repository;
+    if (members == null || profiles == null || repository == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    try {
+      final profile = await members.load();
+      if (profile.username.isEmpty) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Choose a username in Manage account first.'),
+          ),
+        );
+        return;
+      }
+      await navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) => ProfileScreen(
+            username: profile.username,
+            profiles: profiles,
+            repository: repository,
+            auth: auth,
+            reactions: reactions,
+            comments: comments,
+          ),
+        ),
+      );
+    } on MemberException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -173,6 +235,18 @@ class _AccountSection extends StatelessWidget {
                     ),
                   ),
                 ),
+              ),
+            if (members != null &&
+                profiles != null &&
+                repository != null &&
+                user.emailVerified)
+              ListTile(
+                key: const Key('your-profile'),
+                leading: const Icon(Icons.badge_outlined),
+                title: const Text('Your profile'),
+                subtitle: const Text('What other members see'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _openOwnProfile(context),
               ),
             if (members != null && user.emailVerified)
               ListTile(

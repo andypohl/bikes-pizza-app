@@ -50,6 +50,8 @@ class MemberProfile {
   const MemberProfile({
     required this.email,
     this.username = '',
+    this.location = '',
+    this.messages = true,
     this.newsletters = const [],
   });
 
@@ -57,6 +59,12 @@ class MemberProfile {
 
   /// Empty until the member has chosen one.
   final String username;
+
+  /// Shown on the member's public profile; empty when unset.
+  final String location;
+
+  /// Whether other members may message them.
+  final bool messages;
   final List<Newsletter> newsletters;
 
   factory MemberProfile.fromJson(Map<String, dynamic> json) {
@@ -64,6 +72,8 @@ class MemberProfile {
     return MemberProfile(
       email: json['email'] as String? ?? '',
       username: json['username'] as String? ?? '',
+      location: json['location'] as String? ?? '',
+      messages: json['messages'] != false,
       newsletters: [
         if (newsletters is List)
           for (final n in newsletters.whereType<Map>())
@@ -85,9 +95,15 @@ class MemberProfile {
 abstract class MemberService {
   Future<MemberProfile> load();
 
-  /// Changes the username and/or the full set of newsletter IDs the member
-  /// receives. Returns the updated profile.
-  Future<MemberProfile> update({String? username, List<String>? newsletters});
+  /// Changes the username, the full set of newsletter IDs the member
+  /// receives, the location on their profile and/or whether they take
+  /// messages. Returns the updated profile.
+  Future<MemberProfile> update({
+    String? username,
+    List<String>? newsletters,
+    String? location,
+    bool? messages,
+  });
 
   /// Deletes the member's account for good: the sign-in and the profile.
   /// Posts they published stay. The caller signs out afterwards.
@@ -130,11 +146,17 @@ class CloudFunctionsMemberService implements MemberService {
   Future<MemberProfile> load() => _call('member', const {});
 
   @override
-  Future<MemberProfile> update({String? username, List<String>? newsletters}) =>
-      _call('updateMember', {
-        'username': ?username,
-        'newsletters': ?newsletters,
-      });
+  Future<MemberProfile> update({
+    String? username,
+    List<String>? newsletters,
+    String? location,
+    bool? messages,
+  }) => _call('updateMember', {
+    'username': ?username,
+    'newsletters': ?newsletters,
+    'location': ?location,
+    'messages': ?messages,
+  });
 
   @override
   Future<void> deleteAccount() => _invoke('deleteAccount', const {});

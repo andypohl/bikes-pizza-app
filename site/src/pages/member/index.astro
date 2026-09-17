@@ -1,0 +1,14 @@
+---
+// The profile of a member who has no posts yet: there is no static page
+// for them, so Hosting rewrites /member/<username>/ here and the header
+// is filled from the API with the username read from the path
+// (scripts/profile.ts). Nothing is built into it.
+import Layout from '../../layouts/Layout.astro';
+import ProfileHeader from '../../components/ProfileHeader.astro';
+---
+
+<Layout title="Member | bikes.pizza" description="A bikes.pizza member.">
+  <main class="container mx-auto px-6 pt-10 pb-16">
+    <ProfileHeader />
+  </main>
+</Layout>

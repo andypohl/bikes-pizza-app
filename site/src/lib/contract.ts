@@ -381,3 +381,9 @@ export const COMMENTS: CommentRules = {
     "holdTopic": 0.5
   }
 };
+
+/** The rules for member profiles: the longest location. */
+
+export const MEMBERS: { locationMaxLength: number } = {
+  "locationMaxLength": 60
+};

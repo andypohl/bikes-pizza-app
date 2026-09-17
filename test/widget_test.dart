@@ -22,6 +22,7 @@ import 'package:bikes_pizza/models/post_feed.dart';
 import 'package:bikes_pizza/posts/app_badge.dart';
 import 'package:bikes_pizza/posts/comment_service.dart';
 import 'package:bikes_pizza/posts/post_editor.dart';
+import 'package:bikes_pizza/posts/profile_service.dart';
 import 'package:bikes_pizza/posts/reaction_service.dart';
 import 'package:bikes_pizza/posts/unread_tracker.dart';
 import 'package:bikes_pizza/screens/edit_post_screen.dart';
@@ -318,7 +319,8 @@ class FakeMemberService implements MemberService {
   bool expireSession = false;
   int loads = 0;
   int deletions = 0;
-  final updates = <({String? username, List<String>? newsletters})>[];
+  final updates =
+      <({String? username, List<String>? newsletters, String? location})>[];
   MemberProfile profile = const MemberProfile(
     email: 'member@example.com',
     username: 'oldname',
@@ -346,12 +348,20 @@ class FakeMemberService implements MemberService {
   Future<MemberProfile> update({
     String? username,
     List<String>? newsletters,
+    String? location,
+    bool? messages,
   }) async {
     if (username == 'taken') throw MemberException('That username is taken.');
-    updates.add((username: username, newsletters: newsletters));
+    updates.add((
+      username: username,
+      newsletters: newsletters,
+      location: location,
+    ));
     profile = MemberProfile(
       email: profile.email,
       username: username ?? profile.username,
+      location: location ?? profile.location,
+      messages: messages ?? profile.messages,
       newsletters: [
         for (final n in profile.newsletters)
           Newsletter(
@@ -470,6 +480,32 @@ class FakeSubmissionService implements SubmissionService {
 /// (applied) according to [applies].
 /// In-memory reactions: tallies per post, one member's picks (the fake
 /// auth has one account at a time), and what was asked for.
+/// In-memory public profiles by username (any case); records fetches.
+class FakeProfileService implements ProfileService {
+  final profiles = <String, PublicProfile>{
+    'ada_bikes': PublicProfile(
+      uid: 'g1',
+      username: 'ada_bikes',
+      joinedAt: DateTime(2025, 3, 4),
+      location: 'Madison, WI',
+      counts: const {'pizza': 2, 'bikes': 1},
+    ),
+  };
+  final fetched = <String>[];
+  bool fail = false;
+
+  @override
+  Future<PublicProfile> fetch(String username) async {
+    fetched.add(username);
+    if (fail) throw ApiException('Could not reach bikes.pizza.');
+    final profile = profiles[username.toLowerCase()];
+    if (profile == null) {
+      throw ApiException('No member has that username.', code: 'not-found');
+    }
+    return profile;
+  }
+}
+
 class FakeReactionService implements ReactionService {
   final counts = <String, Map<String, Map<String, int>>>{};
   final mine = <String, Map<String, List<String>>>{};
@@ -1108,6 +1144,7 @@ void main() {
   FakeReactionService? reactions;
   late FakeCommentService comments;
   late FakeDataExporter exporter;
+  FakeProfileService? profiles;
 
   setUp(() {
     PackageInfo.setMockInitialValues(
@@ -1127,6 +1164,7 @@ void main() {
     reactions = FakeReactionService();
     comments = FakeCommentService();
     exporter = FakeDataExporter();
+    profiles = FakeProfileService();
     editor = FakePostEditor()
       ..posts['Newest post'] = _editable('Newest post')
       ..posts['Older post'] = _editable(
@@ -1213,6 +1251,7 @@ void main() {
         editor: editor,
         reactions: reactions,
         comments: comments,
+        profiles: profiles,
         admin: admin,
         exporter: exporter,
         unread: unread,
@@ -1469,9 +1508,9 @@ void main() {
     expect(find.byIcon(Icons.open_in_browser), findsOneWidget);
   });
 
-  testWidgets('the credit on a post opens everything that member posted', (
-    tester,
-  ) async {
+  testWidgets('without profiles, the credit on a post opens everything that '
+      'member posted', (tester) async {
+    profiles = null;
     final repo = await pumpApp(tester);
     await tester.tap(find.text('Older post'));
     await tester.pumpAndSettle();
@@ -1490,6 +1529,41 @@ void main() {
     expect(repo.requestedUids, ['g1']);
     expect(find.text('Newest post'), findsOneWidget);
     expect(find.text('Older post'), findsNothing);
+  });
+
+  testWidgets('the credit on a post opens the member\'s profile, and its '
+      'counts open their posts', (tester) async {
+    final repo = await pumpApp(tester);
+    await tester.tap(find.text('Newest post'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('credit-link')));
+    await tester.pumpAndSettle();
+    expect(profiles!.fetched, ['ada_bikes']);
+    expect(find.widgetWithText(AppBar, 'ada_bikes'), findsOneWidget);
+    expect(find.text('Joined March 4, 2025'), findsOneWidget);
+    expect(find.text('Madison, WI'), findsOneWidget);
+    expect(find.text('2 pizzas'), findsOneWidget);
+    expect(find.text('1 bike'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('profile-count-pizza')));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, 'Pizzas by ada_bikes'), findsOneWidget);
+    expect(repo.requestedUids, ['g1']);
+    expect(repo.requestedFeeds.last, PostFeed.pizza);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    // A profile that cannot be loaded says so and offers a retry.
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    profiles!.fail = true;
+    await tester.tap(find.byKey(const Key('credit-link')));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not load this profile'), findsOneWidget);
+    profiles!.fail = false;
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(find.text('Joined March 4, 2025'), findsOneWidget);
   });
 
   testWidgets('bike posts show their details in the list and on the post', (
@@ -3925,5 +3999,73 @@ void main() {
     await tester.tap(find.byKey(const Key('export-data')));
     await tester.pumpAndSettle();
     expect(find.text('Could not export your data.'), findsOneWidget);
+  });
+
+  testWidgets('a comment\'s author and the likes open profiles', (
+    tester,
+  ) async {
+    profiles!.profiles['bob'] = PublicProfile(
+      uid: 'u-bob',
+      username: 'bob',
+      joinedAt: DateTime(2026, 1, 2),
+      counts: const {'pizza': 0, 'bikes': 0},
+    );
+    comments.threads['Detroit style'] = [
+      _comment('c1', 'bob', 'Nice slice', likeCount: 2),
+    ];
+    await pumpApp(tester);
+    await signInWithGoogle(tester);
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Detroit style'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('comment-author-c1')));
+    await tester.tap(find.byKey(const Key('comment-author-c1')));
+    await tester.pumpAndSettle();
+    expect(profiles!.fetched, ['bob']);
+    expect(find.text('Joined January 2, 2026'), findsOneWidget);
+    expect(find.text('0 pizzas'), findsOneWidget);
+    expect(find.byKey(const Key('profile-location')), findsNothing);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byKey(const Key('comment-likes-c1')));
+    await tester.tap(find.byKey(const Key('comment-likes-c1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('like-cal')));
+    await tester.pumpAndSettle();
+    expect(profiles!.fetched, ['bob', 'cal']);
+    expect(find.text('Could not load this profile'), findsOneWidget);
+  });
+
+  testWidgets('Settings offers the member\'s own profile once they have a '
+      'username', (tester) async {
+    members = FakeMemberService();
+    await pumpApp(tester);
+    await signInWithGoogle(tester);
+    await tester.tap(find.byKey(const Key('your-profile')));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Choose a username in Manage account first.'),
+      findsNothing,
+    );
+    expect(profiles!.fetched, ['oldname']);
+    expect(find.text('Could not load this profile'), findsOneWidget);
+  });
+
+  testWidgets('the account screen saves a location for the profile', (
+    tester,
+  ) async {
+    members = FakeMemberService();
+    await pumpApp(tester);
+    await signInWithGoogle(tester);
+    await tester.tap(find.byKey(const Key('manage-account')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('location')), ' Madison, WI ');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('save-profile')));
+    await tester.pumpAndSettle();
+    expect(members!.updates.single.location, 'Madison, WI');
+    expect(members!.profile.location, 'Madison, WI');
   });
 }
