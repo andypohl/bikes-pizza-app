@@ -1,3 +1,10 @@
 {
-  "locationMaxLength": 60
+  "locationMaxLength": 60,
+  "messages": {
+    "maxLength": 1000,
+    "editWindowMinutes": 5,
+    "previewLength": 100,
+    "emailedMessages": 10,
+    "rateLimit": { "seconds": 2, "perDay": 500, "newThreadsPerDay": 20 }
+  }
 }

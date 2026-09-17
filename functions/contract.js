@@ -366,8 +366,19 @@ export const COMMENTS = {
   }
 };
 
-/** The rules for member profiles: the longest location. */
+/** The rules for member profiles and direct messages: the longest location, the message limits. */
 
 export const MEMBERS = {
-  "locationMaxLength": 60
+  "locationMaxLength": 60,
+  "messages": {
+    "maxLength": 1000,
+    "editWindowMinutes": 5,
+    "previewLength": 100,
+    "emailedMessages": 10,
+    "rateLimit": {
+      "seconds": 2,
+      "perDay": 500,
+      "newThreadsPerDay": 20
+    }
+  }
 };

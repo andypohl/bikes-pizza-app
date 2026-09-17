@@ -32,6 +32,18 @@
 //   POST /api/posts/:id/comments/:cid/report    verified user; {reason}
 //   GET  /api/me/notices                verified user; ?since= — mention notices
 //   GET  /api/me/export                 verified user; everything the member has
+//   GET  /api/me/threads                verified user; their direct message threads
+//   POST /api/me/threads                verified user; {username} — the thread with that member, created if needed
+//   GET  /api/threads/:id/messages      verified user; ?before= — a page of the thread
+//   POST /api/threads/:id/messages      verified user; {text}
+//   PATCH /api/threads/:id/messages/:mid   the author, within the edit window; {text}
+//   DELETE /api/threads/:id/messages/:mid  the author
+//   POST /api/threads/:id/seen          verified user; zeroes their unread count
+//   POST /api/threads/:id/report        verified user; {reason}
+//   POST /api/members/:username/block   verified user; and DELETE to unblock
+//   GET  /api/me/blocks                 verified user
+//   GET  /api/admin/threads             admin; ?queue=reported
+//   GET  /api/admin/threads/:id         admin; a reported thread's messages
 //   GET  /api/admin/comments            admin; ?queue=pending|reported|recent
 //   POST /api/admin/comments/:id/:cid/approve|remove   admin; :id is the post
 //   GET  /api/admin/moderation          admin; the word lists
@@ -195,6 +207,25 @@ export function createApi({ verifyToken, service, log = () => {} }) {
     api.post("/admin/comments/:id/:cid/:action", wrap((req) => comments.act(req.params.id, req.params.cid, req.params.action, secondFactorAdminFromClaims(req.claims))));
     api.get("/admin/moderation", wrap((req) => comments.moderation(secondFactorAdminFromClaims(req.claims))));
     api.put("/admin/moderation", wrap((req) => comments.setModeration(req.body, secondFactorAdminFromClaims(req.claims))));
+  }
+
+  // Direct messages: any verified member; the service checks membership,
+  // blocks and the rate limits. Admins read reported threads only.
+  const threads = service.threads;
+  if (threads) {
+    api.get("/me/threads", wrap((req) => threads.list(userFromClaims(req.claims))));
+    api.post("/me/threads", wrap((req) => threads.open(req.body, userFromClaims(req.claims))));
+    api.get("/threads/:id/messages", wrap((req) => threads.messages(req.params.id, req.query, userFromClaims(req.claims))));
+    api.post("/threads/:id/messages", wrap((req) => threads.send(req.params.id, req.body, userFromClaims(req.claims))));
+    api.patch("/threads/:id/messages/:mid", wrap((req) => threads.edit(req.params.id, req.params.mid, req.body, userFromClaims(req.claims))));
+    api.delete("/threads/:id/messages/:mid", wrap((req) => threads.remove(req.params.id, req.params.mid, userFromClaims(req.claims))));
+    api.post("/threads/:id/seen", wrap((req) => threads.seen(req.params.id, userFromClaims(req.claims))));
+    api.post("/threads/:id/report", wrap((req) => threads.report(req.params.id, req.body, userFromClaims(req.claims))));
+    api.post("/members/:username/block", wrap((req) => threads.block(req.params.username, true, userFromClaims(req.claims))));
+    api.delete("/members/:username/block", wrap((req) => threads.block(req.params.username, false, userFromClaims(req.claims))));
+    api.get("/me/blocks", wrap((req) => threads.blocks(userFromClaims(req.claims))));
+    api.get("/admin/threads", wrap((req) => threads.queue(req.query, secondFactorAdminFromClaims(req.claims))));
+    api.get("/admin/threads/:id", wrap((req) => threads.get(req.params.id, secondFactorAdminFromClaims(req.claims))));
   }
 
   const users = service.users;

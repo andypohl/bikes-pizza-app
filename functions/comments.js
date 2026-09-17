@@ -92,12 +92,15 @@ export function publicComment(doc, { viewer = null, admin = false } = {}) {
   };
 }
 
-/** Whether `viewer` may see the comment at all in a thread. */
-function visibleTo(doc, viewer) {
+/** Whether `viewer` may see the comment at all in a thread (`hidden`: uids the viewer has blocked). */
+function visibleTo(doc, viewer, hidden = EMPTY) {
+  if (hidden.has(doc.uid)) return false;
   if (doc.status === "published") return true;
   if (doc.status === "pending") return Boolean(viewer && doc.uid === viewer.uid);
   return false;
 }
+
+const EMPTY = new Set();
 
 /**
  * The thread as a member sees it: `{comments, next}`, top-level comments
@@ -106,14 +109,14 @@ function visibleTo(doc, viewer) {
  * of those visible). A removed comment is shown only while it has replies
  * to show.
  */
-export function threadPage(all, { viewer, after = null, pageSize = RULES.pageSize, repliesShown = RULES.repliesShown } = {}) {
+export function threadPage(all, { viewer, after = null, pageSize = RULES.pageSize, repliesShown = RULES.repliesShown, hidden = EMPTY } = {}) {
   const repliesOf = new Map();
   for (const c of all) {
-    if (!c.parentId || !visibleTo(c, viewer)) continue;
+    if (!c.parentId || !visibleTo(c, viewer, hidden)) continue;
     if (!repliesOf.has(c.parentId)) repliesOf.set(c.parentId, []);
     repliesOf.get(c.parentId).push(c);
   }
-  const top = all.filter((c) => !c.parentId && (visibleTo(c, viewer) || (c.status === "removed" && repliesOf.get(c.id)?.length)));
+  const top = all.filter((c) => !c.parentId && (visibleTo(c, viewer, hidden) || (c.status === "removed" && repliesOf.get(c.id)?.length)));
   let start = 0;
   if (after) {
     const at = top.findIndex((c) => c.id === after);
@@ -278,7 +281,17 @@ export async function listComments(slug, query, user, deps) {
   const post = await loadPost(slug, deps);
   const after = query?.after ? checkId(query.after) : null;
   const all = await deps.comments.all(post.slug);
-  return { count: post.commentCount ?? 0, ...threadPage(all, { viewer: user, after }) };
+  return { count: post.commentCount ?? 0, ...threadPage(all, { viewer: user, after, hidden: await hiddenFor(user, deps) }) };
+}
+
+/** The members the viewer has blocked (`deps.blocks(uid)`), whose comments they do not see. */
+async function hiddenFor(user, { blocks }) {
+  if (!blocks || !user) return EMPTY;
+  try {
+    return new Set(await blocks(user.uid));
+  } catch {
+    return EMPTY;
+  }
 }
 
 /** Every visible reply of one comment, oldest first. */
@@ -287,7 +300,8 @@ export async function listReplies(slug, id, user, deps) {
   const all = await deps.comments.all(post.slug);
   const parent = findComment(all, checkId(id));
   if (parent.parentId) throw new AppError("not-found", "That comment is gone.");
-  const replies = all.filter((c) => c.parentId === parent.id && visibleTo(c, user)).map((c) => publicComment(c, { viewer: user }));
+  const hidden = await hiddenFor(user, deps);
+  const replies = all.filter((c) => c.parentId === parent.id && visibleTo(c, user, hidden)).map((c) => publicComment(c, { viewer: user }));
   return { id: parent.id, replies };
 }
 
@@ -469,13 +483,14 @@ export async function listNotices(user, query, { comments }) {
 }
 
 /** Everything the member has: their record, posts, comments, likes and reactions, as one JSON document. */
-export async function exportMember(user, { posts, comments, members, siteUrl, now = () => new Date() }) {
-  const [record, credited, written, likes, reactions] = await Promise.all([
+export async function exportMember(user, { posts, comments, members, siteUrl, messages, now = () => new Date() }) {
+  const [record, credited, written, likes, reactions, sent] = await Promise.all([
     members.get(user.uid),
     posts.listByUid(user.uid),
     comments.byUid(user.uid),
     comments.likesByUid(user.uid),
     posts.listReactionsByUid(user.uid),
+    messages ? messages(user.uid) : [],
   ]);
   const ordered = (list) => list.sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
   return {
@@ -505,6 +520,7 @@ export async function exportMember(user, { posts, comments, members, siteUrl, no
     })),
     likes: likes.map((l) => ({ post: l.slug, comment: l.id, at: l.at })),
     reactions: reactions.map((r) => ({ post: r.slug, picks: r.picks ?? {}, updatedAt: r.updatedAt?.toDate?.()?.toISOString?.() ?? r.updatedAt ?? null })),
+    messages: sent,
   };
 }
 

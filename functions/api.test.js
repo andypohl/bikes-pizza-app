@@ -72,6 +72,20 @@ const service = {
     profile: async (username, viewer) => calls.push(["members.profile", username, viewer?.uid ?? null]) && { username, counts: { pizza: 1, bikes: 0 } },
     posts: async (username, query) => calls.push(["members.posts", username, { ...query }]) && { username, posts: [] },
   },
+  threads: {
+    list: async (user) => calls.push(["threads.list", user.uid]) && { threads: [] },
+    open: async (data, user) => calls.push(["threads.open", data, user.uid]) && { thread: { id: "t1" }, created: true },
+    messages: async (id, query, user) => calls.push(["threads.messages", id, { ...query }, user.uid]) && { messages: [], more: false },
+    send: async (id, data, user) => calls.push(["threads.send", id, data, user.uid]) && { message: { id: "m1" } },
+    edit: async (id, mid, data, user) => calls.push(["threads.edit", id, mid, data, user.uid]) && { message: { id: mid } },
+    remove: async (id, mid, user) => calls.push(["threads.remove", id, mid, user.uid]) && { deleted: mid },
+    seen: async (id, user) => calls.push(["threads.seen", id, user.uid]) && { seen: true },
+    report: async (id, data, user) => calls.push(["threads.report", id, data, user.uid]) && { reported: true },
+    block: async (username, on, user) => calls.push(["threads.block", username, on, user.uid]) && { blocked: on, username },
+    blocks: async (user) => calls.push(["threads.blocks", user.uid]) && { blocked: [] },
+    queue: async (query, admin) => calls.push(["threads.queue", { ...query }, admin.uid]) && { queue: "reported", threads: [] },
+    get: async (id, admin) => calls.push(["threads.get", id, admin.uid]) && { id, messages: [] },
+  },
   comments: {
     list: async (id, query, user) => calls.push(["comments.list", id, { ...query }, user.uid]) && { count: 0, comments: [], next: null },
     create: async (id, data, user) => {
@@ -412,6 +426,49 @@ test("profiles are public, and say who is looking when a token is sent", async (
     ["members.profile", "ada_bikes", null],
     ["members.profile", "ada_bikes", null],
     ["members.posts", "ada_bikes", { feed: "pizza", page: "2" }],
+  ]);
+});
+
+test("direct message routes reach the service with the caller", async () => {
+  calls.length = 0;
+  const post = (path, body, token = "member") => call(path, { token, method: "POST", body });
+  assert.equal((await call("/api/me/threads", { token: "member" })).status, 200);
+  assert.equal((await post("/api/me/threads", { username: "bob" })).status, 200);
+  assert.equal((await call("/api/threads/t1/messages?before=2026-09-01T00:00:00.000Z", { token: "member" })).status, 200);
+  assert.equal((await post("/api/threads/t1/messages", { text: "hi" })).status, 200);
+  assert.equal((await call("/api/threads/t1/messages/m1", { token: "member", method: "PATCH", body: { text: "hey" } })).status, 200);
+  assert.equal((await call("/api/threads/t1/messages/m1", { token: "member", method: "DELETE" })).status, 200);
+  assert.equal((await post("/api/threads/t1/seen")).status, 200);
+  assert.equal((await post("/api/threads/t1/report", { reason: "spam" })).status, 200);
+  assert.equal((await post("/api/members/bob/block")).status, 200);
+  assert.equal((await call("/api/members/bob/block", { token: "member", method: "DELETE" })).status, 200);
+  assert.equal((await call("/api/me/blocks", { token: "member" })).status, 200);
+  assert.deepEqual(calls, [
+    ["threads.list", "u1"],
+    ["threads.open", { username: "bob" }, "u1"],
+    ["threads.messages", "t1", { before: "2026-09-01T00:00:00.000Z" }, "u1"],
+    ["threads.send", "t1", { text: "hi" }, "u1"],
+    ["threads.edit", "t1", "m1", { text: "hey" }, "u1"],
+    ["threads.remove", "t1", "m1", "u1"],
+    ["threads.seen", "t1", "u1"],
+    ["threads.report", "t1", { reason: "spam" }, "u1"],
+    ["threads.block", "bob", true, "u1"],
+    ["threads.block", "bob", false, "u1"],
+    ["threads.blocks", "u1"],
+  ]);
+  assert.equal((await call("/api/me/threads")).status, 401);
+  assert.equal((await call("/api/me/threads", { token: "unverified" })).status, 409);
+});
+
+test("reported threads are for admins with a second factor", async () => {
+  calls.length = 0;
+  assert.equal((await call("/api/admin/threads", { token: "member" })).status, 403);
+  assert.equal((await call("/api/admin/threads", { token: "admin" })).status, 403);
+  assert.equal((await call("/api/admin/threads?queue=reported", { token: "admin2fa" })).status, 200);
+  assert.equal((await call("/api/admin/threads/t1", { token: "admin2fa" })).status, 200);
+  assert.deepEqual(calls, [
+    ["threads.queue", { queue: "reported" }, "a1"],
+    ["threads.get", "t1", "a1"],
   ]);
 });
 
