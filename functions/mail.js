@@ -11,15 +11,16 @@ export function isMailConfigured({ apiKey, domain }) {
 
 /**
  * @param {{apiKey: string, domain: string, apiBase?: string, from: string,
- *   to: string, subject: string, text: string, replyTo?: string}} message
+ *   to: string, subject: string, text: string, html?: string, replyTo?: string}} message
  * @param {typeof fetch} [fetchImpl]
  * @returns {Promise<{id?: string, message?: string}>} Mailgun's response
  */
 export async function sendMail(
-  { apiKey, domain, apiBase = "https://api.mailgun.net", from, to, subject, text, replyTo },
+  { apiKey, domain, apiBase = "https://api.mailgun.net", from, to, subject, text, html, replyTo },
   fetchImpl = globalThis.fetch,
 ) {
   const form = new URLSearchParams({ from, to, subject, text });
+  if (html) form.set("html", html);
   if (replyTo) form.set("h:Reply-To", replyTo);
   const response = await fetchImpl(`${apiBase.replace(/\/+$/, "")}/v3/${domain}/messages`, {
     method: "POST",

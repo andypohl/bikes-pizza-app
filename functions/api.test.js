@@ -80,6 +80,9 @@ const service = {
     edit: async (id, mid, data, user) => calls.push(["threads.edit", id, mid, data, user.uid]) && { message: { id: mid } },
     remove: async (id, mid, user) => calls.push(["threads.remove", id, mid, user.uid]) && { deleted: mid },
     seen: async (id, user) => calls.push(["threads.seen", id, user.uid]) && { seen: true },
+    requestEmail: async (id, user) => calls.push(["threads.requestEmail", id, user.uid]) && { requested: true },
+    withdrawEmail: async (id, user) => calls.push(["threads.withdrawEmail", id, user.uid]) && { withdrawn: true },
+    agreeEmail: async (id, user) => calls.push(["threads.agreeEmail", id, user.uid]) && { emailed: true, conversation: 2 },
     report: async (id, data, user) => calls.push(["threads.report", id, data, user.uid]) && { reported: true },
     block: async (username, on, user) => calls.push(["threads.block", username, on, user.uid]) && { blocked: on, username },
     blocks: async (user) => calls.push(["threads.blocks", user.uid]) && { blocked: [] },
@@ -469,6 +472,19 @@ test("reported threads are for admins with a second factor", async () => {
   assert.deepEqual(calls, [
     ["threads.queue", { queue: "reported" }, "a1"],
     ["threads.get", "t1", "a1"],
+  ]);
+});
+
+test("the continue-by-email routes reach the service", async () => {
+  calls.length = 0;
+  assert.equal((await call("/api/threads/t1/email", { token: "member", method: "POST" })).status, 200);
+  assert.equal((await call("/api/threads/t1/email", { token: "member", method: "DELETE" })).status, 200);
+  const agreed = await call("/api/threads/t1/email/agree", { token: "member", method: "POST" });
+  assert.deepEqual([agreed.status, agreed.body], [200, { emailed: true, conversation: 2 }]);
+  assert.deepEqual(calls, [
+    ["threads.requestEmail", "t1", "u1"],
+    ["threads.withdrawEmail", "t1", "u1"],
+    ["threads.agreeEmail", "t1", "u1"],
   ]);
 });
 

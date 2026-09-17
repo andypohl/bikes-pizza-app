@@ -626,6 +626,26 @@ leaving "Message deleted" for both.
 Zeroes the caller's unread count on the thread and stamps when they
 last opened it.
 
+### `POST /api/threads/{id}/email`, `DELETE …/email`, `POST …/email/agree`
+
+Continuing the current conversation by email. `POST` asks: it sets
+`emailRequest` on the thread for the other member to agree to (`409`
+while one is pending or the conversation has no messages yet, `403` on
+a frozen thread). `DELETE` takes it back (the asker cancels) or turns it
+down (the other member declines); either way the request is cleared
+and a `declined` event marks the spot. `POST …/agree`, by the other
+member only, sends the email: the conversation's newest ten messages
+(`contract/members.json`, `emailedMessages`) drawn as chat bubbles, the
+asker's on the right, as selectable text in an HTML part with a
+plain-text part alongside, a "Previous messages" link to
+`/messages/{id}/` on the website when the conversation is longer, from
+bikes.pizza's sender to the member who agreed with `Reply-To` set to
+the asker's address. Then an `emailed` event ends the conversation, the
+thread's `conversation` counter moves on, and the next message starts
+the next one. Answers `{ "emailed": true, "conversation": 2 }`. When
+mail is not configured on the deployment the agree answers `503` and
+nothing changes.
+
 ### `POST /api/threads/{id}/report`
 
 `{ "reason": "harassment" }` (the comment report reasons) lets admins

@@ -1,0 +1,35 @@
+---
+// A direct message thread, read-only, for the "Previous messages" link in
+// a continue-by-email mail: /messages/<thread>/ is rewritten here by
+// Hosting and scripts/thread_page.ts fills the page from the API with the
+// signed-in member's token. Nothing is built into it.
+import Layout from '../../layouts/Layout.astro';
+---
+
+<Layout title="Conversation | bikes.pizza" description="A bikes.pizza conversation.">
+  <main class="container mx-auto px-6 pt-10 pb-16 max-w-3xl">
+    <div data-thread-page>
+      <p class="text-muted font-light">Loading…</p>
+    </div>
+  </main>
+</Layout>
+
+<script>
+  import { wireThreadPage } from '../../scripts/thread_page';
+
+  wireThreadPage();
+  document.addEventListener('astro:page-load', wireThreadPage);
+</script>
+
+<style is:global>
+  [data-thread-page] .thread-body p {
+    margin-bottom: 0.35rem;
+  }
+  [data-thread-page] .thread-body p:last-child {
+    margin-bottom: 0;
+  }
+  [data-thread-page] .thread-body a {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+</style>

@@ -123,6 +123,10 @@
         {
           "source": "/member/**",
           "destination": "/member/index.html"
+        },
+        {
+          "source": "/messages/**",
+          "destination": "/messages/index.html"
         }
       ]
     },

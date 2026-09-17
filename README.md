@@ -216,7 +216,24 @@ is the only way an admin can read it. One message every two seconds,
 thread the member was in, both sides' messages included, leaving the
 other member a marker that says the conversation is gone; usernames on
 threads follow renames; the export carries the member's messages. The
-app and website screens come in the next pull requests.
+app's screens are in a separate pull request.
+
+Either member can ask to continue the current conversation by email;
+the other has to agree, and both are warned that their address will be
+shown. On agreement (`functions/thread_email.js`, `agreeEmail` in
+`functions/threads.js`) the app emails the conversation's newest ten
+messages to the member who agreed, drawn as chat bubbles in an HTML
+part (the asker's on the right in the app's teal; real, selectable
+text) with a plain-text part alongside, from the Mailgun sender with
+Reply-To set to the asker, and a "Previous messages" link to the
+website's read-only thread page (`/messages/<thread>/`,
+`site/src/pages/messages/index.astro` and
+`site/src/scripts/thread_page.ts`, served through a Hosting rewrite;
+it needs the site's Firebase session and says so when the thread is
+gone because the other member deleted their account). The conversation
+ends with an "(conversation continued by email)" line and the next
+message starts a new one. The privacy page describes the address
+sharing.
 
 ## Member submissions
 
