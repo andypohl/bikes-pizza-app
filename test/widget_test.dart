@@ -3646,25 +3646,41 @@ void main() {
 
   // ---- tablet admin ---------------------------------------------------------
 
-  /// Signs in as an administrator and opens Settings.
+  /// Signs in as an administrator and opens the Admin tab.
   Future<void> settingsAsAdmin(WidgetTester tester, {Size? size}) async {
     await pumpApp(tester, size: size ?? const Size(800, 1200));
     auth.admin = true;
     await signInWithGoogle(tester);
+    await tester.tap(find.byKey(const Key('tab-admin')));
+    await tester.pumpAndSettle();
   }
 
-  testWidgets('Settings → Admin appears on tablets for administrators only', (
+  testWidgets('the Admin tab appears on tablets for administrators only', (
     tester,
   ) async {
-    await settingsAsAdmin(tester, size: phone);
-    expect(find.byKey(const Key('admin-section')), findsNothing);
+    await pumpApp(tester, size: phone);
+    auth.admin = true;
+    await signInWithGoogle(tester);
+    expect(find.byKey(const Key('tab-admin')), findsNothing);
   });
 
-  testWidgets('Settings → Admin is hidden from members on tablets', (
+  testWidgets('the Admin tab is hidden from members on tablets', (
     tester,
   ) async {
     await pumpApp(tester);
     await signInWithGoogle(tester);
+    expect(find.byKey(const Key('tab-admin')), findsNothing);
+    expect(find.byKey(const Key('admin-section')), findsNothing);
+  });
+
+  testWidgets('the Admin tab goes away at sign-out', (tester) async {
+    await settingsAsAdmin(tester);
+    expect(find.byKey(const Key('admin-section')), findsOneWidget);
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign out'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('tab-admin')), findsNothing);
     expect(find.byKey(const Key('admin-section')), findsNothing);
   });
 

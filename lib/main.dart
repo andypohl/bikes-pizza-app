@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import 'account/data_export.dart';
 import 'account/member_service.dart';
+import 'admin/admin_screen.dart';
 import 'admin/admin_service.dart';
 import 'api/api_client.dart';
 import 'app_settings.dart';
@@ -151,7 +152,7 @@ class BikesPizzaApp extends StatelessWidget {
   final MessageTracker? messages;
 
   /// The review and user administration screens for administrators on
-  /// tablets; null hides Settings → Admin.
+  /// tablets; null hides the Admin tab.
   final AdminService? admin;
 
   /// Offers "Export my data" on the account screen; null leaves it out.
@@ -208,7 +209,8 @@ class BikesPizzaApp extends StatelessWidget {
 }
 
 /// Root screen: a bottom navigation bar switching between the post feeds
-/// (News, Pizza and Bikes, plus All on tablets), the Store, and Settings.
+/// (News, Pizza and Bikes, plus All on tablets), the Store, Settings and,
+/// for administrators on tablets, Admin.
 /// Each tab keeps its scroll position and loaded data because the pages
 /// live in an [IndexedStack]. The feed tabs carry the count of posts not
 /// opened since they changed, and the app icon their sum; the counts are
@@ -265,6 +267,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   StreamSubscription<AppUser?>? _users;
   String? _refreshedFor;
 
+  /// Whether the signed-in account is an administrator, which adds the
+  /// Admin tab on tablets; checked once per account.
+  bool _admin = false;
+  String? _adminFor;
+
   @override
   void initState() {
     super.initState();
@@ -274,8 +281,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     // Signing in or out changes whose mentions count.
     _users = widget.auth.userChanges.listen((user) {
       if (user?.uid != _refreshedFor) _refreshUnread();
+      _checkAdmin(user);
     });
     _refreshUnread();
+    _checkAdmin(widget.auth.currentUser);
   }
 
   @override
@@ -290,6 +299,23 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) _refreshUnread();
+  }
+
+  /// Looks up the admin claim when a different account signs in, and
+  /// drops the tab when the account signs out.
+  Future<void> _checkAdmin(AppUser? user) async {
+    if (widget.admin == null) return;
+    if (user == null) {
+      _adminFor = null;
+      if (_admin && mounted) setState(() => _admin = false);
+      return;
+    }
+    if (user.uid == _adminFor) return;
+    _adminFor = user.uid;
+    final admin = await widget.auth.isAdmin();
+    if (mounted && _adminFor == user.uid && admin != _admin) {
+      setState(() => _admin = admin);
+    }
   }
 
   /// Refreshes the counters: the changed posts and, for a signed-in
@@ -340,6 +366,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     // website's front page); phones start at News to keep the bar short.
     final tablet = isTablet(context);
     final newsIndex = tablet ? 1 : 0;
+    final admin = tablet && _admin ? widget.admin : null;
     final pages = <Widget>[
       if (tablet)
         PostListScreen(
@@ -404,7 +431,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         passkeys: widget.passkeys,
         editor: widget.editor,
         photos: widget.photos,
-        admin: widget.admin,
         exporter: widget.exporter,
         profiles: widget.profiles,
         repository: widget.repository,
@@ -413,6 +439,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         threads: widget.threads,
         messages: widget.messages,
       ),
+      if (admin != null) AdminScreen(auth: widget.auth, admin: admin),
     ];
     // A window can shrink below tablet width; keep the index in range.
     final index = _index.clamp(0, pages.length - 1);
@@ -456,6 +483,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               selectedIcon: Icon(Icons.settings),
               label: 'Settings',
             ),
+            if (admin != null)
+              const NavigationDestination(
+                key: Key('tab-admin'),
+                icon: Icon(Icons.admin_panel_settings_outlined),
+                selectedIcon: Icon(Icons.admin_panel_settings),
+                label: 'Admin',
+              ),
           ],
         ),
       ),
