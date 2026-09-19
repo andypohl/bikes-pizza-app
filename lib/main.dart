@@ -25,9 +25,11 @@ import 'posts/comment_service.dart';
 import 'posts/post_editor.dart';
 import 'posts/profile_service.dart';
 import 'posts/reaction_service.dart';
+import 'posts/search_service.dart';
 import 'posts/unread_tracker.dart';
 import 'screens/news_screen.dart';
 import 'screens/post_list_screen.dart';
+import 'screens/search_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/store_screen.dart';
 import 'splash_screen.dart';
@@ -77,6 +79,7 @@ Future<Widget> _loadApp() async {
     reactions: ApiReactionService(api),
     comments: ApiCommentService(api),
     profiles: ApiProfileService(api),
+    search: ApiSearchService(api, siteUrl: SiteConfig.siteUrl),
     threads: threads,
     messages: MessageTracker(service: threads, auth: auth),
     admin: ApiAdminService(api),
@@ -102,6 +105,7 @@ class BikesPizzaApp extends StatelessWidget {
     this.reactions,
     this.comments,
     this.profiles,
+    this.search,
     this.threads,
     this.messages,
     this.admin,
@@ -144,6 +148,9 @@ class BikesPizzaApp extends StatelessWidget {
   /// Opens a member's profile from their username; null leaves usernames
   /// opening the member's post list.
   final ProfileService? profiles;
+
+  /// The Search tab; null leaves it out of the bottom bar.
+  final SearchService? search;
 
   /// Direct messages: the Messages button on the feed screens, the
   /// Message button on profiles and the thread screens; null hides them.
@@ -195,6 +202,7 @@ class BikesPizzaApp extends StatelessWidget {
             reactions: reactions,
             comments: comments,
             profiles: profiles,
+            search: search,
             threads: threads,
             messages: messages,
             admin: admin,
@@ -209,8 +217,8 @@ class BikesPizzaApp extends StatelessWidget {
 }
 
 /// Root screen: a bottom navigation bar switching between the post feeds
-/// (News, Pizza and Bikes, plus All on tablets), the Store, Settings and,
-/// for administrators, Admin.
+/// (News, Pizza and Bikes, plus All on tablets), Search, the Store,
+/// Settings and, for administrators, Admin.
 /// Each tab keeps its scroll position and loaded data because the pages
 /// live in an [IndexedStack]. The feed tabs carry the count of posts not
 /// opened since they changed, and the app icon their sum; the counts are
@@ -230,6 +238,7 @@ class HomeShell extends StatefulWidget {
     this.reactions,
     this.comments,
     this.profiles,
+    this.search,
     this.threads,
     this.messages,
     this.admin,
@@ -250,6 +259,7 @@ class HomeShell extends StatefulWidget {
   final ReactionService? reactions;
   final CommentService? comments;
   final ProfileService? profiles;
+  final SearchService? search;
   final ThreadService? threads;
   final MessageTracker? messages;
   final AdminService? admin;
@@ -367,6 +377,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     final tablet = isTablet(context);
     final newsIndex = tablet ? 1 : 0;
     final admin = _admin ? widget.admin : null;
+    final search = widget.search;
+    // News, Pizza, Bikes, Store and Settings, plus the optional tabs.
+    final lastIndex =
+        4 +
+        (tablet ? 1 : 0) +
+        (search != null ? 1 : 0) +
+        (admin != null ? 1 : 0);
     final pages = <Widget>[
       if (tablet)
         PostListScreen(
@@ -388,7 +405,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         photos: widget.photos,
         editor: widget.editor,
         unread: widget.unread,
-        active: _index.clamp(0, tablet ? 5 : 4) == newsIndex,
+        active: _index.clamp(0, lastIndex) == newsIndex,
       ),
       PostListScreen(
         feed: PostFeed.pizza,
@@ -420,6 +437,19 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         messages: widget.messages,
         unread: widget.unread,
       ),
+      if (search != null)
+        SearchScreen(
+          search: search,
+          repository: widget.repository,
+          auth: widget.auth,
+          reactions: widget.reactions,
+          comments: widget.comments,
+          profiles: widget.profiles,
+          threads: widget.threads,
+          editor: widget.editor,
+          photos: widget.photos,
+          unread: widget.unread,
+        ),
       StoreScreen(
         repository: widget.store,
         auth: widget.auth,
@@ -473,6 +503,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               selectedIcon: _counted(Icons.pedal_bike, PostFeed.bikes),
               label: 'Bikes',
             ),
+            if (search != null)
+              const NavigationDestination(
+                key: Key('tab-search'),
+                icon: Icon(Icons.search_outlined),
+                selectedIcon: Icon(Icons.search),
+                label: 'Search',
+              ),
             const NavigationDestination(
               icon: Icon(Icons.storefront_outlined),
               selectedIcon: Icon(Icons.storefront),
