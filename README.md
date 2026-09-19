@@ -9,10 +9,10 @@ Five bottom-bar tabs:
 
 | Tab      | Content                                                        |
 |----------|----------------------------------------------------------------|
+| Search   | One request when Search is pressed: members, then posts by title, details and story |
 | Blog     | Every post, newest first, with title and thumbnail             |
 | Pizza    | Posts tagged `pizza`                                           |
 | Bikes    | Posts tagged `biking` or `off-road-biking`                     |
-| Search   | One request when Search is pressed: members, then posts by title, details and story |
 | Store    | Product grid from Shopify, a cart, and Shopify checkout      |
 | Settings | Account (sign-in, username, newsletters, password, deletion), Posts (edit what you posted), theme |
 | Admin    | For signed-in administrators: review submissions and manage users |
