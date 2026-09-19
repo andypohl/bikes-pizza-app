@@ -216,9 +216,10 @@ class BikesPizzaApp extends StatelessWidget {
   }
 }
 
-/// Root screen: a bottom navigation bar switching between the post feeds
-/// (News, Pizza and Bikes, plus All on tablets), Search, the Store,
-/// Settings and, for administrators, Admin.
+/// Root screen: a bottom navigation bar switching between Search, the
+/// post feeds (News, Pizza and Bikes, plus All on tablets), the Store,
+/// Settings and, for administrators, Admin. The app opens on the first
+/// feed tab, not on Search.
 /// Each tab keeps its scroll position and loaded data because the pages
 /// live in an [IndexedStack]. The feed tabs carry the count of posts not
 /// opened since they changed, and the app icon their sum; the counts are
@@ -272,7 +273,9 @@ class HomeShell extends StatefulWidget {
 }
 
 class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
-  int _index = 0;
+  /// The tab chosen, or null until one is: the app opens on the first
+  /// feed tab (All on a tablet, News on a phone), not on Search.
+  int? _index;
   int _shownBadge = -1;
   StreamSubscription<AppUser?>? _users;
   String? _refreshedFor;
@@ -375,9 +378,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     // Tablets get the "All" tab (bikes and pizza together, as on the
     // website's front page); phones start at News to keep the bar short.
     final tablet = isTablet(context);
-    final newsIndex = tablet ? 1 : 0;
     final admin = _admin ? widget.admin : null;
     final search = widget.search;
+    // Search comes first, then All on tablets, then News.
+    final homeIndex = search != null ? 1 : 0;
+    final newsIndex = homeIndex + (tablet ? 1 : 0);
     // News, Pizza, Bikes, Store and Settings, plus the optional tabs.
     final lastIndex =
         4 +
@@ -385,6 +390,19 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         (search != null ? 1 : 0) +
         (admin != null ? 1 : 0);
     final pages = <Widget>[
+      if (search != null)
+        SearchScreen(
+          search: search,
+          repository: widget.repository,
+          auth: widget.auth,
+          reactions: widget.reactions,
+          comments: widget.comments,
+          profiles: widget.profiles,
+          threads: widget.threads,
+          editor: widget.editor,
+          photos: widget.photos,
+          unread: widget.unread,
+        ),
       if (tablet)
         PostListScreen(
           feed: PostFeed.all,
@@ -405,7 +423,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         photos: widget.photos,
         editor: widget.editor,
         unread: widget.unread,
-        active: _index.clamp(0, lastIndex) == newsIndex,
+        active: (_index ?? homeIndex).clamp(0, lastIndex) == newsIndex,
       ),
       PostListScreen(
         feed: PostFeed.pizza,
@@ -437,19 +455,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         messages: widget.messages,
         unread: widget.unread,
       ),
-      if (search != null)
-        SearchScreen(
-          search: search,
-          repository: widget.repository,
-          auth: widget.auth,
-          reactions: widget.reactions,
-          comments: widget.comments,
-          profiles: widget.profiles,
-          threads: widget.threads,
-          editor: widget.editor,
-          photos: widget.photos,
-          unread: widget.unread,
-        ),
       StoreScreen(
         repository: widget.store,
         auth: widget.auth,
@@ -472,7 +477,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       if (admin != null) AdminScreen(auth: widget.auth, admin: admin),
     ];
     // A window can shrink below tablet width; keep the index in range.
-    final index = _index.clamp(0, pages.length - 1);
+    final index = (_index ?? homeIndex).clamp(0, pages.length - 1);
 
     return Scaffold(
       body: IndexedStack(index: index, children: pages),
@@ -482,6 +487,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           selectedIndex: index,
           onDestinationSelected: (i) => setState(() => _index = i),
           destinations: [
+            if (search != null)
+              const NavigationDestination(
+                key: Key('tab-search'),
+                icon: Icon(Icons.search_outlined),
+                selectedIcon: Icon(Icons.search),
+                label: 'Search',
+              ),
             if (tablet)
               NavigationDestination(
                 icon: _counted(Icons.grid_view_outlined, PostFeed.all),
@@ -503,13 +515,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               selectedIcon: _counted(Icons.pedal_bike, PostFeed.bikes),
               label: 'Bikes',
             ),
-            if (search != null)
-              const NavigationDestination(
-                key: Key('tab-search'),
-                icon: Icon(Icons.search_outlined),
-                selectedIcon: Icon(Icons.search),
-                label: 'Search',
-              ),
             const NavigationDestination(
               icon: Icon(Icons.storefront_outlined),
               selectedIcon: Icon(Icons.storefront),
