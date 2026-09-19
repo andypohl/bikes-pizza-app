@@ -1,0 +1,26 @@
+---
+// Search results: /search/?q=… . The page is static; scripts/search.ts
+// reads the query from the URL, asks the API once and renders the four
+// groups (members, then posts by title, by details and by story). Nothing
+// is built into it.
+import Layout from '../../layouts/Layout.astro';
+import SearchBar from '../../components/SearchBar.astro';
+---
+
+<Layout title="Search | bikes.pizza" description="Search bikes.pizza for members, bikes and pizzas.">
+  <main class="container mx-auto px-6 pt-10 pb-16 max-w-3xl">
+    <h1 class="text-3xl font-light tracking-wide text-ink mb-6">Search</h1>
+    <SearchBar compact={false} />
+    <p class="mt-3 text-sm text-muted font-light">
+      A username, words from a title, a bike's brand, decade, color or type, a pizza style, or a word from a story.
+    </p>
+    <div class="mt-8" data-search-results aria-live="polite"></div>
+  </main>
+</Layout>
+
+<script>
+  import { wireSearch } from '../../scripts/search';
+
+  wireSearch();
+  document.addEventListener('astro:page-load', wireSearch);
+</script>
