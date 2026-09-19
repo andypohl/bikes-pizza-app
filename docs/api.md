@@ -553,6 +553,42 @@ published posts in that feed, newest first, each shaped as `GET
 /api/posts/{id}` reads (`id`, `title`, `url`, `image`, …), with
 `hasMore`. Any other feed answers `400`.
 
+## Search
+
+One request when someone presses Search, no token needed
+(`functions/search.js`).
+
+### `GET /api/search`
+
+`?q=red schwinn&limit=20`: what matches, in four groups in a fixed order:
+
+```json
+{
+  "query": "red schwinn",
+  "members": [{ "username": "ada_bikes" }],
+  "titles":  [Post summary, ...],
+  "details": [Post summary, ...],
+  "text":    [Post summary + "snippet", ...]
+}
+```
+
+`members` are the members whose username starts with the first word
+typed (usernames keep their underscores) and contains every other word,
+case-insensitively. The post groups hold published posts, each shaped
+as `GET /api/posts` lists them, newest first, and a post appears once,
+in the first group it qualifies for: `titles` when every word of the
+query starts a word of the title, `details` when every word starts a
+word of the title or of the structured details (the stored values and
+their option names, so "deep" finds a Chicago deep dish and "chro" a
+chrome bike), `text` when every word occurs somewhere on the post, with
+the story needing the whole word. A `text` entry carries a `snippet`,
+about 140 characters of the story around the first word that matched.
+Words are matched without regard to case or accents; a word shorter
+than two characters is ignored, and at most ten are used. `limit` caps
+each group (1 to 50, default 20). A query with nothing searchable in it
+answers `400`. The posts come from the newest hundred that carry any of
+the words, so a common word finds recent posts only.
+
 ## Direct messages
 
 One-on-one conversations between members (docs/community-design.md).
@@ -707,6 +743,13 @@ commentTimes: [ISO, ...]   the newest 20 published comment times, newest
                            first; the app counts unseen comments from them
 commentsEnabled            false when the post's author switched comments off;
                            absent or true otherwise
+search: { title, details, words }   what `GET /api/search` finds the post by
+                           (`functions/search_index.js`): the prefixes of the
+                           title's words, of the details' words, and the union
+                           of both with the story's whole words; written on
+                           publish and on every edit of the title, story or
+                           details (`node backfill_search.js <project>` in
+                           functions/ fills it in for older posts)
 createdAt, updatedAt
 ```
 

@@ -46,6 +46,14 @@ export function memoryPostStore() {
     async listCredited() {
       return sorted([...docs.entries()].filter(([, d]) => d.status === "published" && d.credit?.uid).map(([slug, d]) => ({ ...d, slug })));
     },
+    async search(terms, { limit = 100 } = {}) {
+      const wanted = terms.slice(0, 30);
+      return sorted(
+        [...docs.entries()]
+          .filter(([, d]) => d.status === "published" && wanted.some((t) => (d.search?.words ?? []).includes(t)))
+          .map(([slug, d]) => ({ ...d, slug })),
+      ).slice(0, limit);
+    },
     async setUsername(uid, username) {
       let n = 0;
       for (const doc of docs.values()) {
@@ -128,6 +136,13 @@ export function memoryMemberStore(initial = {}) {
     },
     async list() {
       return new Map([...records].map(([uid, r]) => [uid, { ...r }]));
+    },
+    async searchUsernames(prefix, { limit = 20 } = {}) {
+      return [...records]
+        .filter(([, r]) => r.username && usernameKey(r.username).startsWith(prefix))
+        .map(([uid, r]) => ({ uid, username: r.username }))
+        .sort((a, b) => (usernameKey(a.username) < usernameKey(b.username) ? -1 : 1))
+        .slice(0, limit);
     },
     async delete(uid) {
       records.delete(uid);

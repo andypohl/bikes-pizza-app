@@ -61,6 +61,7 @@ import { moderateText } from "./moderate.js";
 import * as passkeys from "./passkeys.js";
 import * as postEditing from "./posts.js";
 import * as profiles from "./profiles.js";
+import * as searching from "./search.js";
 import { firestoreThreadStore } from "./thread_store.js";
 import * as messaging from "./threads.js";
 import * as reactions from "./reactions.js";
@@ -508,6 +509,8 @@ const service = {
       profiles.getProfile(username, viewer, { members: firestoreMemberStore(getFirestore()), posts: posts(), blocks: (uid) => threads().blocks(uid) }),
     posts: (username, query) => profiles.listMemberPosts(username, query, { members: firestoreMemberStore(getFirestore()), posts: posts(), siteUrl: siteUrl() }),
   },
+  // Search (search.js): usernames from the reservation collection, posts by the index on each document.
+  search: (query) => searching.search(query, { members: firestoreMemberStore(getFirestore()), posts: posts(), siteUrl: siteUrl() }),
   // Direct messages (threads.js); the app reads the threads live from
   // Firestore and writes through these.
   threads: {

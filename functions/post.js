@@ -12,6 +12,7 @@
 //   details: null | { brand, year, color, type } | { style }
 //   credit: null | { uid, username, name }
 //   source: null | { system, id, url }
+//   search: { title, details, words }  what the post can be found by (search_index.js)
 //   createdAt, updatedAt            set by the store
 
 import { randomUUID } from "node:crypto";
@@ -19,6 +20,7 @@ import { randomUUID } from "node:crypto";
 import { GALLERY_FEEDS, postPath } from "./contract.js";
 import { bodyToText, renderBody, summarize } from "./markdown.js";
 import { FORMATS } from "./renditions.js";
+import { searchIndex } from "./search_index.js";
 
 /** URL-safe slug from a title; empty if nothing usable remains. */
 export function slugify(text) {
@@ -87,6 +89,7 @@ export function imageField(renditions, base) {
 export function postDocument({ slug, feed, title, publishedAt, body = "", bodyFormat = "text", summary = "", image = null, images = [], details = null, credit = null, source = null, status = "published" }) {
   if (!slug || !feed || !title || !publishedAt) throw new Error("a post needs a slug, feed, title and publishedAt");
   const html = renderBody(body, bodyFormat);
+  const kept = detailsFor(feed, details);
   return {
     slug,
     feed,
@@ -100,9 +103,10 @@ export function postDocument({ slug, feed, title, publishedAt, body = "", bodyFo
     html,
     image,
     images,
-    details: detailsFor(feed, details),
+    details: kept,
     credit,
     source,
+    search: searchIndex({ title, details: kept, body, bodyFormat }),
   };
 }
 

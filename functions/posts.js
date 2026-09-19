@@ -20,6 +20,7 @@ import { ARTICLE_FEEDS, BIKE_COLORS_VALUES, BIKE_TYPES_VALUES, BIKE_YEARS_VALUES
 import { AppError } from "./errors.js";
 import { BODY_FORMATS } from "./markdown.js";
 import { DETAIL_FIELDS, bodyPatch, detailsFor, imageField, postDocument, publicPost, slugFor } from "./post.js";
+import { searchIndex } from "./search_index.js";
 import { renditionUrl } from "./post_store.js";
 import { makeRenditions } from "./renditions.js";
 import { extraLabel, parseExtras, parseUpload, preparePhoto, storeExtra, storePhoto } from "./uploads.js";
@@ -176,7 +177,8 @@ export function validateEdit(data, feed) {
 /**
  * The Firestore patch that applies a validated edit to `doc`. A story
  * without an explicit format is plain text (what members write); the
- * title alone leaves the body untouched.
+ * title alone leaves the body untouched. The search index follows any
+ * change to the title, story or details.
  */
 export function patchFor(edit, doc, { image, images } = {}) {
   const patch = bodyPatch({
@@ -189,6 +191,10 @@ export function patchFor(edit, doc, { image, images } = {}) {
   if (edit.publishedAt !== undefined) patch.publishedAt = edit.publishedAt;
   const feedDetails = doc.feed === "bikes" ? edit.bike : doc.feed === "pizza" ? edit.pizza : undefined;
   if (feedDetails !== undefined) patch.details = detailsFor(doc.feed, feedDetails);
+  if (patch.title !== undefined || patch.body !== undefined || patch.details !== undefined) {
+    const next = { ...doc, ...patch };
+    patch.search = searchIndex({ title: next.title, details: next.details, body: next.body, bodyFormat: next.bodyFormat });
+  }
   return patch;
 }
 

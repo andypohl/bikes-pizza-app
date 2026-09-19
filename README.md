@@ -194,6 +194,26 @@ rewrite serves `/member/index.html`, which reads the username from the
 path. The Message button and the "allow direct messages" switch come
 with direct messages.
 
+## Search
+
+`GET /api/search?q=` (`functions/search.js`, the shape in
+`docs/api.md`) answers one request with four groups in a fixed order:
+members whose username starts with what was typed, posts whose title
+matches, posts whose structured details match (a bike's brand, decade,
+color and type, a pizza's style, by value or option name), and posts
+whose story contains every word. A post is listed once, in the best
+group it qualifies for, newest first. There is no index server: every
+post document carries a `search` field (`functions/search_index.js`)
+with the prefixes of its title and detail words and the whole words of
+its story, written on publish and on every edit, and the endpoint runs
+one Firestore query on it plus a prefix query on the username
+reservations. Titles and details match from two letters on; a story
+needs the whole word, since prefixes of a whole story would bloat the
+index. Existing posts get their field from `node backfill_search.js
+<project-id>` in `functions/` (run once per project after this
+lands). The app's search screen, which sends the request when Search is
+pressed rather than as you type, is the next pull request.
+
 ## Direct messages
 
 Members message each other one on one (`functions/threads.js`,
