@@ -26,6 +26,7 @@ import 'package:bikes_pizza/posts/comment_service.dart';
 import 'package:bikes_pizza/posts/post_editor.dart';
 import 'package:bikes_pizza/posts/profile_service.dart';
 import 'package:bikes_pizza/posts/reaction_service.dart';
+import 'package:bikes_pizza/posts/search_service.dart';
 import 'package:bikes_pizza/posts/unread_tracker.dart';
 import 'package:bikes_pizza/screens/edit_post_screen.dart';
 import 'package:bikes_pizza/screens/news_screen.dart';
@@ -714,6 +715,56 @@ class FakeProfileService implements ProfileService {
   }
 }
 
+class FakeSearchService implements SearchService {
+  final queries = <String>[];
+  bool fail = false;
+
+  /// "schwinn" finds something in every group; anything else, nothing.
+  SearchResults results(String query) => query == 'schwinn'
+      ? SearchResults(
+          query: query,
+          members: const ['ada_bikes'],
+          titles: [
+            _post(
+              'Schwinn Paramount',
+              DateTime(2025, 5, 1),
+              bike: const BikeDetails(
+                brand: 'Schwinn',
+                year: '1970s',
+                color: 'red',
+                type: 'road',
+              ),
+            ),
+          ],
+          details: [
+            _post(
+              'Red racer',
+              DateTime(2025, 4, 1),
+              bike: const BikeDetails(
+                brand: 'Schwinn',
+                year: '1980s',
+                color: 'red',
+                type: 'road',
+              ),
+            ),
+          ],
+          text: [
+            SearchHit(
+              post: _post('Shop news', DateTime(2025, 3, 1)),
+              snippet: '…the Schwinn wall is back…',
+            ),
+          ],
+        )
+      : SearchResults(query: query);
+
+  @override
+  Future<SearchResults> search(String query, {int limit = 20}) async {
+    queries.add(query);
+    if (fail) throw ApiException('Could not reach bikes.pizza.');
+    return results(query);
+  }
+}
+
 class FakeReactionService implements ReactionService {
   final counts = <String, Map<String, Map<String, int>>>{};
   final mine = <String, Map<String, List<String>>>{};
@@ -1353,6 +1404,7 @@ void main() {
   late FakeCommentService comments;
   late FakeDataExporter exporter;
   FakeProfileService? profiles;
+  FakeSearchService? search;
   FakeThreadService? threads;
   MessageTracker? messages;
 
@@ -1375,6 +1427,7 @@ void main() {
     comments = FakeCommentService();
     exporter = FakeDataExporter();
     profiles = FakeProfileService();
+    search = FakeSearchService();
     threads = FakeThreadService();
     editor = FakePostEditor()
       ..posts['Newest post'] = _editable('Newest post')
@@ -1468,6 +1521,7 @@ void main() {
         reactions: reactions,
         comments: comments,
         profiles: profiles,
+        search: search,
         threads: threads,
         messages: messages,
         admin: admin,
@@ -3668,6 +3722,95 @@ void main() {
     expect(find.text('A fine bike.'), findsOneWidget);
     expect(find.byKey(const Key('close-submission')), findsNothing);
     expect(find.byKey(const Key('review-publish')), findsOneWidget);
+  });
+
+  testWidgets('the Search tab sends one request when Search is pressed', (
+    tester,
+  ) async {
+    await pumpApp(tester, size: phone);
+    await tester.tap(find.byKey(const Key('tab-search')));
+    await tester.pumpAndSettle();
+    expect(find.text('Find members and posts'), findsOneWidget);
+    FilledButton button() =>
+        tester.widget<FilledButton>(find.byKey(const Key('search-button')));
+    expect(button().onPressed, isNull, reason: 'nothing to search for yet');
+
+    await tester.enterText(find.byKey(const Key('search-field')), 'schwinn');
+    await tester.pump();
+    expect(search!.queries, isEmpty, reason: 'typing sends nothing');
+    expect(button().onPressed, isNotNull);
+    await tester.tap(find.byKey(const Key('search-button')));
+    await tester.pumpAndSettle();
+    expect(search!.queries, ['schwinn']);
+
+    expect(find.text('Members'), findsOneWidget);
+    expect(find.byKey(const Key('search-member-ada_bikes')), findsOneWidget);
+    expect(find.text('Matching titles'), findsOneWidget);
+    expect(
+      find.byKey(const Key('search-post-Schwinn Paramount')),
+      findsOneWidget,
+    );
+    expect(find.text('Matching details'), findsOneWidget);
+    expect(find.byKey(const Key('search-post-Red racer')), findsOneWidget);
+    expect(find.text('In the story'), findsOneWidget);
+    expect(find.text('…the Schwinn wall is back…'), findsOneWidget);
+
+    // A member opens their profile, a post opens as it does from a feed.
+    await tester.tap(find.byKey(const Key('search-member-ada_bikes')));
+    await tester.pumpAndSettle();
+    expect(find.text('Madison, WI'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('search-post-Schwinn Paramount')));
+    await tester.pumpAndSettle();
+    expect(find.byType(PostDetailScreen), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('Matching titles'), findsOneWidget, reason: 'kept');
+  });
+
+  testWidgets('the keyboard search key searches too, and no match is said', (
+    tester,
+  ) async {
+    await pumpApp(tester, size: phone);
+    await tester.tap(find.byKey(const Key('tab-search')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('search-field')), 'zzz');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    expect(search!.queries, ['zzz']);
+    expect(find.byKey(const Key('search-empty')), findsOneWidget);
+    expect(find.text('Nothing matched'), findsOneWidget);
+  });
+
+  testWidgets('a failed search offers Retry with the same query', (
+    tester,
+  ) async {
+    await pumpApp(tester, size: phone);
+    await tester.tap(find.byKey(const Key('tab-search')));
+    await tester.pumpAndSettle();
+    search!.fail = true;
+    await tester.enterText(find.byKey(const Key('search-field')), 'schwinn');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('search-button')));
+    await tester.pumpAndSettle();
+    expect(find.text('Search failed'), findsOneWidget);
+    expect(find.text('Could not reach bikes.pizza.'), findsOneWidget);
+    search!.fail = false;
+    await tester.enterText(find.byKey(const Key('search-field')), 'edited');
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(search!.queries, ['schwinn', 'schwinn']);
+    expect(find.text('Matching titles'), findsOneWidget);
+  });
+
+  testWidgets('without a search service there is no Search tab', (
+    tester,
+  ) async {
+    search = null;
+    await pumpApp(tester, size: phone);
+    expect(find.byKey(const Key('tab-search')), findsNothing);
+    expect(find.text('Store'), findsOneWidget);
   });
 
   testWidgets('the Admin tab is hidden from members', (tester) async {

@@ -12,6 +12,7 @@ Five bottom-bar tabs:
 | Blog     | Every post, newest first, with title and thumbnail             |
 | Pizza    | Posts tagged `pizza`                                           |
 | Bikes    | Posts tagged `biking` or `off-road-biking`                     |
+| Search   | One request when Search is pressed: members, then posts by title, details and story |
 | Store    | Product grid from Shopify, a cart, and Shopify checkout      |
 | Settings | Account (sign-in, username, newsletters, password, deletion), Posts (edit what you posted), theme |
 | Admin    | For signed-in administrators: review submissions and manage users |
@@ -210,9 +211,14 @@ one Firestore query on it plus a prefix query on the username
 reservations. Titles and details match from two letters on; a story
 needs the whole word, since prefixes of a whole story would bloat the
 index. Existing posts get their field from `node backfill_search.js
-<project-id>` in `functions/` (run once per project after this
-lands). The app's search screen, which sends the request when Search is
-pressed rather than as you type, is the next pull request.
+<project-id>` in `functions/` (run once per project; development is
+done, production is due at the next release). In the app the Search
+tab (`lib/screens/search_screen.dart`, `lib/posts/search_service.dart`)
+is a text box and a Search button: nothing is sent while typing, and
+pressing Search or the keyboard's search key makes the one request.
+The four groups follow, each row opening the profile or the post as a
+feed would, with a line of the story under a text match. The website
+has no search yet.
 
 ## Direct messages
 
