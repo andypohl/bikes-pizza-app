@@ -4,6 +4,7 @@ import AccountButton from '../components/AccountButton.astro';
 import StoreButton from '../components/StoreButton.astro';
 import CartButton from '../components/CartButton.astro';
 import HomeButton from '../components/HomeButton.astro';
+import SearchBar from '../components/SearchBar.astro';
 import SubmitButton from '../components/SubmitButton.astro';
 import ThemeToggle from '../components/ThemeToggle.astro';
 import '../styles/global.css';
@@ -68,6 +69,7 @@ const Brand = Astro.url.pathname === '/' ? 'h1' : 'p';
     transition:animate="initial"
   >
     <div class="fixed top-6 left-6 right-6 z-50 flex flex-wrap items-center justify-end gap-3 pointer-events-none [&>*]:pointer-events-auto">
+      <SearchBar />
       <HomeButton />
       <SubmitButton />
       <StoreButton />

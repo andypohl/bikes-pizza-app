@@ -1,0 +1,47 @@
+---
+// The search box in the fixed bar at the top of every page. A plain GET
+// form: nothing happens while typing, and Enter (or the magnifier) opens
+// /search/?q=… where scripts/search.ts asks the API once. `compact` is
+// the bar's version; the search page itself uses the full-width one.
+interface Props {
+  compact?: boolean;
+  value?: string;
+}
+
+const { compact = true, value = '' } = Astro.props;
+---
+
+<form
+  action="/search/"
+  method="get"
+  role="search"
+  class:list={[
+    'flex items-center rounded-full bg-pill focus-within:bg-pill-hover text-ink transition-colors duration-200',
+    compact ? 'pl-4 pr-1 py-1' : 'pl-5 pr-2 py-2 w-full max-w-xl',
+  ]}
+>
+  <input
+    type="search"
+    name="q"
+    value={value}
+    placeholder="Search"
+    aria-label="Search bikes.pizza"
+    autocomplete="off"
+    enterkeyhint="search"
+    class:list={[
+      'bg-transparent outline-none text-ink placeholder:text-muted font-light min-w-0',
+      compact ? 'w-28 sm:w-40 text-sm py-2' : 'flex-1 text-lg py-1',
+    ]}
+    data-search-input
+  />
+  <button
+    type="submit"
+    aria-label="Search"
+    class="inline-flex items-center justify-center h-9 w-9 rounded-full hover:bg-surface-2 transition-colors duration-200"
+  >
+    <!-- Material Symbols "search", the same glyph as the app's Search tab -->
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"></path>
+    </svg>
+  </button>
+</form>

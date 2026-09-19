@@ -217,8 +217,12 @@ tab (`lib/screens/search_screen.dart`, `lib/posts/search_service.dart`)
 is a text box and a Search button: nothing is sent while typing, and
 pressing Search or the keyboard's search key makes the one request.
 The four groups follow, each row opening the profile or the post as a
-feed would, with a line of the story under a text match. The website
-has no search yet.
+feed would, with a line of the story under a text match. On the website
+the box in the fixed bar at the top of every page
+(`site/src/components/SearchBar.astro`) is a plain GET form: Enter
+opens `/search/?q=`, a static page that `site/src/scripts/search.ts`
+fills from the same endpoint with the same four groups, members linking
+to their profiles and posts to their pages.
 
 ## Direct messages
 
