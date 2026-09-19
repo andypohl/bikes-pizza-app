@@ -4,7 +4,7 @@
 // callables). Usernames are unique regardless of case: each one is reserved
 // at usernames/{lowercased} pointing back at the member's uid.
 
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldPath, FieldValue } from "firebase-admin/firestore";
 
 import { usernameKey } from "./account.js";
 import { AppError, ValidationError } from "./errors.js";
@@ -132,6 +132,11 @@ export function firestoreMemberStore(db) {
       if (!snap.exists) return null;
       const { uid, username: stored } = snap.data();
       return { uid, username: stored ?? username };
+    },
+    /** Members whose username starts with `prefix` (already lowercased), `[{uid, username}]`, at most `limit`. */
+    async searchUsernames(prefix, { limit = 20 } = {}) {
+      const snap = await usernames.orderBy(FieldPath.documentId()).startAt(prefix).endAt(`${prefix}\uf8ff`).limit(limit).get();
+      return snap.docs.map((doc) => ({ uid: doc.data().uid, username: doc.data().username ?? doc.id }));
     },
     async delete(uid) {
       await db.runTransaction(async (tx) => {

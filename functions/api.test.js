@@ -72,6 +72,11 @@ const service = {
     profile: async (username, viewer) => calls.push(["members.profile", username, viewer?.uid ?? null]) && { username, counts: { pizza: 1, bikes: 0 } },
     posts: async (username, query) => calls.push(["members.posts", username, { ...query }]) && { username, posts: [] },
   },
+  search: async (query) => {
+    calls.push(["search", { ...query }]);
+    if (!query.q) throw new ValidationError("Type something to search for.");
+    return { query: query.q, members: [], titles: [], details: [], text: [] };
+  },
   threads: {
     list: async (user) => calls.push(["threads.list", user.uid]) && { threads: [] },
     open: async (data, user) => calls.push(["threads.open", data, user.uid]) && { thread: { id: "t1" }, created: true },
@@ -488,3 +493,15 @@ test("the continue-by-email routes reach the service", async () => {
   ]);
 });
 
+
+test("search is public, passes the query string through and is not cached", async () => {
+  calls.length = 0;
+  const res = await fetch(base + "/api/search?q=red%20trek&limit=5");
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("cache-control"), "no-store");
+  assert.deepEqual(await res.json(), { query: "red trek", members: [], titles: [], details: [], text: [] });
+  assert.deepEqual(calls, [["search", { q: "red trek", limit: "5" }]]);
+  const empty = await fetch(base + "/api/search");
+  assert.equal(empty.status, 400);
+  assert.equal((await empty.json()).error.code, "invalid-argument");
+});

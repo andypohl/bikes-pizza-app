@@ -15,6 +15,7 @@
 //   GET  /api/site/settings             public (no token); {submitButton}
 //   GET  /api/members/:username         public (a token, if sent, says who is looking); the profile
 //   GET  /api/members/:username/posts   public; ?feed=pizza|bikes&page= — the member's posts in one feed
+//   GET  /api/search                    public; ?q=&limit= — members, then posts by title, details and story
 //   POST /api/site/settings             admin; {submitButton: boolean}
 //   GET  /api/posts                     verified user; the posts credited to them
 //   GET  /api/posts/:id                 the credited member, or an admin
@@ -126,6 +127,17 @@ export function createApi({ verifyToken, service, log = () => {} }) {
       }),
     );
     app.get("/api/members/:username/posts", wrap((req) => members.posts(req.params.username, req.query)));
+  }
+
+  // Search is public too: it only finds what the website shows anyway.
+  if (service.search) {
+    app.get(
+      "/api/search",
+      wrap(async (req, res) => {
+        res.set("Cache-Control", "no-store");
+        return service.search(req.query);
+      }),
+    );
   }
 
   const api = express.Router();
