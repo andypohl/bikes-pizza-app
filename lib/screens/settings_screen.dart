@@ -87,6 +87,12 @@ class SettingsScreen extends StatelessWidget {
             threads: threads,
           ),
           const Divider(),
+          const _SectionHeader('Show me'),
+          _ShowMeSlider(
+            choice: settings.feedChoice,
+            onChanged: settings.setFeedChoice,
+          ),
+          const Divider(),
           const _SectionHeader('Appearance'),
           RadioGroup<ThemeMode>(
             groupValue: settings.themeMode,
@@ -449,6 +455,65 @@ class _DeleteAccountTileState extends State<_DeleteAccountTile> {
       subtitle: const Text('Removes your sign-in and profile for good'),
       enabled: !_busy,
       onTap: _confirm,
+    );
+  }
+}
+
+/// The "Show me" slider: bikes only on the left, both in the middle,
+/// pizza only on the right. Leaving a feed out hides its tab.
+class _ShowMeSlider extends StatelessWidget {
+  const _ShowMeSlider({required this.choice, required this.onChanged});
+
+  final FeedChoice choice;
+  final ValueChanged<FeedChoice> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final labelStyle = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Column(
+        children: [
+          Slider(
+            key: const Key('show-me'),
+            value: choice.index.toDouble(),
+            min: 0,
+            max: (FeedChoice.values.length - 1).toDouble(),
+            divisions: FeedChoice.values.length - 1,
+            label: choice.label,
+            semanticFormatterCallback: (v) =>
+                FeedChoice.values[v.round()].label,
+            onChanged: (v) => onChanged(FeedChoice.values[v.round()]),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                for (final option in FeedChoice.values)
+                  Expanded(
+                    child: Text(
+                      option.label,
+                      textAlign: option == FeedChoice.values.first
+                          ? TextAlign.left
+                          : option == FeedChoice.values.last
+                          ? TextAlign.right
+                          : TextAlign.center,
+                      style: option == choice
+                          ? labelStyle?.copyWith(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            )
+                          : labelStyle,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

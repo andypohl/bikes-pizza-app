@@ -1471,6 +1471,7 @@ void main() {
     Size size = const Size(800, 1200),
     UnreadTracker? unread,
     AppBadge badge = const NoAppBadge(),
+    AppSettings? settings,
   }) async {
     useSize(tester, size);
     auth = FakeAuthService();
@@ -1515,7 +1516,7 @@ void main() {
     });
     await tester.pumpWidget(
       BikesPizzaApp(
-        settings: AppSettings(),
+        settings: settings ?? AppSettings(),
         repository: repo,
         auth: auth,
         store: store ??= FakeStoreRepository(),
@@ -3354,6 +3355,69 @@ void main() {
     await tester.tap(find.text('Dark'));
     await tester.pumpAndSettle();
     expect(app().themeMode, ThemeMode.dark);
+  });
+
+  testWidgets('the Show me slider hides the Pizza or Bikes tab', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    expect(find.byKey(const Key('tab-pizza')), findsOneWidget);
+    expect(find.byKey(const Key('tab-bikes')), findsOneWidget);
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    final slider = find.byKey(const Key('show-me'));
+    expect(tester.widget<Slider>(slider).value, 1, reason: 'both by default');
+
+    // Left end: bikes only, so Pizza goes; Settings stays selected.
+    await tester.drag(slider, const Offset(-400, 0));
+    await tester.pumpAndSettle();
+    expect(tester.widget<Slider>(slider).value, 0);
+    expect(find.byKey(const Key('tab-pizza')), findsNothing);
+    expect(find.byKey(const Key('tab-bikes')), findsOneWidget);
+    expect(find.widgetWithText(AppBar, 'Settings'), findsOneWidget);
+    expect(
+      (await SharedPreferences.getInstance()).getString('show_me'),
+      'bikesOnly',
+    );
+
+    // Right end: pizza only, so Bikes goes and Pizza is back.
+    await tester.drag(slider, const Offset(800, 0));
+    await tester.pumpAndSettle();
+    expect(tester.widget<Slider>(slider).value, 2);
+    expect(find.byKey(const Key('tab-pizza')), findsOneWidget);
+    expect(find.byKey(const Key('tab-bikes')), findsNothing);
+
+    // Back to the middle: both again, and the Bikes tab still works.
+    await tester.drag(slider, const Offset(-400, 0));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('tab-bikes')), findsOneWidget);
+    await tester.tap(find.text('Bikes'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, 'Bikes'), findsOneWidget);
+  });
+
+  testWidgets('a hidden feed that was showing falls back to the home tab', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({'show_me': 'pizzaOnly'});
+    final settings = await AppSettings.load();
+    expect(settings.feedChoice, FeedChoice.pizzaOnly);
+    await pumpApp(tester, settings: settings);
+    expect(find.byKey(const Key('tab-bikes')), findsNothing);
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(AppBar, 'Pizza'), findsOneWidget);
+    // Switching to bikes only while on Pizza lands on the home tab (All
+    // on this tablet-sized window).
+    await settings.setFeedChoice(FeedChoice.bikesOnly);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('tab-pizza')), findsNothing);
+    expect(find.widgetWithText(AppBar, 'Pizza'), findsNothing);
+    final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
+    expect(
+      (bar.destinations[bar.selectedIndex] as NavigationDestination).label,
+      'All',
+    );
   });
 
   testWidgets('Settings links to the privacy policy', (tester) async {
