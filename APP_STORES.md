@@ -49,7 +49,10 @@ Each release:
 2. Upload it. Either open the archive in Xcode's Organizer (Window,
    Organizer), press Distribute App, choose App Store Connect and follow
    the prompts; or use the Transporter app from the Mac App Store and
-   drop the `.ipa` on it.
+   drop the `.ipa` on it. In the Organizer's options, untick "Manage
+   Version and Build Number": with it on, Xcode raises the build number
+   past what App Store Connect has seen, and the next bump in
+   `pubspec.yaml` then has to skip past that.
 3. The build appears in App Store Connect under the app's TestFlight tab
    after processing (a few minutes). Install it on a phone through
    TestFlight and check the release there first. Passkeys in particular
