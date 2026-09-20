@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../account/member_service.dart';
 import '../auth/auth_service.dart';
 import '../data/post_repository.dart';
 import '../messages/message_tracker.dart';
@@ -43,7 +42,6 @@ class PostListScreen extends StatefulWidget {
     this.auth,
     this.submissions,
     this.photos,
-    this.members,
     this.editor,
     this.reactions,
     this.comments,
@@ -78,9 +76,6 @@ class PostListScreen extends StatefulWidget {
   final SubmissionService? submissions;
   final PhotoPicker? photos;
   final PostEditor? editor;
-
-  /// Pre-fills the submission's credit with the member's username.
-  final MemberService? members;
 
   /// When set, only this member's posts are listed (reached from the
   /// credit on a post) and the submit bar is left out.
@@ -258,7 +253,6 @@ class _PostListScreenState extends State<PostListScreen> {
           submissions: submissions,
           photos: photos,
           auth: auth,
-          members: widget.members,
         ),
       ),
     );

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../account/member_service.dart';
 import '../auth/auth_service.dart';
 import '../auth/session_expiry.dart';
 import '../models/post_feed.dart';
@@ -9,9 +8,10 @@ import '../submissions/photo_source_sheet.dart';
 import '../submissions/submission_service.dart';
 import '../widgets/additional_pictures_field.dart';
 
-/// Form where a member submits their own bike or pizza. On success the
-/// submission is stored for review (and the reviewer emailed); the member
-/// sees a thank-you.
+/// Form where a member submits their own bike or pizza. The submission is
+/// credited to the member's username, so there is nothing to fill in about
+/// who it is from. On success the submission is stored for review (and the
+/// reviewer emailed); the member sees a thank-you.
 class SubmitScreen extends StatefulWidget {
   const SubmitScreen({
     super.key,
@@ -19,16 +19,12 @@ class SubmitScreen extends StatefulWidget {
     required this.submissions,
     required this.photos,
     required this.auth,
-    this.members,
   });
 
   final PostFeed feed;
   final SubmissionService submissions;
   final PhotoPicker photos;
   final AuthService auth;
-
-  /// When given, the "From" field starts as the member's username.
-  final MemberService? members;
 
   @override
   State<SubmitScreen> createState() => _SubmitScreenState();
@@ -37,7 +33,6 @@ class SubmitScreen extends StatefulWidget {
 class _SubmitScreenState extends State<SubmitScreen> {
   final _formKey = GlobalKey<FormState>();
   final _title = TextEditingController();
-  final _from = TextEditingController();
   final _description = TextEditingController();
   SubmissionPhoto? _photo;
   final _extras = <SubmissionPhoto>[];
@@ -46,26 +41,8 @@ class _SubmitScreenState extends State<SubmitScreen> {
   SubmissionResult? _result;
 
   @override
-  void initState() {
-    super.initState();
-    _prefillFrom();
-  }
-
-  Future<void> _prefillFrom() async {
-    final members = widget.members;
-    if (members == null) return;
-    try {
-      final profile = await members.load();
-      if (mounted && _from.text.isEmpty) _from.text = profile.username;
-    } on MemberException {
-      // Left blank; the member types a name.
-    }
-  }
-
-  @override
   void dispose() {
     _title.dispose();
-    _from.dispose();
     _description.dispose();
     super.dispose();
   }
@@ -102,7 +79,6 @@ class _SubmitScreenState extends State<SubmitScreen> {
         Submission(
           feed: widget.feed,
           title: _title.text.trim(),
-          from: _from.text.trim(),
           description: _description.text.trim(),
           photo: photo,
           extras: List.of(_extras),
@@ -198,22 +174,6 @@ class _SubmitScreenState extends State<SubmitScreen> {
             ),
             validator: (v) =>
                 (v ?? '').trim().isEmpty ? 'Please give it a title.' : null,
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
-            key: const Key('from'),
-            controller: _from,
-            enabled: !_sending,
-            textCapitalization: TextCapitalization.words,
-            maxLength: 100,
-            decoration: const InputDecoration(
-              labelText: 'From',
-              hintText: '(your name/nickname)',
-              floatingLabelBehavior: FloatingLabelBehavior.always,
-              counterText: '',
-            ),
-            validator: (v) =>
-                (v ?? '').trim().isEmpty ? 'Tell us who this is from.' : null,
           ),
           const SizedBox(height: 12),
           TextFormField(

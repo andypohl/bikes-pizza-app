@@ -12,7 +12,6 @@ export const FEEDS = SUBMISSION_FEEDS;
 export { IMAGE_TYPES };
 export const MAX_IMAGE_BYTES = IMAGE_MAX_UPLOAD_BYTES;
 const MAX_TITLE = 255;
-const MAX_FROM = 100;
 const MAX_DESCRIPTION = 10_000;
 
 function text(value, field, { max, required }) {
@@ -30,7 +29,10 @@ function text(value, field, { max, required }) {
  * Validates the app's request.
  *
  * @param {unknown} data
- * @returns {{feed: string, title: string, from: string, description: string,
+ * The sender is not part of the request: the service names the submission
+ * after the member's username (see createSubmission).
+ *
+ * @returns {{feed: string, title: string, description: string,
  *   image: {bytes: Buffer, contentType: string, filename: string},
  *   images: {bytes: Buffer, contentType: string}[]}}
  */
@@ -41,7 +43,6 @@ export function validateSubmission(data) {
   if (!Object.hasOwn(FEEDS, data.feed)) throw new ValidationError("Unknown feed.");
   const feed = data.feed;
   const title = text(data.title, "Title", { max: MAX_TITLE, required: true });
-  const from = text(data.from, "From", { max: MAX_FROM, required: true });
   const description = text(data.description, "Description", {
     max: MAX_DESCRIPTION,
     required: false,
@@ -55,7 +56,6 @@ export function validateSubmission(data) {
   return {
     feed,
     title,
-    from,
     description,
     image: { bytes, contentType, filename: `${feed}-submission.${extension}` },
     images,
@@ -64,7 +64,8 @@ export function validateSubmission(data) {
 
 /**
  * The Firestore document for a new submission (timestamps added by the
- * caller). `image` is the main photo as stored for review and `images`
+ * caller). `from` is who sent it, as shown to the reviewer: the member's
+ * username. `image` is the main photo as stored for review and `images`
  * the additional ones, in order (see uploads.js).
  */
 export function submissionRecord({ feed, title, from, description }, { uid, email, image, images = [] }) {
