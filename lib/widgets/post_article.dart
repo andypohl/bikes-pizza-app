@@ -20,8 +20,9 @@ import 'unread_dot.dart';
 
 /// A post laid out in full: hero image, its additional pictures when it
 /// has any (each opening a full-screen viewer), title, date, its
-/// structured details when it has any, its reaction palettes when its
-/// feed has any, the rendered HTML body and who submitted it. Not
+/// structured details when it has any, the rendered HTML body, who
+/// submitted it, its reaction palettes when its feed has any, and the
+/// comments. Not
 /// scrollable itself; the post screen and the news reader each put it in
 /// their own scroll view. With a [repository], the submitter's username
 /// opens the list of everything they have posted; with [reactions] (and
@@ -244,8 +245,6 @@ class PostArticle extends StatelessWidget {
                 ),
               ),
               ?details,
-              if (ReactionsPanel.palettesFor(post).isNotEmpty)
-                ReactionsPanel(post: post, reactions: reactions, auth: auth),
               const SizedBox(height: 20),
               if (post.html.isNotEmpty)
                 HtmlWidget(
@@ -256,6 +255,8 @@ class PostArticle extends StatelessWidget {
               else if (post.summary.isNotEmpty)
                 Text(post.summary, style: theme.textTheme.bodyLarge),
               ?credit,
+              if (ReactionsPanel.palettesFor(post).isNotEmpty)
+                ReactionsPanel(post: post, reactions: reactions, auth: auth),
               if (post.takesComments)
                 CommentsPanel(
                   post: post,

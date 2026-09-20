@@ -109,16 +109,18 @@ refresh when the app runs.
 
 ## Reactions
 
-Under a bike or pizza post's details, signed-in members answer the
-feed's fixed questions by tapping a chip: for a pizza, "I've had this
-pizza" (yes / no) and "This pizza has fantastic" (crust, cheese, sauce,
-toppings, price); for a bike, "This bike looks" (stylish, comfortable,
-fast, rugged) and "My favorite part of this bike is its" (wheels, frame,
-gears/derailleurs, shifters, brakes, paint, bars, seat, pedals). Each
-palette takes one pick; tapping another swaps it and tapping the picked
-one takes it back. Chips show how many members picked each option, and
-hovering a chip (or holding it, on touch) names up to ten of them at
-random. The palettes are in `contract/reactions.json`; each carries a
+Under a bike or pizza post's story and credit, above the comments,
+signed-in members answer the feed's fixed questions: for a pizza, "I've
+had this pizza" (yes / no) and "This pizza has fantastic" (crust, cheese,
+sauce, toppings, price); for a bike, "This bike looks" (stylish,
+comfortable, fast, rugged) and "My favorite part of this bike is its"
+(wheels, frame, gears/derailleurs, shifters, brakes, paint, bars, seat,
+pedals). Each question is one line, the prompt and the member's pick (or
+"Pick one"); tapping it unfolds the options as chips. Each palette takes
+one pick; tapping a chip picks it and folds the line again, tapping
+another swaps it and tapping the picked one takes it back. Chips show how
+many members picked each option, and hovering a chip (or holding it, on
+touch) names up to ten of them at random. The palettes are in `contract/reactions.json`; each carries a
 `pick` field ("one" now; "many" is understood by the functions and the
 app for palettes that should take several). The tallies live on the post
 document, so the app has them with the post and nothing is fetched until

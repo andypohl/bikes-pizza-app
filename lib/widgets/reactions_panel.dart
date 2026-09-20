@@ -10,14 +10,16 @@ import '../models/post.dart';
 import '../posts/reaction_service.dart';
 
 /// The reaction palettes of a post (`reactionPalettes` in the contract:
-/// "I've had this pizza", "This bike looks", ...), each a row of chips
-/// with how many members picked each option. A signed-in member taps to
-/// pick; a "pick one" palette swaps the choice, the others toggle it, and
-/// tapping a picked chip takes the pick back. The tallies start from what
-/// the post carries and are refreshed, with the member's own picks and
-/// who picked what, from [reactions] once someone is signed in; hovering
-/// a chip (or holding it, on touch) then names some of the members who
-/// picked it. Without a service the chips only show the tallies.
+/// "I've had this pizza", "This bike looks", ...), each folded to one
+/// line: the prompt and the member's pick. Unfolding one shows its
+/// options as chips with how many members picked each. A signed-in member
+/// taps to pick; a "pick one" palette swaps the choice (and folds again),
+/// the others toggle it, and tapping a picked chip takes the pick back.
+/// The tallies start from what the post carries and are refreshed, with
+/// the member's own picks and who picked what, from [reactions] once
+/// someone is signed in; hovering a chip (or holding it, on touch) then
+/// names some of the members who picked it. Without a service the chips
+/// only show the tallies.
 class ReactionsPanel extends StatefulWidget {
   const ReactionsPanel({
     super.key,
@@ -95,16 +97,24 @@ class _ReactionsPanelState extends State<ReactionsPanel> {
     }
   }
 
-  Future<void> _tap(ReactionPalette palette, String value) async {
-    final service = widget.reactions;
-    final auth = widget.auth;
-    if (service == null) return;
+  /// A tap on an option: false when it only asked the member to sign in,
+  /// true when the pick is being saved.
+  bool _pick(ReactionPalette palette, String value) {
+    if (widget.reactions == null) return false;
     if (!_signedIn) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Sign in from Settings to react.')),
       );
-      return;
+      return false;
     }
+    unawaited(_tap(palette, value));
+    return true;
+  }
+
+  Future<void> _tap(ReactionPalette palette, String value) async {
+    final service = widget.reactions;
+    final auth = widget.auth;
+    if (service == null || !_signedIn) return;
     final before = _state;
     final current = before.mine[palette.key] ?? const <String>[];
     final List<String> next;
@@ -140,7 +150,6 @@ class _ReactionsPanelState extends State<ReactionsPanel> {
   Widget build(BuildContext context) {
     final palettes = ReactionsPanel.palettesFor(widget.post);
     if (palettes.isEmpty) return const SizedBox.shrink();
-    final theme = Theme.of(context);
     final canPick = widget.reactions != null;
     return Padding(
       key: const Key('reactions'),
@@ -148,33 +157,122 @@ class _ReactionsPanelState extends State<ReactionsPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final palette in palettes) ...[
+          for (final palette in palettes)
+            _PaletteRow(
+              key: Key('palette-${palette.key}'),
+              palette: palette,
+              state: _state,
+              onPick: canPick ? (value) => _pick(palette, value) : null,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One palette on a line: the prompt and a button naming the member's
+/// pick (or asking for one). Tapping the button unfolds the option chips
+/// beneath, each with how many members picked it and the member's own
+/// pick selected; picking one (or taking the pick back by tapping it
+/// again) folds them away. Holding a chip names some of the members who
+/// picked it. The prompt and the button wrap onto two lines when the
+/// prompt is long.
+class _PaletteRow extends StatefulWidget {
+  const _PaletteRow({
+    super.key,
+    required this.palette,
+    required this.state,
+    this.onPick,
+  });
+
+  final ReactionPalette palette;
+  final PostReactions state;
+
+  /// Handles a tap on an option; true when the pick was applied.
+  final bool Function(String value)? onPick;
+
+  @override
+  State<_PaletteRow> createState() => _PaletteRowState();
+}
+
+class _PaletteRowState extends State<_PaletteRow> {
+  bool _open = false;
+
+  void _pick(String value) {
+    final onPick = widget.onPick;
+    if (onPick == null) return;
+    // A "pick one" palette is answered; the others stay open for more.
+    if (onPick(value) && widget.palette.pickOne) {
+      setState(() => _open = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = widget.palette;
+    final state = widget.state;
+    final picked = [
+      for (final o in palette.options)
+        if (state.picked(palette.key, o.value)) o.title,
+    ];
+    final summary = picked.isEmpty ? 'Pick one' : picked.join(', ');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 12,
+          children: [
             Text(
               palette.prompt,
-              style: theme.textTheme.labelLarge?.copyWith(
+              style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                for (final option in palette.options)
-                  _ReactionChip(
-                    key: Key('reaction-${palette.key}-${option.value}'),
-                    title: option.title,
-                    count: _state.count(palette.key, option.value),
-                    picked: _state.picked(palette.key, option.value),
-                    who: _state.names(palette.key, option.value)?.line,
-                    onTap: canPick ? () => _tap(palette, option.value) : null,
-                  ),
-              ],
+            TextButton.icon(
+              key: Key('reaction-toggle-${palette.key}'),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.fromLTRB(8, 0, 4, 0),
+                foregroundColor: picked.isEmpty
+                    ? theme.colorScheme.onSurfaceVariant
+                    : theme.colorScheme.primary,
+              ),
+              onPressed: () => setState(() => _open = !_open),
+              iconAlignment: IconAlignment.end,
+              icon: Icon(_open ? Icons.arrow_drop_up : Icons.arrow_drop_down),
+              label: Text(summary),
             ),
-            if (palette != palettes.last) const SizedBox(height: 14),
           ],
-        ],
-      ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 150),
+          alignment: Alignment.topLeft,
+          child: !_open
+              ? const SizedBox(width: double.infinity)
+              : Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      for (final option in palette.options)
+                        _ReactionChip(
+                          key: Key('reaction-${palette.key}-${option.value}'),
+                          title: option.title,
+                          count: state.count(palette.key, option.value),
+                          picked: state.picked(palette.key, option.value),
+                          who: state.names(palette.key, option.value)?.line,
+                          onTap: widget.onPick == null
+                              ? null
+                              : () => _pick(option.value),
+                        ),
+                    ],
+                  ),
+                ),
+        ),
+      ],
     );
   }
 }

@@ -1894,10 +1894,29 @@ void main() {
     expect(find.byKey(const Key('reactions')), findsOneWidget);
     expect(find.text("I've had this pizza"), findsOneWidget);
     expect(find.text('This pizza has fantastic'), findsOneWidget);
+    // Folded: each palette is a line with "Pick one"; the options and
+    // their tallies unfold on demand.
+    expect(find.text('Pick one'), findsNWidgets(2));
+    expect(find.text('Yes · 3'), findsNothing);
+    await tester.tap(find.byKey(const Key('reaction-toggle-had')));
+    await tester.pumpAndSettle();
     expect(find.text('Yes · 3'), findsOneWidget);
     expect(find.text('No'), findsOneWidget);
+    expect(find.text('Cheese · 2'), findsNothing, reason: 'still folded');
+    await tester.tap(find.byKey(const Key('reaction-toggle-fantastic')));
+    await tester.pumpAndSettle();
     expect(find.text('Cheese · 2'), findsOneWidget);
     expect(find.text('Sauce'), findsOneWidget);
+    // The reactions sit after the story, before the comments.
+    final reactionsY = tester.getTopLeft(find.byKey(const Key('reactions'))).dy;
+    expect(
+      reactionsY,
+      greaterThan(tester.getBottomLeft(find.text('Detroit style')).dy),
+    );
+    expect(
+      reactionsY,
+      lessThan(tester.getTopLeft(find.byKey(const Key('comment-count'))).dy),
+    );
     // Nobody is signed in, so nothing was fetched and a tap only asks.
     expect(reactions!.fetched, isEmpty);
     await tester.tap(find.byKey(const Key('reaction-had-yes')));
@@ -1914,6 +1933,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('This bike looks'), findsOneWidget);
     expect(find.text('My favorite part of this bike is its'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('reaction-toggle-looks')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('reaction-toggle-favorite')));
+    await tester.pumpAndSettle();
     for (final title in ['Stylish', 'Rugged', 'Gears/derailleurs', 'Pedals']) {
       expect(find.text(title), findsOneWidget);
     }
@@ -1948,8 +1971,16 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Detroit style'));
     await tester.pumpAndSettle();
-    // The member's own picks came with the fresh tallies.
+    // The member's own picks came with the fresh tallies, and the folded
+    // line names the pick.
     expect(reactions!.fetched, ['Detroit style']);
+    expect(find.text('Yes'), findsOneWidget);
+    Future<void> unfold(String palette) async {
+      await tester.tap(find.byKey(Key('reaction-toggle-$palette')));
+      await tester.pumpAndSettle();
+    }
+
+    await unfold('had');
     FilterChip chip(String key) => tester.widget<FilterChip>(
       find.descendant(
         of: find.byKey(Key('reaction-$key')),
@@ -1979,9 +2010,13 @@ void main() {
       reason: 'nobody picked No',
     );
 
-    // "Pick one": choosing No moves the pick and the tallies.
+    // "Pick one": choosing No moves the pick and the tallies, and the
+    // palette folds again, naming the new pick.
     await tester.tap(find.byKey(const Key('reaction-had-no')));
     await tester.pumpAndSettle();
+    expect(find.byKey(const Key('reaction-had-no')), findsNothing);
+    expect(find.text('No'), findsOneWidget, reason: 'the folded line');
+    await unfold('had');
     expect(chip('had-yes').selected, isFalse);
     expect(chip('had-no').selected, isTrue);
     expect(find.text('Yes · 2'), findsOneWidget);
@@ -1994,18 +2029,24 @@ void main() {
     // Tapping the picked chip takes the pick back.
     await tester.tap(find.byKey(const Key('reaction-had-no')));
     await tester.pumpAndSettle();
+    expect(find.text('Pick one'), findsNWidgets(2));
+    await unfold('had');
     expect(chip('had-no').selected, isFalse);
     expect(find.text('No'), findsOneWidget);
     expect(reactions!.sets.last.$2, {'had': <String>[]});
 
     // The other palette is independent.
+    await unfold('fantastic');
     await tester.tap(find.byKey(const Key('reaction-fantastic-sauce')));
     await tester.pumpAndSettle();
+    await unfold('fantastic');
     expect(chip('fantastic-sauce').selected, isTrue);
     expect(find.text('Sauce · 1'), findsOneWidget);
     expect(find.text('Cheese · 2'), findsOneWidget);
     await tester.tap(find.byKey(const Key('reaction-fantastic-cheese')));
     await tester.pumpAndSettle();
+    expect(find.text('Cheese'), findsOneWidget, reason: 'the folded line');
+    await unfold('fantastic');
     expect(chip('fantastic-sauce').selected, isFalse);
     expect(chip('fantastic-cheese').selected, isTrue);
     expect(find.text('Cheese · 3'), findsOneWidget);
@@ -2019,10 +2060,12 @@ void main() {
     reactions!.fail = true;
     await tester.tap(find.byKey(const Key('reaction-had-yes')));
     await tester.pump();
-    expect(find.text('Yes · 3'), findsOneWidget, reason: 'shown at once');
+    expect(find.text('Yes'), findsOneWidget, reason: 'shown at once');
     await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
-    expect(find.text('Yes · 2'), findsOneWidget, reason: 'put back');
+    expect(find.text('Yes'), findsNothing, reason: 'put back');
+    await unfold('had');
+    expect(find.text('Yes · 2'), findsOneWidget);
     expect(chip('had-yes').selected, isFalse);
     expect(find.text('Could not save that.'), findsOneWidget);
   });
