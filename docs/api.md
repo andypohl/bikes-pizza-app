@@ -142,6 +142,16 @@ always `HH:MM:SS`. The next slot is reported even when the queue is empty.
 Body `{ "id" }`. Takes a queued submission back to pending. Returns
 `{ "status": "pending", "id", ...countdown fields }`. Not queued: `409`.
 
+### `POST /api/queue/{feed}/post-now` (admin)
+
+Body `{ "id" }`. Posts a queued submission at once instead of waiting for
+its slot; it need not be at the front of the queue, and the rest keep
+their order. The website is rebuilt afterwards. Returns
+`{ "posted": <submission>, ...countdown fields }` with `length` the
+queue's size after the post. Not queued: `409` (also while a scheduled
+run is posting it). If publishing fails the entry stays queued with
+`queue.lastError` set, as with a scheduled run.
+
 ## Submission
 
 ```json

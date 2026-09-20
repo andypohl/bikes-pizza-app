@@ -25,6 +25,9 @@ abstract class AdminService {
   /// Takes a queued submission back to pending.
   Future<void> dequeue(String feed, String id);
 
+  /// Posts a queued submission at once instead of at its slot.
+  Future<void> postNow(String feed, String id);
+
   /// Whether the website shows its "Submit a bike or pizza" button.
   Future<bool> submitButton();
 
@@ -578,6 +581,10 @@ class ApiAdminService implements AdminService {
   @override
   Future<void> dequeue(String feed, String id) =>
       _api.post('/queue/${_id(feed)}/remove', body: {'id': id});
+
+  @override
+  Future<void> postNow(String feed, String id) =>
+      _api.post('/queue/${_id(feed)}/post-now', body: {'id': id});
 
   @override
   Future<bool> submitButton() async =>

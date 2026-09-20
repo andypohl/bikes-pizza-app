@@ -202,29 +202,54 @@ export async function queueInfo(feed, { store, now = new Date() }) {
  * request. Returns the posted submission, or null when the queue is empty.
  */
 export async function submitNext(feed, deps) {
-  const { store, log = () => {}, now } = deps;
+  const { store, now } = deps;
   parseFeed(feed);
   const head = await store.queueHead(feed);
   if (!head) return { posted: null, ...(await queueInfo(feed, { store, now })) };
+  return postEntry(head, deps);
+}
 
-  await store.transition(head.id, {
+/**
+ * Posts one queued submission right away, ahead of its slot, for an
+ * administrator (the "Post now" button). The entry need not be at the
+ * front of its queue; the rest of the queue keeps its order.
+ */
+export async function postNow({ feed, id }, admin, deps) {
+  const { store, log = () => {} } = deps;
+  parseFeed(feed);
+  if (typeof id !== "string" || !id) throw new ValidationError("Submission id is required.");
+  const data = await store.get(id);
+  if (!data) throw new AppError("not-found", "That submission no longer exists.");
+  if (data.feed !== feed) throw new ValidationError(`That submission is for the ${data.feed} feed.`);
+  if (data.status !== "queued") {
+    throw new AppError("failed-precondition", data.status === "posting" ? "That submission is being posted right now." : "That submission is not in the queue.");
+  }
+  log("posting queued submission now", { id, feed, by: admin.uid });
+  return postEntry(data, deps);
+}
+
+/** Publishes a queued entry: queued -> posting -> approved, or back to queued with the error. */
+async function postEntry(entry, deps) {
+  const { store, log = () => {}, now } = deps;
+  const feed = entry.feed;
+  await store.transition(entry.id, {
     from: ["queued"],
     patch: { status: "posting" },
     message: "That submission is being posted right now.",
   });
   let result;
   try {
-    result = await publishSubmission(head, deps);
+    result = await publishSubmission(entry, deps);
   } catch (error) {
-    await store.transition(head.id, {
+    await store.transition(entry.id, {
       from: ["posting"],
       patch: { status: "queued", "queue.lastError": error.message },
       message: "unreachable",
     });
     throw error;
   }
-  const q = head.queue ?? {};
-  await store.transition(head.id, {
+  const q = entry.queue ?? {};
+  await store.transition(entry.id, {
     from: ["posting"],
     patch: {
       status: "approved",
@@ -234,8 +259,8 @@ export async function submitNext(feed, deps) {
     },
     message: "unreachable",
   });
-  log("queued submission posted", { id: head.id, feed, ...result });
-  const posted = await serialise(await store.get(head.id), store);
+  log("queued submission posted", { id: entry.id, feed, ...result });
+  const posted = await serialise(await store.get(entry.id), store);
   return { posted, ...(await queueInfo(feed, { store, now })) };
 }
 

@@ -122,6 +122,7 @@ const service = {
     items: async (feed) => ({ feed, length: 1, items: [{ position: 1, id: "s1" }] }),
     add: async (input, admin) => calls.push(["add", input, admin.uid]) && { status: "queued", position: 3 },
     remove: async (input, admin) => calls.push(["remove", input, admin.uid]) && { status: "pending" },
+    postNow: async (input, admin) => calls.push(["post-now", input, admin.uid]) && { posted: { id: input.id }, length: 0 },
     submitNext: async (feed) => calls.push(["submit-next", feed]) && { posted: { id: "s1" }, length: 0 },
   },
 };
@@ -219,6 +220,14 @@ test("queue reads are for members, queue changes for admins", async () => {
   const rm = await call("/api/queue/bikes/remove", { token: "admin2fa", method: "POST", body: { id: "s2" } });
   assert.equal(rm.status, 200);
   assert.deepEqual(calls, [["remove", { id: "s2", feed: "bikes" }, "a1"]]);
+
+  calls.length = 0;
+  assert.equal((await call("/api/queue/pizza/post-now", { token: "member", method: "POST", body: { id: "s3" } })).status, 403);
+  assert.equal((await call("/api/queue/pizza/post-now", { token: "admin", method: "POST", body: { id: "s3" } })).status, 403);
+  const now = await call("/api/queue/pizza/post-now", { token: "admin2fa", method: "POST", body: { id: "s3" } });
+  assert.equal(now.status, 200);
+  assert.equal(now.body.posted.id, "s3");
+  assert.deepEqual(calls, [["post-now", { id: "s3", feed: "pizza" }, "a1"]]);
 });
 
 test("unknown endpoints are JSON 404s", async () => {

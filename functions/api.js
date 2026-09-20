@@ -12,6 +12,7 @@
 //   POST /api/submissions               verified user; same body as submitPost
 //   GET  /api/queue/:feed/countdown-time {feed, length, nextPostAt, seconds, countdown, clock}
 //   POST /api/queue/:feed/remove        admin; {id}
+//   POST /api/queue/:feed/post-now      admin; {id}; posts a queued submission at once
 //   GET  /api/site/settings             public (no token); {submitButton}
 //   GET  /api/members/:username         public (a token, if sent, says who is looking); the profile
 //   GET  /api/members/:username/posts   public; ?feed=pizza|bikes&page= — the member's posts in one feed
@@ -185,6 +186,10 @@ export function createApi({ verifyToken, service, log = () => {} }) {
   api.post(
     "/queue/:feed/remove",
     wrap((req) => queue.remove({ ...req.body, feed: req.params.feed }, secondFactorAdminFromClaims(req.claims))),
+  );
+  api.post(
+    "/queue/:feed/post-now",
+    wrap((req) => queue.postNow({ ...req.body, feed: req.params.feed }, secondFactorAdminFromClaims(req.claims))),
   );
 
   // Editing posts: the credited member, or an admin whose session passed
