@@ -22,10 +22,11 @@ export const MAX_PAGE = 50;
  * inspects every photo first (SafeSearch and people checks, see
  * vision.js), the main one and then the additional ones, and throws when
  * one fails, before anything is stored; what it saw is kept on the record
- * for the reviewer.
+ * for the reviewer. The submission is from the member's username (looked
+ * up through `members`), not a name they typed.
  */
-export async function createSubmission(data, user, { store, processImage, safeSearch, notify, log = () => {} }) {
-  const submission = validateSubmission(data);
+export async function createSubmission(data, user, { store, members, processImage, safeSearch, notify, log = () => {} }) {
+  const submission = { ...validateSubmission(data), from: await senderName(user, members, log) };
   const pipeline = { processImage, safeSearch };
   const main = await preparePhoto(submission.image.bytes, pipeline);
   const extras = [];
@@ -45,6 +46,17 @@ export async function createSubmission(data, user, { store, processImage, safeSe
 
   const notified = await notify(submission, user);
   return { submissionId: id, notified };
+}
+
+/** Who a submission is from, for the reviewer: the member's username. */
+async function senderName(user, members, log) {
+  if (!members) return "a member";
+  try {
+    return (await members.get(user.uid))?.username || "a member";
+  } catch (error) {
+    log("member lookup failed; submitting without a username", { uid: user.uid, message: error.message });
+    return "a member";
+  }
 }
 
 /** Validates the body of a review request. */
@@ -95,7 +107,7 @@ function notPending(status) {
 /**
  * Makes the post: the photos' renditions go to Storage and the document
  * to Firestore, credited to the submitter with the username they have
- * now (their typed name is kept as `credit.name`). The slug comes from the
+ * now (the name the submission was from is kept as `credit.name`). The slug comes from the
  * title and the submission id, so a retry after a failure lands on the
  * same post rather than a second one.
  */

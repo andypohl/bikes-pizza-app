@@ -77,7 +77,6 @@ Creates a submission for the signed-in member (the same body the
 {
   "feed": "pizza" | "bikes",
   "title": "…",
-  "from": "…",
   "description": "optional",
   "image": { "data": "<base64>", "contentType": "image/jpeg" | "image/png" | "image/webp" },
   "images": [ { "data": "<base64>", "contentType": "…" }, ... ]
@@ -97,8 +96,10 @@ different photo." or "Your photo seems to show a person or a face. Please
 choose a photo of just the bike or the pizza." (see `functions/vision.js`
 for the thresholds); for an additional picture the message starts with
 "Additional photo 2" instead of "Your photo", so the member knows which
-one to swap. Returns `{ "submissionId", "notified" }`, where `notified`
-says whether the reviewer email went out.
+one to swap. The submission is from the member's username (there is no
+name field; the reviewer sees the username, and the published post is
+credited to it). Returns `{ "submissionId", "notified" }`, where
+`notified` says whether the reviewer email went out.
 
 ## Queues
 

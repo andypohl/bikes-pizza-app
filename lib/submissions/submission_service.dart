@@ -38,7 +38,6 @@ class Submission {
   const Submission({
     required this.feed,
     required this.title,
-    required this.from,
     required this.description,
     required this.photo,
     this.extras = const [],
@@ -46,7 +45,6 @@ class Submission {
 
   final PostFeed feed;
   final String title;
-  final String from;
   final String description;
 
   /// The main photo.
@@ -96,7 +94,6 @@ class CloudFunctionsSubmissionService implements SubmissionService {
           .call<Map<String, dynamic>>({
             'feed': submission.feed.name,
             'title': submission.title,
-            'from': submission.from,
             'description': submission.description,
             'image': _encode(submission.photo),
             'images': [for (final extra in submission.extras) _encode(extra)],

@@ -102,7 +102,6 @@ const png = pngBytes.toString("base64");
 const body = {
   feed: "bikes",
   title: "Trek 970",
-  from: "Ada",
   description: "Story",
   image: { data: png, contentType: "image/png" },
 };
@@ -116,11 +115,15 @@ const CLEAN = { adult: "VERY_UNLIKELY", spoof: "UNLIKELY", medical: "VERY_UNLIKE
 const NOBODY = { faces: 0, faceConfidence: 0, persons: 0, personScore: 0 };
 const safeSearch = async () => ({ ok: true, likelihoods: CLEAN, people: NOBODY });
 
+/** The member store as createSubmission uses it: the sender's username. */
+const membersOf = { get: async (uid) => ({ email: "x@y.z", username: uid === user.uid ? "ada_bikes" : "" }) };
+
 async function seeded() {
   const store = memoryStore();
-  await createSubmission(body, user, { store, processImage, safeSearch, notify: async () => true });
+  await createSubmission(body, user, { store, members: membersOf, processImage, safeSearch, notify: async () => true });
   await createSubmission({ ...body, feed: "pizza", title: "Slice" }, user, {
     store,
+    members: membersOf,
     processImage,
     safeSearch,
     notify: async () => false,
@@ -131,20 +134,37 @@ async function seeded() {
 test("createSubmission stores the photos, the record and a download token", async () => {
   const store = memoryStore();
   const notified = [];
-  const result = await createSubmission(body, user, {
+  const members = { get: async (uid) => ({ username: uid === user.uid ? "ada_bikes" : "" }) };
+  const result = await createSubmission({ ...body, from: "Someone Else" }, user, {
     store,
+    members,
     processImage,
     safeSearch,
-    notify: async (s, u) => notified.push([s.title, u.uid]) && true,
+    notify: async (s, u) => notified.push([s.title, s.from, u.uid]) && true,
   });
   assert.deepEqual(result, { submissionId: "s1", notified: true });
   const doc = store.docs.get("s1");
   assert.equal(doc.status, "pending");
+  // The sender is the member's username, whatever the request said.
+  assert.equal(doc.from, "ada_bikes");
   assert.equal(doc.image.token, "tok1");
   assert.equal(doc.image.width, 640);
   assert.equal(store.files.get("submissions/s1/photo.jpg").metadata.firebaseStorageDownloadTokens, "tok1");
   assert.equal(store.files.get("submissions/s1/thumb.jpg").bytes.toString(), "thumb");
-  assert.deepEqual(notified, [["Trek 970", "u1"]]);
+  assert.deepEqual(notified, [["Trek 970", "ada_bikes", "u1"]]);
+});
+
+test("createSubmission falls back to 'a member' without a username", async () => {
+  const store = memoryStore();
+  const logs = [];
+  const deps = { store, processImage, safeSearch, notify: async () => true, log: (m) => logs.push(m) };
+  await createSubmission(body, user, deps);
+  assert.equal(store.docs.get("s1").from, "a member");
+  await createSubmission(body, user, { ...deps, members: { get: async () => null } });
+  assert.equal(store.docs.get("s2").from, "a member");
+  await createSubmission(body, user, { ...deps, members: { get: async () => { throw new Error("down"); } } });
+  assert.equal(store.docs.get("s3").from, "a member");
+  assert.ok(logs.includes("member lookup failed; submitting without a username"));
 });
 
 test("createSubmission stores additional photos after inspecting each, and serialises them", async () => {
@@ -358,7 +378,7 @@ test("submitNext posts the oldest entry as a Firestore post with renditions, and
   assert.equal(doc.status, "published");
   assert.equal(doc.publishedAt, NOW.toISOString());
   assert.equal(doc.html, "<p>Story</p>");
-  assert.deepEqual(doc.credit, { uid: "u1", username: "ada_bikes", name: "Ada" });
+  assert.deepEqual(doc.credit, { uid: "u1", username: "ada_bikes", name: "ada_bikes" });
   assert.deepEqual(doc.source, { system: "submission", id: "s1" });
   assert.deepEqual(doc.image.sizes, [400, 640]);
   assert.equal([...posts.files.keys()].filter((k) => k.startsWith("posts/trek-970-s1/")).length, 6);
@@ -391,7 +411,7 @@ test("submitNext publishes the additional photos as renditions on the post", asy
   assert.deepEqual((await posts.get(`plain-${empty.submissionId}`)).images, []);
 });
 
-test("submitNext still posts, with the typed name, when the member lookup fails", async () => {
+test("submitNext still posts, with the username recorded at submission, when the member lookup fails", async () => {
   const store = await seeded();
   await enqueue({ feed: "bikes", id: "s1", note: "" }, admin, { store, now: NOW });
   const logs = [];
@@ -399,7 +419,7 @@ test("submitNext still posts, with the typed name, when the member lookup fails"
   const members = { get: async () => { throw new Error("members down"); } };
   const result = await submitNext("bikes", { store, posts, members, siteUrl: "https://example.com", now: NOW, log: (m, d) => logs.push([m, d]) });
   assert.equal(result.posted.status, "approved");
-  assert.deepEqual((await posts.get("trek-970-s1")).credit, { uid: "u1", username: "", name: "Ada" });
+  assert.deepEqual((await posts.get("trek-970-s1")).credit, { uid: "u1", username: "", name: "ada_bikes" });
   assert.ok(logs.some(([m]) => /member lookup failed/.test(m)));
 });
 

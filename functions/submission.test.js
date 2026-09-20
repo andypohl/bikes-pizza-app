@@ -9,7 +9,6 @@ const png = Buffer.from("89504e470d0a1a0a", "hex").toString("base64");
 const good = {
   feed: "bikes",
   title: "  1991 Trek 970 ",
-  from: "Ada",
   description: "First line\nsecond line\n\nNew paragraph <b>",
   image: { data: png, contentType: "image/png" },
 };
@@ -26,7 +25,6 @@ test("validateSubmission rejects bad requests", () => {
   bad({ feed: "news" });
   bad({ title: "" });
   bad({ title: "x".repeat(256) });
-  bad({ from: "   " });
   bad({ image: undefined });
   bad({ image: { data: png, contentType: "image/gif" } });
   bad({ image: { data: "", contentType: "image/png" } });

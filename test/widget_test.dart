@@ -3093,7 +3093,6 @@ void main() {
   );
 
   Future<void> openSubmitForm(WidgetTester tester, String tab) async {
-    members ??= FakeMemberService(); // pre-fills From with the username
     await pumpApp(tester);
     await signInWithGoogle(tester);
     await tester.tap(find.text(tab));
@@ -3107,16 +3106,10 @@ void main() {
     expect(find.widgetWithText(AppBar, 'Submit Bike'), findsOneWidget);
     expect(find.text('Main photo'), findsOneWidget);
     expect(find.text('(e.g. 1991 Trek 970 mountain bike!)'), findsOneWidget);
-    expect(find.text('(your name/nickname)'), findsOneWidget);
     expect(find.text('Description/Story'), findsOneWidget);
-    // The member's username pre-fills From.
-    expect(
-      tester
-          .widget<TextFormField>(find.byKey(const Key('from')))
-          .controller
-          ?.text,
-      'oldname',
-    );
+    // Nothing asks who it is from: the credit is the member's username.
+    expect(find.byKey(const Key('from')), findsNothing);
+    expect(find.text('From'), findsNothing);
     await tester.pageBack();
     await tester.pumpAndSettle();
 
@@ -3129,14 +3122,12 @@ void main() {
 
   testWidgets('submission form requires a photo and a title', (tester) async {
     await openSubmitForm(tester, 'Bikes');
-    await tester.enterText(find.byKey(const Key('from')), '');
     await scrollToSubmit(tester);
     await tester.tap(find.byKey(const Key('submit')));
     await tester.pumpAndSettle();
 
     expect(find.text('Please add a photo.'), findsOneWidget);
     expect(find.text('Please give it a title.'), findsOneWidget);
-    expect(find.text('Tell us who this is from.'), findsOneWidget);
     expect(submissions.submissions, isEmpty);
   });
 
@@ -3163,7 +3154,6 @@ void main() {
     expect(find.text('Change photo'), findsOneWidget);
 
     await tester.enterText(find.byKey(const Key('title')), ' Pepperoni ');
-    await tester.enterText(find.byKey(const Key('from')), 'Andy');
     await tester.enterText(
       find.byKey(const Key('description')),
       'Crispy edges.',
@@ -3175,7 +3165,6 @@ void main() {
     final sent = submissions.submissions.single;
     expect(sent.feed, PostFeed.pizza);
     expect(sent.title, 'Pepperoni');
-    expect(sent.from, 'Andy');
     expect(sent.description, 'Crispy edges.');
     expect(sent.photo.contentType, 'image/png');
     expect(find.text('Thanks!'), findsOneWidget);
@@ -3225,7 +3214,6 @@ void main() {
     );
 
     await tester.enterText(find.byKey(const Key('title')), 'Trek');
-    await tester.enterText(find.byKey(const Key('from')), 'Andy');
     await scrollToSubmit(tester);
     await tester.tap(find.byKey(const Key('submit')));
     await tester.pumpAndSettle();

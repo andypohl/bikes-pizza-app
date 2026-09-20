@@ -412,7 +412,14 @@ const userAdminDeps = () => ({
 /** The submission operations, bound to Firestore, Storage, Vision and Mailgun. */
 const service = {
   create: (data, user) =>
-    subs.createSubmission(data, user, { store: store(), processImage, safeSearch, notify, log: logger.info }),
+    subs.createSubmission(data, user, {
+      store: store(),
+      members: firestoreMemberStore(getFirestore()),
+      processImage,
+      safeSearch,
+      notify,
+      log: logger.info,
+    }),
   review: async (input, admin) => {
     const result = await subs.reviewSubmission(subs.parseReview(input), admin, {
       store: store(),

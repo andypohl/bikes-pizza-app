@@ -48,11 +48,6 @@ import { API_URL as apiUrl } from '../lib/api';
         </label>
 
         <label class="field">
-          <span>Your name</span>
-          <input name="from" type="text" required maxlength="100" placeholder="How you'd like to be credited" />
-        </label>
-
-        <label class="field">
           <span>Description <span class="font-light text-muted">(optional)</span></span>
           <textarea name="description" rows="5" maxlength="10000" placeholder="Anything you want to say about it"></textarea>
         </label>
@@ -131,7 +126,6 @@ import { API_URL as apiUrl } from '../lib/api';
 
 <script>
   import { onAuth, signInHref, type SiteUser } from '../scripts/auth';
-  import { memberUsername } from '../scripts/member';
   import { watchSettings } from '../scripts/site-settings';
 
   const MAX_EDGE = 2048; // downscale photos before upload; the API's ceiling is 8 MB
@@ -173,12 +167,6 @@ import { API_URL as apiUrl } from '../lib/api';
       return;
     }
     show('form');
-    // Credit defaults to the member's username; it arrives after the form
-    // shows so a slow function never holds the form up.
-    const from = form.elements.namedItem('from') as HTMLInputElement;
-    memberUsername().then((username) => {
-      if (username && !from.value) from.value = username;
-    });
   }
 
   let authKnown = false;
@@ -284,7 +272,6 @@ import { API_URL as apiUrl } from '../lib/api';
         body: JSON.stringify({
           feed,
           title: String(data.get('title')).trim(),
-          from: String(data.get('from')).trim(),
           description: String(data.get('description')).trim(),
           image,
           images,
