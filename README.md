@@ -323,7 +323,8 @@ gains an Admin tab (`admin_screen.dart`) with the same two tools as the
 web pages, on the same REST API (`lib/admin/`): **Review submissions** (`submissions_screen.dart`)
 lists the queues, the website submit button switch, the submissions by
 status with paging, and each one in full with Queue to post / Apply edit,
-Save as draft, Reject and Remove from queue; **Manage users**
+Save as draft, Reject, and for a queued one Post now (publishes it at
+once instead of at its slot) or Remove from queue; **Manage users**
 (`users_screen.dart`) lists every account by most recent post and opens
 one for editing the username, email and newsletters, sending a password
 reset, or deleting it after an "Are you sure?". In landscape the chosen

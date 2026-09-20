@@ -409,6 +409,15 @@ const userAdminDeps = () => ({
   log: logger.warn,
 });
 
+/** What posting a queued submission needs: the stores, the site URL and a log. */
+const queueDeps = () => ({
+  store: store(),
+  posts: posts(),
+  members: firestoreMemberStore(getFirestore()),
+  siteUrl: siteUrl(),
+  log: logger.info,
+});
+
 /** The submission operations, bound to Firestore, Storage, Vision and Mailgun. */
 const service = {
   create: (data, user) =>
@@ -540,14 +549,14 @@ const service = {
   queue: {
     info: (feed) => subs.queueInfo(feed, { store: store() }),
     remove: (input, admin) => subs.dequeue(input, admin, { store: store(), log: logger.info }),
-    submitNext: (feed) =>
-      subs.submitNext(feed, {
-        store: store(),
-        posts: posts(),
-        members: firestoreMemberStore(getFirestore()),
-        siteUrl: siteUrl(),
-        log: logger.info,
-      }),
+    submitNext: (feed) => subs.submitNext(feed, queueDeps()),
+    // An administrator's "Post now": the post goes up at once, so the
+    // website is rebuilt here rather than by the scheduled run.
+    postNow: async (input, admin) => {
+      const result = await subs.postNow(input, admin, queueDeps());
+      if (result.posted) await rebuildWebsite(`${result.feed} queue posted ${result.posted.id} now`);
+      return result;
+    },
   },
 };
 

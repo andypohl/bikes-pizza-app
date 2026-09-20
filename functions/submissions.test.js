@@ -10,6 +10,7 @@ import { SAFE_SEARCH_MESSAGE } from "./vision.js";
 import {
   createSubmission,
   dequeue,
+  postNow,
   enqueue,
   getSubmission,
   listSubmissions,
@@ -339,6 +340,35 @@ test("enqueue and dequeue check the feed and the status", async () => {
   assert.equal(back.length, 0);
   assert.equal(store.docs.get("s1").status, "pending");
   assert.equal(store.docs.get("s1").queue, null);
+});
+
+test("postNow posts a chosen queued entry ahead of the front of the queue", async () => {
+  const store = await seeded();
+  await createSubmission({ ...body, title: "Third" }, user, { store, members: membersOf, processImage, safeSearch, notify: async () => true });
+  await enqueue({ feed: "bikes", id: "s1", note: "first" }, admin, { store, now: NOW });
+  await enqueue({ feed: "bikes", id: "s3", note: "" }, admin, { store, now: NOW });
+  const posts = memoryPostStore();
+  const logs = [];
+  const deps = { store, posts, members: membersOf, siteUrl: "https://example.com", now: NOW, log: (m, d) => logs.push([m, d]) };
+
+  await assert.rejects(postNow({ feed: "pizza", id: "s3" }, admin, deps), (e) => /bikes feed/.test(e.message));
+  await assert.rejects(postNow({ feed: "pizza", id: "s2" }, admin, deps), (e) => e.code === "failed-precondition" && /not in the queue/.test(e.message));
+  await assert.rejects(postNow({ feed: "bikes", id: "zzz" }, admin, deps), (e) => e.code === "not-found");
+  await assert.rejects(postNow({ feed: "bikes", id: "" }, admin, deps), ValidationError);
+
+  const result = await postNow({ feed: "bikes", id: "s3" }, admin, deps);
+  assert.equal(result.feed, "bikes");
+  assert.equal(result.posted.id, "s3");
+  assert.equal(result.posted.status, "approved");
+  assert.equal(result.length, 1); // s1 is still at the front
+  assert.equal((await posts.get("third-s3")).status, "published");
+  assert.equal(store.docs.get("s1").status, "queued");
+  assert.equal(store.docs.get("s3").review.action, "publish");
+  assert.ok(logs.some(([m, d]) => m === "posting queued submission now" && d.by === admin.uid));
+  // The scheduled run then still posts the front of the queue.
+  const next = await submitNext("bikes", deps);
+  assert.equal(next.posted.id, "s1");
+  assert.equal(next.length, 0);
 });
 
 test("queueInfo describes the queue", async () => {

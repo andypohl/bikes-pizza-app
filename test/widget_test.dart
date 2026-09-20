@@ -1029,6 +1029,7 @@ class FakeAdminService implements AdminService {
   bool submitButtonOn = true;
   final reviews = <(String, String, String)>[];
   final dequeued = <String>[];
+  final postedNow = <String>[];
   final updates = <(String, String?, String?, List<String>?)>[];
   final deleted = <String>[];
   final listedStatuses = <String>[];
@@ -1170,6 +1171,12 @@ class FakeAdminService implements AdminService {
   Future<void> dequeue(String feed, String id) async {
     _check();
     dequeued.add(id);
+  }
+
+  @override
+  Future<void> postNow(String feed, String id) async {
+    _check();
+    postedNow.add('$feed/$id');
   }
 
   @override
@@ -3918,6 +3925,29 @@ void main() {
     await tester.pumpAndSettle();
     expect(admin.dequeued, ['s2']);
     expect(find.textContaining('pending again'), findsOneWidget);
+  });
+
+  testWidgets('a queued submission can be posted now', (tester) async {
+    await settingsAsAdmin(tester);
+    await tester.tap(find.byKey(const Key('admin-submissions')));
+    await tester.pumpAndSettle();
+    // Pending submissions offer no Post now.
+    await tester.tap(find.byKey(const Key('submission-s1')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('review-post-now')), findsNothing);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('filter-queued')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('submission-s2')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('review-post-now')));
+    await tester.pumpAndSettle();
+    expect(admin.postedNow, hasLength(1));
+    expect(admin.postedNow.single, endsWith('/s2'));
+    expect(admin.dequeued, isEmpty);
+    expect(find.textContaining('Posted;'), findsOneWidget);
   });
 
   testWidgets('landscape tablets review a submission beside the list', (

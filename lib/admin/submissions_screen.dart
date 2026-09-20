@@ -374,8 +374,9 @@ class _SubmissionsScreenState extends State<SubmissionsScreen> {
 }
 
 /// One submission in full with the review actions: Queue to post (Apply
-/// edit for an edit), Reject after a confirmation, and for a queued one Remove from queue. [onDone] gets a
-/// message once an action has gone through.
+/// edit for an edit), Reject after a confirmation, and for a queued one
+/// Post now (published at once, ahead of its slot) or Remove from queue.
+/// [onDone] gets a message once an action has gone through.
 class SubmissionDetail extends StatefulWidget {
   const SubmissionDetail({
     super.key,
@@ -438,6 +439,20 @@ class _SubmissionDetailState extends State<SubmissionDetail> {
     setState(() => _busy = false);
     if (ok == true) {
       widget.onDone('Removed from the queue; it is pending again.');
+    }
+  }
+
+  Future<void> _postNow() async {
+    final s = widget.submission;
+    setState(() => _busy = true);
+    final ok = await guardAdmin(context, widget.auth, () async {
+      await widget.admin.postNow(s.feed, s.id);
+      return true;
+    });
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (ok == true) {
+      widget.onDone('Posted; the website is being rebuilt.');
     }
   }
 
@@ -591,13 +606,22 @@ class _SubmissionDetailState extends State<SubmissionDetail> {
         ],
         if (s.isQueued) ...[
           const SizedBox(height: 16),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton(
-              key: const Key('review-dequeue'),
-              onPressed: _busy ? null : _dequeue,
-              child: const Text('Remove from queue'),
-            ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.icon(
+                key: const Key('review-post-now'),
+                onPressed: _busy ? null : _postNow,
+                icon: const Icon(Icons.rocket_launch_outlined),
+                label: const Text('Post now'),
+              ),
+              OutlinedButton(
+                key: const Key('review-dequeue'),
+                onPressed: _busy ? null : _dequeue,
+                child: const Text('Remove from queue'),
+              ),
+            ],
           ),
         ],
         const SizedBox(height: 24),
