@@ -120,6 +120,7 @@ class SettingsScreen extends StatelessWidget {
           const _SectionHeader('About'),
           const _AboutTile(),
           const _PrivacyTile(),
+          const _TermsTile(),
           const _ContactTile(),
           _DeleteAccountSection(auth: auth, members: members),
         ],
@@ -553,6 +554,28 @@ class _PrivacyTile extends StatelessWidget {
       leading: const Icon(Icons.privacy_tip_outlined),
       title: const Text('Privacy policy'),
       subtitle: const Text('What we collect and how to delete your account'),
+      trailing: const Icon(Icons.open_in_new),
+      onTap: _open,
+    );
+  }
+}
+
+/// Opens the website's terms of use, on the same site as the privacy policy.
+class _TermsTile extends StatelessWidget {
+  const _TermsTile();
+
+  Future<bool> _open() {
+    final uri = Uri.parse('${SiteConfig.siteUrl}/terms');
+    return launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      key: const Key('terms-of-use'),
+      leading: const Icon(Icons.gavel_outlined),
+      title: const Text('Terms of use'),
+      subtitle: const Text('The rules for posts, comments and messages'),
       trailing: const Icon(Icons.open_in_new),
       onTap: _open,
     );
