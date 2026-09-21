@@ -3357,7 +3357,7 @@ void main() {
     expect(app().themeMode, ThemeMode.dark);
   });
 
-  testWidgets('the Show me slider hides the Pizza or Bikes tab', (
+  testWidgets('the Show me choice hides the Pizza or Bikes tab', (
     tester,
   ) async {
     await pumpApp(tester);
@@ -3365,13 +3365,15 @@ void main() {
     expect(find.byKey(const Key('tab-bikes')), findsOneWidget);
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
-    final slider = find.byKey(const Key('show-me'));
-    expect(tester.widget<Slider>(slider).value, 1, reason: 'both by default');
+    final showMe = find.byKey(const Key('show-me'));
+    Set<FeedChoice> selected() =>
+        tester.widget<SegmentedButton<FeedChoice>>(showMe).selected;
+    expect(selected(), {FeedChoice.both}, reason: 'both by default');
 
-    // Left end: bikes only, so Pizza goes; Settings stays selected.
-    await tester.drag(slider, const Offset(-400, 0));
+    // Bikes only: Pizza goes; Settings stays selected.
+    await tester.tap(find.text('Bikes only'));
     await tester.pumpAndSettle();
-    expect(tester.widget<Slider>(slider).value, 0);
+    expect(selected(), {FeedChoice.bikesOnly});
     expect(find.byKey(const Key('tab-pizza')), findsNothing);
     expect(find.byKey(const Key('tab-bikes')), findsOneWidget);
     expect(find.widgetWithText(AppBar, 'Settings'), findsOneWidget);
@@ -3380,15 +3382,15 @@ void main() {
       'bikesOnly',
     );
 
-    // Right end: pizza only, so Bikes goes and Pizza is back.
-    await tester.drag(slider, const Offset(800, 0));
+    // Pizza only: Bikes goes and Pizza is back.
+    await tester.tap(find.text('Pizza only'));
     await tester.pumpAndSettle();
-    expect(tester.widget<Slider>(slider).value, 2);
+    expect(selected(), {FeedChoice.pizzaOnly});
     expect(find.byKey(const Key('tab-pizza')), findsOneWidget);
     expect(find.byKey(const Key('tab-bikes')), findsNothing);
 
-    // Back to the middle: both again, and the Bikes tab still works.
-    await tester.drag(slider, const Offset(-400, 0));
+    // Back to both, and the Bikes tab still works.
+    await tester.tap(find.text('Bikes + pizza'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('tab-bikes')), findsOneWidget);
     await tester.tap(find.text('Bikes'));
