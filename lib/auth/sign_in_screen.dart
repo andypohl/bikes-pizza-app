@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../account/member_service.dart';
 import '../account/pending_profile.dart';
+import '../config.dart';
 import 'auth_service.dart';
 import 'passkey_service.dart';
 
@@ -540,11 +542,58 @@ class _SignInScreenState extends State<SignInScreen> {
                     label: const Text('Continue with Apple'),
                   ),
                 ],
+                const SizedBox(height: 24),
+                const _Agreement(),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// What signing up means: the terms of use (which rule out objectionable
+/// content and abusive members) and the privacy policy, both on the website.
+class _Agreement extends StatelessWidget {
+  const _Agreement();
+
+  static Future<bool> _open(String path) => launchUrl(
+    Uri.parse('${SiteConfig.siteUrl}$path'),
+    mode: LaunchMode.externalApplication,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      children: [
+        Text(
+          'By creating an account or continuing, you agree to the Terms of '
+          'Use and the Privacy Policy. There is no tolerance for '
+          'objectionable content or abusive members.',
+          key: const Key('agreement'),
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        Wrap(
+          alignment: WrapAlignment.center,
+          children: [
+            TextButton(
+              key: const Key('agreement-terms'),
+              onPressed: () => _open('/terms'),
+              child: const Text('Terms of Use'),
+            ),
+            TextButton(
+              key: const Key('agreement-privacy'),
+              onPressed: () => _open('/privacy'),
+              child: const Text('Privacy Policy'),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

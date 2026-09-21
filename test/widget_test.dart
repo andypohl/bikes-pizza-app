@@ -3440,6 +3440,47 @@ void main() {
     expect(find.text('Privacy policy'), findsOneWidget);
   });
 
+  testWidgets('Settings links to the terms of use', (tester) async {
+    await pumpApp(tester);
+
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+
+    final tile = find.byKey(const Key('terms-of-use'));
+    await tester.dragUntilVisible(
+      tile,
+      find.byType(ListView),
+      const Offset(0, -100),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tile, findsOneWidget);
+    expect(find.text('Terms of use'), findsOneWidget);
+  });
+
+  testWidgets('the sign-in screen says what signing up agrees to', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign in'));
+    await tester.pumpAndSettle();
+
+    final agreement = find.byKey(const Key('agreement'));
+    await tester.dragUntilVisible(
+      agreement,
+      find.byType(SingleChildScrollView),
+      const Offset(0, -100),
+    );
+    expect(
+      tester.widget<Text>(agreement).data,
+      contains('no tolerance for objectionable content'),
+    );
+    expect(find.byKey(const Key('agreement-terms')), findsOneWidget);
+    expect(find.byKey(const Key('agreement-privacy')), findsOneWidget);
+  });
+
   testWidgets('Settings offers a contact address', (tester) async {
     await pumpApp(tester);
 
