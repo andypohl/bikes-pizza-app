@@ -7,7 +7,7 @@ const contact = 'privacy@bikes.pizza';
 const removals = 'remove.post@bikes.pizza';
 // Everything that is neither a privacy request nor a takedown.
 const general = 'contact@bikes.pizza';
-const updated = 'September 9, 2026';
+const updated = 'September 20, 2026';
 ---
 
 <Layout
@@ -46,6 +46,14 @@ const updated = 'September 9, 2026';
           them; if you use Apple's Hide My Email, we only ever see the relay
           address Apple gives us, not your real one.
         </p>
+        <p class="mt-4">
+          You also choose a username. Your username is public: it appears on your
+          profile page, on your comments, to members you message, and as the
+          credit on anything of yours that is published. Your profile shows your
+          username, when you joined, how many bikes and pizzas you have posted,
+          and a location if you choose to add one. Pick a username you are
+          comfortable having in public; it does not have to be your real name.
+        </p>
 
         <h3 class="mt-6 text-lg text-ink">Comments and messages</h3>
         <p class="mt-2">
@@ -77,10 +85,10 @@ const updated = 'September 9, 2026';
 
         <h3 class="mt-6 text-lg text-ink">Submissions</h3>
         <p class="mt-2">
-          When you submit a photo we store the image together with the title,
-          description, and name you attach to it, the account it came from
-          (including the email address on that account), and the time it arrived.
-          Your email address is never published.
+          When you submit a photo we store the image together with the title and
+          description you attach to it, the account it came from (including its
+          username and the email address on that account), and the time it
+          arrived. Your email address is never published.
         </p>
         <p class="mt-4">
           Please read the rest of this part carefully, because it is the one place
@@ -90,14 +98,14 @@ const updated = 'September 9, 2026';
           review, reproduce, resize, publish, and display the photo and its
           accompanying text on bikes.pizza and in the bikes.pizza apps, as part of
           a lasting public archive of bicycles and pizza. If a reviewer approves
-          the submission it becomes a post, published with the title, description,
-          and name you supplied, and posts are intended to remain available
-          indefinitely as a historical record.
+          the submission it becomes a post, published with the title and
+          description you supplied and credited to your username, and posts are
+          intended to remain available indefinitely as a historical record.
         </p>
         <p class="mt-4">
           Posts are not part of your account. A post you submitted is retained, and
-          remains public, after your account is deleted, whoever deletes it and for
-          whatever reason. The section "Published posts and requests for removal"
+          remains public with the username it was credited to, after your account
+          is deleted, whoever deletes it and for whatever reason. The section "Published posts and requests for removal"
           below explains what can and cannot be done about that.
         </p>
 
@@ -188,7 +196,9 @@ const updated = 'September 9, 2026';
           You can delete your account yourself, at any time, from the Settings
           screen in the app or from the account page on this website. Deleting an
           account removes your sign-in details, your email address as an account
-          identifier, your passkeys, and any authenticator enrollment.
+          identifier, your username and profile page, your passkeys, and any
+          authenticator enrollment. The username becomes available for someone
+          else to choose.
         </p>
         <p class="mt-4">
           Deleting your account does not delete posts that have already been
