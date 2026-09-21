@@ -87,6 +87,12 @@ class SettingsScreen extends StatelessWidget {
             threads: threads,
           ),
           const Divider(),
+          const _SectionHeader('Show me'),
+          _ShowMeChoice(
+            choice: settings.feedChoice,
+            onChanged: settings.setFeedChoice,
+          ),
+          const Divider(),
           const _SectionHeader('Appearance'),
           RadioGroup<ThemeMode>(
             groupValue: settings.themeMode,
@@ -449,6 +455,32 @@ class _DeleteAccountTileState extends State<_DeleteAccountTile> {
       subtitle: const Text('Removes your sign-in and profile for good'),
       enabled: !_busy,
       onTap: _confirm,
+    );
+  }
+}
+
+/// The "Show me" choice: bikes only on the left, both in the middle,
+/// pizza only on the right. Leaving a feed out hides its tab.
+class _ShowMeChoice extends StatelessWidget {
+  const _ShowMeChoice({required this.choice, required this.onChanged});
+
+  final FeedChoice choice;
+  final ValueChanged<FeedChoice> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      child: SegmentedButton<FeedChoice>(
+        key: const Key('show-me'),
+        segments: [
+          for (final option in FeedChoice.values)
+            ButtonSegment(value: option, label: Text(option.label)),
+        ],
+        selected: {choice},
+        showSelectedIcon: false,
+        onSelectionChanged: (picked) => onChanged(picked.single),
+      ),
     );
   }
 }

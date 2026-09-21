@@ -272,10 +272,15 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
+/// The tabs of the bottom bar, in order. Which ones are present depends
+/// on the device (All on tablets), the services wired in (Search, Admin)
+/// and the member's "Show me" setting (Pizza, Bikes).
+enum _Tab { search, all, news, pizza, bikes, store, settings, admin }
+
 class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   /// The tab chosen, or null until one is: the app opens on the first
   /// feed tab (All on a tablet, News on a phone), not on Search.
-  int? _index;
+  _Tab? _tab;
   int _shownBadge = -1;
   StreamSubscription<AppUser?>? _users;
   String? _refreshedFor;
@@ -380,53 +385,59 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     final tablet = isTablet(context);
     final admin = _admin ? widget.admin : null;
     final search = widget.search;
-    // Search comes first, then All on tablets, then News.
-    final homeIndex = search != null ? 1 : 0;
-    final newsIndex = homeIndex + (tablet ? 1 : 0);
-    // News, Pizza, Bikes, Store and Settings, plus the optional tabs.
-    final lastIndex =
-        4 +
-        (tablet ? 1 : 0) +
-        (search != null ? 1 : 0) +
-        (admin != null ? 1 : 0);
-    final pages = <Widget>[
-      if (search != null)
-        SearchScreen(
-          search: search,
-          repository: widget.repository,
-          auth: widget.auth,
-          reactions: widget.reactions,
-          comments: widget.comments,
-          profiles: widget.profiles,
-          threads: widget.threads,
-          editor: widget.editor,
-          photos: widget.photos,
-          unread: widget.unread,
-        ),
-      if (tablet)
-        PostListScreen(
-          feed: PostFeed.all,
-          repository: widget.repository,
-          auth: widget.auth,
-          photos: widget.photos,
-          editor: widget.editor,
-          reactions: widget.reactions,
-          comments: widget.comments,
-          profiles: widget.profiles,
-          threads: widget.threads,
-          messages: widget.messages,
-          unread: widget.unread,
-        ),
-      NewsScreen(
+    final choice = AppSettingsScope.of(context).feedChoice;
+    final home = tablet ? _Tab.all : _Tab.news;
+    final tabs = <_Tab>[
+      if (search != null) _Tab.search,
+      if (tablet) _Tab.all,
+      _Tab.news,
+      if (choice.showsPizza) _Tab.pizza,
+      if (choice.showsBikes) _Tab.bikes,
+      _Tab.store,
+      _Tab.settings,
+      if (admin != null) _Tab.admin,
+    ];
+    // A window can shrink below tablet width, or a feed be switched off
+    // while shown; then the app falls back to the home tab.
+    final selected = tabs.contains(_tab) ? _tab! : home;
+    final index = tabs.indexOf(selected);
+
+    Widget page(_Tab tab) => switch (tab) {
+      _Tab.search => SearchScreen(
+        search: search!,
+        repository: widget.repository,
+        auth: widget.auth,
+        reactions: widget.reactions,
+        comments: widget.comments,
+        profiles: widget.profiles,
+        threads: widget.threads,
+        editor: widget.editor,
+        photos: widget.photos,
+        unread: widget.unread,
+      ),
+      _Tab.all => PostListScreen(
+        feed: PostFeed.all,
+        repository: widget.repository,
+        auth: widget.auth,
+        photos: widget.photos,
+        editor: widget.editor,
+        reactions: widget.reactions,
+        comments: widget.comments,
+        profiles: widget.profiles,
+        threads: widget.threads,
+        messages: widget.messages,
+        unread: widget.unread,
+      ),
+      _Tab.news => NewsScreen(
         repository: widget.repository,
         auth: widget.auth,
         photos: widget.photos,
         editor: widget.editor,
         unread: widget.unread,
-        active: (_index ?? homeIndex).clamp(0, lastIndex) == newsIndex,
+        active: selected == _Tab.news,
       ),
-      PostListScreen(
-        feed: PostFeed.pizza,
+      _Tab.pizza || _Tab.bikes => PostListScreen(
+        feed: tab == _Tab.pizza ? PostFeed.pizza : PostFeed.bikes,
         repository: widget.repository,
         auth: widget.auth,
         submissions: widget.submissions,
@@ -439,26 +450,12 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         messages: widget.messages,
         unread: widget.unread,
       ),
-      PostListScreen(
-        feed: PostFeed.bikes,
-        repository: widget.repository,
-        auth: widget.auth,
-        submissions: widget.submissions,
-        photos: widget.photos,
-        editor: widget.editor,
-        reactions: widget.reactions,
-        comments: widget.comments,
-        profiles: widget.profiles,
-        threads: widget.threads,
-        messages: widget.messages,
-        unread: widget.unread,
-      ),
-      StoreScreen(
+      _Tab.store => StoreScreen(
         repository: widget.store,
         auth: widget.auth,
         cart: widget.cart,
       ),
-      SettingsScreen(
+      _Tab.settings => SettingsScreen(
         auth: widget.auth,
         members: widget.members,
         passkeys: widget.passkeys,
@@ -472,65 +469,71 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         threads: widget.threads,
         messages: widget.messages,
       ),
-      if (admin != null) AdminScreen(auth: widget.auth, admin: admin),
-    ];
-    // A window can shrink below tablet width; keep the index in range.
-    final index = (_index ?? homeIndex).clamp(0, pages.length - 1);
+      _Tab.admin => AdminScreen(auth: widget.auth, admin: admin!),
+    };
+
+    NavigationDestination destination(_Tab tab) => switch (tab) {
+      _Tab.search => const NavigationDestination(
+        key: Key('tab-search'),
+        icon: Icon(Icons.search_outlined),
+        selectedIcon: Icon(Icons.search),
+        label: 'Search',
+      ),
+      _Tab.all => NavigationDestination(
+        icon: _counted(Icons.grid_view_outlined, PostFeed.all),
+        selectedIcon: _counted(Icons.grid_view, PostFeed.all),
+        label: 'All',
+      ),
+      _Tab.news => NavigationDestination(
+        icon: _counted(Icons.newspaper_outlined, PostFeed.news),
+        selectedIcon: _counted(Icons.newspaper, PostFeed.news),
+        label: 'News',
+      ),
+      _Tab.pizza => NavigationDestination(
+        key: const Key('tab-pizza'),
+        icon: _counted(Icons.local_pizza_outlined, PostFeed.pizza),
+        selectedIcon: _counted(Icons.local_pizza, PostFeed.pizza),
+        label: 'Pizza',
+      ),
+      _Tab.bikes => NavigationDestination(
+        key: const Key('tab-bikes'),
+        icon: _counted(Icons.pedal_bike_outlined, PostFeed.bikes),
+        selectedIcon: _counted(Icons.pedal_bike, PostFeed.bikes),
+        label: 'Bikes',
+      ),
+      _Tab.store => const NavigationDestination(
+        icon: Icon(Icons.storefront_outlined),
+        selectedIcon: Icon(Icons.storefront),
+        label: 'Store',
+      ),
+      _Tab.settings => const NavigationDestination(
+        icon: Icon(Icons.settings_outlined),
+        selectedIcon: Icon(Icons.settings),
+        label: 'Settings',
+      ),
+      _Tab.admin => const NavigationDestination(
+        key: Key('tab-admin'),
+        icon: Icon(Icons.admin_panel_settings_outlined),
+        selectedIcon: Icon(Icons.admin_panel_settings),
+        label: 'Admin',
+      ),
+    };
 
     return Scaffold(
-      body: IndexedStack(index: index, children: pages),
+      // Keyed by tab so a page keeps its state when a neighbour is hidden.
+      body: IndexedStack(
+        index: index,
+        children: [
+          for (final tab in tabs)
+            KeyedSubtree(key: ValueKey(tab), child: page(tab)),
+        ],
+      ),
       bottomNavigationBar: ListenableBuilder(
         listenable: widget.unread ?? ValueNotifier<void>(null),
         builder: (context, _) => NavigationBar(
           selectedIndex: index,
-          onDestinationSelected: (i) => setState(() => _index = i),
-          destinations: [
-            if (search != null)
-              const NavigationDestination(
-                key: Key('tab-search'),
-                icon: Icon(Icons.search_outlined),
-                selectedIcon: Icon(Icons.search),
-                label: 'Search',
-              ),
-            if (tablet)
-              NavigationDestination(
-                icon: _counted(Icons.grid_view_outlined, PostFeed.all),
-                selectedIcon: _counted(Icons.grid_view, PostFeed.all),
-                label: 'All',
-              ),
-            NavigationDestination(
-              icon: _counted(Icons.newspaper_outlined, PostFeed.news),
-              selectedIcon: _counted(Icons.newspaper, PostFeed.news),
-              label: 'News',
-            ),
-            NavigationDestination(
-              icon: _counted(Icons.local_pizza_outlined, PostFeed.pizza),
-              selectedIcon: _counted(Icons.local_pizza, PostFeed.pizza),
-              label: 'Pizza',
-            ),
-            NavigationDestination(
-              icon: _counted(Icons.pedal_bike_outlined, PostFeed.bikes),
-              selectedIcon: _counted(Icons.pedal_bike, PostFeed.bikes),
-              label: 'Bikes',
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.storefront_outlined),
-              selectedIcon: Icon(Icons.storefront),
-              label: 'Store',
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.settings_outlined),
-              selectedIcon: Icon(Icons.settings),
-              label: 'Settings',
-            ),
-            if (admin != null)
-              const NavigationDestination(
-                key: Key('tab-admin'),
-                icon: Icon(Icons.admin_panel_settings_outlined),
-                selectedIcon: Icon(Icons.admin_panel_settings),
-                label: 'Admin',
-              ),
-          ],
+          onDestinationSelected: (i) => setState(() => _tab = tabs[i]),
+          destinations: [for (final tab in tabs) destination(tab)],
         ),
       ),
     );
