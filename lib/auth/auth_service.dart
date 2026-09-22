@@ -113,7 +113,8 @@ abstract class AuthService {
   Future<void> sendEmailVerification();
 
   /// Re-fetches the signed-in user so [userChanges] reflects a verification
-  /// completed outside the app.
+  /// completed outside the app, and refreshes the ID token so API calls
+  /// see it too.
   Future<void> reloadUser();
 
   /// Opens the Google account picker and signs in with the chosen account.
@@ -226,7 +227,13 @@ class FirebaseAuthService implements AuthService {
 
   @override
   Future<void> reloadUser() => _guard(() async {
-    await _auth.currentUser?.reload();
+    final user = _auth.currentUser;
+    if (user == null) return;
+    await user.reload();
+    // The reload picks up a verified email, but the cached ID token keeps
+    // saying otherwise until it expires, and the API decides from the
+    // token. A fresh one makes the next call agree with the reload.
+    if (user.emailVerified) await user.getIdToken(true);
   });
 
   @override

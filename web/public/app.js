@@ -230,6 +230,11 @@ async function proceed(user) {
     show("verify");
     return;
   }
+  // Back from the verification link, the account says verified but the ID
+  // token cached at sign-up still says otherwise until it expires, and the
+  // functions decide from the token. Refresh it when the two disagree.
+  const { claims } = await user.getIdTokenResult();
+  if (!claims.email_verified) await user.getIdToken(true);
   if (intent === "account") return showAccount(user);
   // Someone back from the verification link still has sign-up choices
   // waiting here, so they get the check too.
@@ -1009,8 +1014,6 @@ $("#verified").addEventListener("click", async () => {
   busy(true);
   try {
     await auth.currentUser?.reload();
-    // Force a fresh ID token so the function sees email_verified=true.
-    await auth.currentUser?.getIdToken(true);
     if (auth.currentUser?.emailVerified) {
       await proceed(auth.currentUser);
     } else {
