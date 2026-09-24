@@ -249,6 +249,10 @@ button.apple {
   border-color: var(--ink);
 }
 
+#agreement a {
+  color: var(--accent);
+}
+
 button.link {
   display: block;
   width: 100%;
