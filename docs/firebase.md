@@ -342,11 +342,12 @@ creating it with defaults on first use.
   0.5 or more, or a person-like object scores 0.5 or more; the counts and
   top scores are kept on the record for the reviewer). Thresholds are in
   `functions/vision.js`. Then it stores the images in Cloud Storage and a
-  `submissions` document in Firestore, and emails `SUBMISSION_NOTIFY_EMAIL` through Mailgun with a
-  link to the review page (`REVIEW_PAGE_URL`, the submissions domain when
-  empty). Needs the `MAILGUN_API_KEY` secret and `MAILGUN_DOMAIN`; without
-  them or the recipient the email step is skipped. `SUBMISSION_FROM_EMAIL`
-  optionally sets the sender and `MAILGUN_API_BASE` the API region.
+  `submissions` document in Firestore, and emails `SUBMISSION_NOTIFY_EMAIL`
+  through Cloudflare Email Service with a link to the review page
+  (`REVIEW_PAGE_URL`, the submissions domain when empty). Needs the
+  `CLOUDFLARE_EMAIL_TOKEN` secret and `CLOUDFLARE_ACCOUNT_ID`; without them
+  or the recipient the email step is skipped. `MAIL_FROM_EMAIL` optionally
+  sets the sender.
 - `api` (HTTPS, not a callable): the REST API in `functions/api.js`, which
   wraps the same submission logic (list, fetch, review, create, queues) for
   the review page and the app. Served through the submissions Hosting
@@ -404,10 +405,11 @@ described there but not yet imported.
 Both projects share the Shopify store and the Google account, and nothing
 else: Auth users, Firestore data (including the posts), Storage and Cloud
 Functions are separate, so a member of
-bikes.pizza has to sign up again on bikes-pizza.dev. The development project
-sends no submission emails (its deploy leaves `MAILGUN_DOMAIN` empty, and the
-`MAILGUN_API_KEY` secret there is a placeholder). Google and Apple sign-in are
-not configured on it; email/password is.
+bikes.pizza has to sign up again on bikes-pizza.dev. Both projects send
+email through the same Cloudflare account and sending domain (the
+`CLOUDFLARE_EMAIL_TOKEN` secret and `CLOUDFLARE_ACCOUNT_ID` are set on
+both). Google and Apple sign-in are not configured on development;
+email/password is.
 
 The workflows read their settings from GitHub Actions variables, with the
 environment's variables overriding the repository's:
@@ -574,7 +576,10 @@ extension, and secret values.
 7. Deploy rules, indexes, and functions from the repo with `firebase deploy`.
 8. Install the Resize Images extension and point it at the bucket.
 9. Set Functions secrets with the CLI (`firebase functions:secrets:set`):
-   `MAILGUN_API_KEY` and `GITHUB_DISPATCH_TOKEN`; create `functions/.env`
+   `CLOUDFLARE_EMAIL_TOKEN` (a Cloudflare API token with "Email Sending:
+   Edit"; the sending subdomain is onboarded in the Cloudflare dashboard
+   under Email Service → Email Sending, which adds its DNS records) and
+   `GITHUB_DISPATCH_TOKEN`; create `functions/.env`
    from the example file.
 10. For deploys from GitHub Actions, create a service account in the Google
    Cloud console (IAM & Admin → Service Accounts) used only for deploys, with
@@ -597,9 +602,8 @@ extension, and secret values.
     environment (create it first; production may have required reviewers).
     The other variables the workflows read are listed at the top of
     `.github/workflows/deploy.yml`. Steps 1 to 11 apply to both projects;
-    for development, skip the Google and Apple providers, the app
-    registrations and the Mailgun key (set a placeholder so the functions
-    deploy).
+    for development, skip the Google and Apple providers and the app
+    registrations.
 
 ## Rebuilding the app config
 

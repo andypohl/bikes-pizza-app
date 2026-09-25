@@ -91,7 +91,7 @@ test("the email names the post's page when the report is about one", async () =>
 test("a failed email does not lose the report", async () => {
   const { concerns, deps, logs } = await setup({
     notify: async () => {
-      throw new Error("mailgun down");
+      throw new Error("mail down");
     },
   });
   const result = await reportConcern({ kind: "other", reason: "other", details: "hi" }, ada, deps);

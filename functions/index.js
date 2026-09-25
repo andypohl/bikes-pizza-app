@@ -86,17 +86,27 @@ const siteEnvironmentParam = defineString("SITE_ENVIRONMENT", { default: "develo
 const siteUrlParam = defineString("SITE_URL", { default: "" });
 const siteUrl = () => siteUrlParam.value().trim() || "https://bikes.pizza";
 
-// Mailgun sends the notification email (see mail.js). The API key is set
-// with `firebase functions:secrets:set MAILGUN_API_KEY`; the rest lives in
-// functions/.env. Without a real key, domain and recipient the email is
-// skipped.
-const mailgunApiKey = defineSecret("MAILGUN_API_KEY");
-const mailgunDomain = defineString("MAILGUN_DOMAIN", { default: "" });
-const mailgunApiBase = defineString("MAILGUN_API_BASE", { default: "https://api.mailgun.net" });
+// Cloudflare Email Service sends the app's email (see mail.js). The API
+// token is set with `firebase functions:secrets:set CLOUDFLARE_EMAIL_TOKEN`;
+// the account ID lives in functions/.env. Without both, every email is
+// skipped with a warning.
+const cloudflareEmailToken = defineSecret("CLOUDFLARE_EMAIL_TOKEN");
+const cloudflareAccountId = defineString("CLOUDFLARE_ACCOUNT_ID", { default: "" });
 // Who to tell about new submissions.
 const notifyEmail = defineString("SUBMISSION_NOTIFY_EMAIL", { default: "" });
-// Sender; empty means postmaster@<MAILGUN_DOMAIN>.
-const fromEmail = defineString("SUBMISSION_FROM_EMAIL", { default: "" });
+// Sender of everything the functions send; its domain must be onboarded to
+// Email Sending in the Cloudflare account. Empty means the bikes.pizza mailer.
+const fromEmail = defineString("MAIL_FROM_EMAIL", { default: "" });
+const DEFAULT_FROM = "bikes.pizza <robot@mailer.bikes.pizza>";
+
+/** Sends one email ({to, subject, text, html?, replyTo?}), or null when mail is not configured. */
+function mailer() {
+  const token = cloudflareEmailToken.value();
+  const accountId = cloudflareAccountId.value().trim();
+  if (!isMailConfigured({ token, accountId })) return null;
+  const from = fromEmail.value().trim() || DEFAULT_FROM;
+  return (message) => sendMail({ token, accountId, from, ...message });
+}
 // Who to tell about reported concerns; empty means SUBMISSION_NOTIFY_EMAIL.
 const concernEmailTo = defineString("CONCERN_NOTIFY_EMAIL", { default: "" });
 // Link put in the notification email; empty means the submissions site.
@@ -202,7 +212,7 @@ export const updateMember = onCall(memberOptions, (request) =>
  * the other callables this does not insist on a verified email: an account
  * that never verified must still be able to remove itself.
  */
-export const deleteAccount = onCall({ region: "us-central1", secrets: [mailgunApiKey] }, (request) =>
+export const deleteAccount = onCall({ region: "us-central1", secrets: [cloudflareEmailToken] }, (request) =>
   guarded(request.auth?.uid, "delete your account", async () => {
     const uid = request.auth?.uid;
     if (!uid) throw new AppError("unauthenticated", "Sign in first.");
@@ -293,25 +303,16 @@ function reviewUrl() {
 
 async function notify(submission, user) {
   const to = notifyEmail.value().trim();
-  const domain = mailgunDomain.value().trim();
-  const apiKey = mailgunApiKey.value();
-  if (!to || !isMailConfigured({ apiKey, domain })) {
+  const send = mailer();
+  if (!to || !send) {
     logger.warn(
-      "submission email skipped: MAILGUN_API_KEY, MAILGUN_DOMAIN or SUBMISSION_NOTIFY_EMAIL not set",
+      "submission email skipped: CLOUDFLARE_EMAIL_TOKEN, CLOUDFLARE_ACCOUNT_ID or SUBMISSION_NOTIFY_EMAIL not set",
     );
     return false;
   }
   try {
     const mail = notificationEmail({ ...submission, userEmail: user.email, reviewUrl: reviewUrl() });
-    await sendMail({
-      apiKey,
-      domain,
-      apiBase: mailgunApiBase.value(),
-      from: fromEmail.value().trim() || `postmaster@${domain}`,
-      to,
-      replyTo: user.email,
-      ...mail,
-    });
+    await send({ to, replyTo: user.email, ...mail });
     return true;
   } catch (error) {
     // The submission is stored either way; do not fail it.
@@ -324,20 +325,12 @@ async function notify(submission, user) {
 // is not configured; deleteUser treats a failure here as a warning.
 function notifyDeleted(requested) {
   return async ({ uid, email }) => {
-    const domain = mailgunDomain.value().trim();
-    const apiKey = mailgunApiKey.value();
-    if (!isMailConfigured({ apiKey, domain })) {
-      logger.warn("account deletion email skipped: MAILGUN_API_KEY or MAILGUN_DOMAIN not set", { uid });
+    const send = mailer();
+    if (!send) {
+      logger.warn("account deletion email skipped: CLOUDFLARE_EMAIL_TOKEN or CLOUDFLARE_ACCOUNT_ID not set", { uid });
       return;
     }
-    await sendMail({
-      apiKey,
-      domain,
-      apiBase: mailgunApiBase.value(),
-      from: fromEmail.value().trim() || `postmaster@${domain}`,
-      to: email,
-      ...accountDeletedEmail({ email, siteUrl: siteUrl(), requested }),
-    });
+    await send({ to: email, ...accountDeletedEmail({ email, siteUrl: siteUrl(), requested }) });
     logger.info("account deletion email sent", { uid });
   };
 }
@@ -372,21 +365,12 @@ const concernDeps = () => ({
   log: logger.info,
   notify: async (concern) => {
     const to = concernEmailTo.value().trim() || notifyEmail.value().trim();
-    const domain = mailgunDomain.value().trim();
-    const apiKey = mailgunApiKey.value();
-    if (!to || !isMailConfigured({ apiKey, domain })) {
-      logger.warn("concern email skipped: MAILGUN_API_KEY, MAILGUN_DOMAIN or CONCERN_NOTIFY_EMAIL not set", { id: concern.id });
+    const send = mailer();
+    if (!to || !send) {
+      logger.warn("concern email skipped: CLOUDFLARE_EMAIL_TOKEN, CLOUDFLARE_ACCOUNT_ID or CONCERN_NOTIFY_EMAIL not set", { id: concern.id });
       return;
     }
-    await sendMail({
-      apiKey,
-      domain,
-      apiBase: mailgunApiBase.value(),
-      from: fromEmail.value().trim() || `postmaster@${domain}`,
-      to,
-      replyTo: concern.email,
-      ...concernReports.concernEmail(concern, { siteUrl: siteUrl() }),
-    });
+    await send({ to, replyTo: concern.email, ...concernReports.concernEmail(concern, { siteUrl: siteUrl() }) });
   },
 });
 
@@ -398,7 +382,7 @@ const threadDeps = () => ({
   push: push(),
   moderate,
   siteUrl: siteUrl(),
-  // Continuing by email: addresses from Firebase Auth, the mail through Mailgun.
+  // Continuing by email: addresses from Firebase Auth, the mail through Cloudflare.
   emailOf: async (uid) => {
     try {
       return (await getAuth().getUser(uid)).email ?? null;
@@ -406,20 +390,7 @@ const threadDeps = () => ({
       return null;
     }
   },
-  send: isMailConfigured({ apiKey: mailgunApiKey.value(), domain: mailgunDomain.value().trim() })
-    ? ({ to, replyTo, subject, text, html }) =>
-        sendMail({
-          apiKey: mailgunApiKey.value(),
-          domain: mailgunDomain.value().trim(),
-          apiBase: mailgunApiBase.value(),
-          from: fromEmail.value().trim() || `postmaster@${mailgunDomain.value().trim()}`,
-          to,
-          replyTo,
-          subject,
-          text,
-          html,
-        })
-    : null,
+  send: mailer(),
   log: logger.info,
 });
 
@@ -457,7 +428,7 @@ const queueDeps = () => ({
   log: logger.info,
 });
 
-/** The submission operations, bound to Firestore, Storage, Vision and Mailgun. */
+/** The submission operations, bound to Firestore, Storage, Vision and Cloudflare Email. */
 const service = {
   create: (data, user) =>
     subs.createSubmission(data, user, {
@@ -609,7 +580,7 @@ const service = {
 };
 
 export const submitPost = onCall(
-  { region: "us-central1", secrets: [mailgunApiKey], ...heavy },
+  { region: "us-central1", secrets: [cloudflareEmailToken], ...heavy },
   (request) =>
     guarded(request.auth?.uid, "send your submission", () =>
       service.create(request.data, verifiedUser(request)),
@@ -647,7 +618,7 @@ export const purgeNotices = onSchedule({ schedule: "every day 04:30", timeZone: 
 });
 
 export const api = onRequest(
-  { region: "us-central1", secrets: [mailgunApiKey, githubDispatchToken], ...heavy },
+  { region: "us-central1", secrets: [cloudflareEmailToken, githubDispatchToken], ...heavy },
   createApi({
     verifyToken: (token) => getAuth().verifyIdToken(token),
     service,
