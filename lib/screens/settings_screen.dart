@@ -9,10 +9,12 @@ import '../data/post_repository.dart';
 import '../messages/message_tracker.dart';
 import '../messages/thread_service.dart';
 import '../posts/comment_service.dart';
+import '../posts/concern_service.dart';
 import '../posts/profile_service.dart';
 import '../posts/reaction_service.dart';
 import 'blocked_members_screen.dart';
 import 'profile_screen.dart';
+import 'report_concern_screen.dart';
 import '../app_settings.dart';
 import '../auth/auth_service.dart';
 import '../auth/passkey_service.dart';
@@ -38,6 +40,7 @@ class SettingsScreen extends StatelessWidget {
     this.comments,
     this.threads,
     this.messages,
+    this.concerns,
   });
 
   final AuthService auth;
@@ -63,6 +66,9 @@ class SettingsScreen extends StatelessWidget {
   /// Offers "Blocked members" and lets the member's own profile message.
   final ThreadService? threads;
   final MessageTracker? messages;
+
+  /// Offers "Report a concern"; null leaves it out.
+  final ConcernService? concerns;
 
   @override
   Widget build(BuildContext context) {
@@ -121,6 +127,7 @@ class SettingsScreen extends StatelessWidget {
           const _AboutTile(),
           const _PrivacyTile(),
           const _TermsTile(),
+          if (concerns != null) _ReportTile(concerns: concerns!, auth: auth),
           const _ContactTile(),
           _DeleteAccountSection(auth: auth, members: members),
         ],
@@ -578,6 +585,33 @@ class _TermsTile extends StatelessWidget {
       subtitle: const Text('The rules for posts, comments and messages'),
       trailing: const Icon(Icons.open_in_new),
       onTap: _open,
+    );
+  }
+}
+
+/// Opens the report form: objectionable content, abuse, a child safety
+/// concern, or anything else the Report actions elsewhere do not cover.
+class _ReportTile extends StatelessWidget {
+  const _ReportTile({required this.concerns, required this.auth});
+
+  final ConcernService concerns;
+  final AuthService auth;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      key: const Key('report-concern'),
+      leading: const Icon(Icons.flag_outlined),
+      title: const Text('Report a concern'),
+      subtitle: const Text(
+        'Objectionable content, abuse, or a child safety concern',
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ReportConcernScreen(concerns: concerns, auth: auth),
+        ),
+      ),
     );
   }
 }

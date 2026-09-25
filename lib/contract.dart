@@ -260,3 +260,27 @@ const messageEditWindow = Duration(minutes: 5);
 
 /// How much of the newest message a thread carries as its preview.
 const messagePreviewLength = 100;
+
+/// Reporting a concern: the longest details text, in characters.
+const concernMaxDetails = 2000;
+
+/// Reporting a concern: the longest "what" (a link, a title or a username).
+const concernMaxTarget = 200;
+
+/// What a concern can be about, value to label, in display order.
+const concernKinds = <String, String>{
+  'post': 'A post',
+  'member': 'A member',
+  'other': 'Something else',
+};
+
+/// The reasons a concern can be reported for, value to label, in display order.
+const concernReasons = <String, String>{
+  'child_safety': 'Child safety concern',
+  'explicit': 'Sexual or violent content',
+  'harassment': 'Harassment or hate',
+  'person': 'Shows a person or private information',
+  'copyright': 'Copyright, or my photo used without permission',
+  'spam': 'Spam or a scam',
+  'other': 'Something else',
+};

@@ -159,6 +159,14 @@ const extras = post.images.map((image, i) => ({
           )
         }
 
+        <p class="mt-6 text-sm text-muted font-light">
+          Something wrong with this post?{' '}
+          <a
+            href={`mailto:remove.post@bikes.pizza?subject=${encodeURIComponent(`Report: ${post.title}`)}`}
+            class="text-spice hover:underline"
+          >Report it</a>.
+        </p>
+
         <Comments post={post} />
       </div>
     </div>

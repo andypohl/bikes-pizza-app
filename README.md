@@ -14,7 +14,7 @@ Five bottom-bar tabs:
 | Pizza    | Posts tagged `pizza`                                           |
 | Bikes    | Posts tagged `biking` or `off-road-biking`                     |
 | Store    | Product grid from Shopify, a cart, and Shopify checkout      |
-| Settings | Account (sign-in, username, newsletters, password, deletion), Posts (edit what you posted), "Show me" (bikes only, bikes + pizza, or pizza only, which hides the other feed's tab), theme, links to the privacy policy and terms of use |
+| Settings | Account (sign-in, username, newsletters, password, deletion), Posts (edit what you posted), "Show me" (bikes only, bikes + pizza, or pizza only, which hides the other feed's tab), theme, links to the privacy policy and terms of use, "Report a concern" (a post, a member or anything else, child safety included; also a flag button on every post) |
 | Admin    | For signed-in administrators: review submissions and manage users |
 
 Tapping a post opens it in-app with the hero image and full HTML body. A

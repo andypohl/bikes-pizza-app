@@ -94,6 +94,9 @@ const service = {
     queue: async (query, admin) => calls.push(["threads.queue", { ...query }, admin.uid]) && { queue: "reported", threads: [] },
     get: async (id, admin) => calls.push(["threads.get", id, admin.uid]) && { id, messages: [] },
   },
+  concerns: {
+    report: async (data, user) => calls.push(["concerns.report", data, user.uid]) && { reported: true, id: "k1" },
+  },
   comments: {
     list: async (id, query, user) => calls.push(["comments.list", id, { ...query }, user.uid]) && { count: 0, comments: [], next: null },
     create: async (id, data, user) => {
@@ -378,6 +381,7 @@ test("comment routes reach the service with the caller and answer its result", a
   assert.equal((await post("/api/posts/p1/comments/c1/like")).status, 200);
   assert.equal((await call("/api/posts/p1/comments/c1/likes", { token: "member" })).status, 200);
   assert.equal((await post("/api/posts/p1/comments/c1/report", { reason: "spam" })).status, 200);
+  assert.equal((await post("/api/concerns", { kind: "post", reason: "spam", target: "p1" })).status, 200);
   assert.equal((await call("/api/me/notices?since=2026-09-01T00:00:00.000Z", { token: "member" })).status, 200);
   assert.equal((await call("/api/me/export", { token: "member" })).status, 200);
   assert.deepEqual(calls, [
@@ -389,6 +393,7 @@ test("comment routes reach the service with the caller and answer its result", a
     ["comments.like", "p1", "c1", "u1"],
     ["comments.likes", "p1", "c1", "u1"],
     ["comments.report", "p1", "c1", { reason: "spam" }, "u1"],
+    ["concerns.report", { kind: "post", reason: "spam", target: "p1" }, "u1"],
     ["comments.notices", "u1", { since: "2026-09-01T00:00:00.000Z" }],
     ["comments.export", "u1"],
   ]);

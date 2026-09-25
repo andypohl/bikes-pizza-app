@@ -52,6 +52,7 @@ import * as webauthn from "@simplewebauthn/server";
 import { createApi } from "./api.js";
 import { firestoreCommentStore } from "./comment_store.js";
 import * as commenting from "./comments.js";
+import * as concernReports from "./concerns.js";
 import { AppError, ValidationError, userFromClaims } from "./errors.js";
 import { processImage } from "./images.js";
 import { NEWSLETTERS, firestoreMemberStore, loadMember, updateMember as applyMemberUpdate } from "./members.js";
@@ -94,6 +95,8 @@ const mailgunApiBase = defineString("MAILGUN_API_BASE", { default: "https://api.
 const notifyEmail = defineString("SUBMISSION_NOTIFY_EMAIL", { default: "" });
 // Sender; empty means postmaster@<MAILGUN_DOMAIN>.
 const fromEmail = defineString("SUBMISSION_FROM_EMAIL", { default: "" });
+// Who to tell about reported concerns; empty means SUBMISSION_NOTIFY_EMAIL.
+const concernEmailTo = defineString("CONCERN_NOTIFY_EMAIL", { default: "" });
 // Link put in the notification email; empty means the submissions site.
 const reviewPageUrl = defineString("REVIEW_PAGE_URL", { default: "" });
 
@@ -354,6 +357,33 @@ const commentDeps = () => ({
   log: logger.info,
 });
 
+/** What concerns.js needs: its store, the post and member stores, and the mail. */
+const concernDeps = () => ({
+  concerns: concernReports.firestoreConcernStore(getFirestore()),
+  posts: posts(),
+  members: firestoreMemberStore(getFirestore()),
+  now: () => new Date(),
+  log: logger.info,
+  notify: async (concern) => {
+    const to = concernEmailTo.value().trim() || notifyEmail.value().trim();
+    const domain = mailgunDomain.value().trim();
+    const apiKey = mailgunApiKey.value();
+    if (!to || !isMailConfigured({ apiKey, domain })) {
+      logger.warn("concern email skipped: MAILGUN_API_KEY, MAILGUN_DOMAIN or CONCERN_NOTIFY_EMAIL not set", { id: concern.id });
+      return;
+    }
+    await sendMail({
+      apiKey,
+      domain,
+      apiBase: mailgunApiBase.value(),
+      from: fromEmail.value().trim() || `postmaster@${domain}`,
+      to,
+      replyTo: concern.email,
+      ...concernReports.concernEmail(concern, { siteUrl: siteUrl() }),
+    });
+  },
+});
+
 /** What threads.js needs: the thread and member stores, the word lists, the screening call. */
 const threadDeps = () => ({
   threads: threads(),
@@ -500,6 +530,9 @@ const service = {
       await rebuildWebsite(`post ${id} removed by admin`);
       return result;
     },
+  },
+  concerns: {
+    report: (data, user) => concernReports.reportConcern(data, user, concernDeps()),
   },
   // Comments change only the post's counts, which the app reads live and
   // the website picks up at its next rebuild, so nothing is rebuilt here.

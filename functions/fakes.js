@@ -400,3 +400,19 @@ export function memoryThreadStore(members = memoryMemberStore()) {
     },
   };
 }
+
+/** In-memory concern store (concerns.js): `all` is every report stored. */
+export function memoryConcernStore() {
+  const all = [];
+  let n = 0;
+  return {
+    all,
+    newId: () => `concern-${++n}`,
+    async add(concern) {
+      all.push(concern);
+    },
+    async countSince(uid, iso) {
+      return all.filter((c) => c.uid === uid && c.at >= iso).length;
+    },
+  };
+}
