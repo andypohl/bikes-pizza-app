@@ -6,6 +6,7 @@ import '../data/post_repository.dart';
 import '../messages/thread_service.dart';
 import '../models/post.dart';
 import '../posts/comment_service.dart';
+import '../posts/concern_service.dart';
 import '../posts/post_editor.dart';
 import '../posts/profile_service.dart';
 import '../posts/reaction_service.dart';
@@ -32,6 +33,7 @@ class SearchScreen extends StatefulWidget {
     this.auth,
     this.reactions,
     this.comments,
+    this.concerns,
     this.profiles,
     this.threads,
     this.editor,
@@ -44,6 +46,7 @@ class SearchScreen extends StatefulWidget {
   final AuthService? auth;
   final ReactionService? reactions;
   final CommentService? comments;
+  final ConcernService? concerns;
   final ProfileService? profiles;
   final ThreadService? threads;
   final PostEditor? editor;
@@ -100,6 +103,7 @@ class _SearchScreenState extends State<SearchScreen> {
           repository: widget.repository,
           reactions: widget.reactions,
           comments: widget.comments,
+          concerns: widget.concerns,
           profiles: widget.profiles,
           threads: widget.threads,
           auth: widget.auth,

@@ -7,6 +7,7 @@ import '../messages/thread_service.dart';
 import '../models/post.dart';
 import '../models/post_feed.dart';
 import '../posts/comment_service.dart';
+import '../posts/concern_service.dart';
 import '../posts/post_editor.dart';
 import '../posts/profile_service.dart';
 import '../posts/reaction_service.dart';
@@ -16,6 +17,7 @@ import '../submissions/submission_service.dart';
 import '../widgets/edit_post_button.dart';
 import '../widgets/layout.dart';
 import '../widgets/post_article.dart';
+import 'report_concern_screen.dart';
 import '../widgets/post_tile.dart';
 import '../widgets/status_message.dart';
 import 'messages_screen.dart';
@@ -45,6 +47,7 @@ class PostListScreen extends StatefulWidget {
     this.editor,
     this.reactions,
     this.comments,
+    this.concerns,
     this.profiles,
     this.threads,
     this.messages,
@@ -72,6 +75,7 @@ class PostListScreen extends StatefulWidget {
 
   /// Lets signed-in members read and write comments; null shows counts.
   final CommentService? comments;
+  final ConcernService? concerns;
   final AuthService? auth;
   final SubmissionService? submissions;
   final PhotoPicker? photos;
@@ -191,6 +195,7 @@ class _PostListScreenState extends State<PostListScreen> {
           repository: widget.repository,
           reactions: widget.reactions,
           comments: widget.comments,
+          concerns: widget.concerns,
           profiles: widget.profiles,
           threads: widget.threads,
           auth: widget.auth,
@@ -335,6 +340,7 @@ class _PostListScreenState extends State<PostListScreen> {
                           repository: widget.repository,
                           reactions: widget.reactions,
                           comments: widget.comments,
+                          concerns: widget.concerns,
                           profiles: widget.profiles,
                           threads: widget.threads,
                           auth: auth,
@@ -420,6 +426,7 @@ class _PostPane extends StatelessWidget {
     required this.onClose,
     this.reactions,
     this.comments,
+    this.concerns,
     this.profiles,
     this.threads,
     this.auth,
@@ -433,6 +440,7 @@ class _PostPane extends StatelessWidget {
   final VoidCallback onClose;
   final ReactionService? reactions;
   final CommentService? comments;
+  final ConcernService? concerns;
   final ProfileService? profiles;
   final ThreadService? threads;
   final AuthService? auth;
@@ -445,6 +453,7 @@ class _PostPane extends StatelessWidget {
     final auth = this.auth;
     final editor = this.editor;
     final photos = this.photos;
+    final concerns = this.concerns;
     return Column(
       key: const Key('post-pane'),
       children: [
@@ -453,6 +462,21 @@ class _PostPane extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
+              if (concerns != null && auth != null)
+                IconButton(
+                  key: const Key('report-post'),
+                  tooltip: 'Report this post',
+                  icon: const Icon(Icons.flag_outlined),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => ReportConcernScreen(
+                        concerns: concerns,
+                        auth: auth,
+                        post: post,
+                      ),
+                    ),
+                  ),
+                ),
               if (auth != null && editor != null && photos != null)
                 EditPostButton(
                   post: post,

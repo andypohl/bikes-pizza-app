@@ -382,6 +382,66 @@ export const COMMENTS: CommentRules = {
   }
 };
 
+export type ConcernRules = {
+  maxDetails: number;
+  maxTarget: number;
+  perDay: number;
+  kinds: Option[];
+  reasons: Option[];
+};
+
+/** Reporting a concern (a post, a member, or anything else) from the app: lengths, the daily limit, what can be reported and why. */
+
+export const CONCERNS: ConcernRules = {
+  "maxDetails": 2000,
+  "maxTarget": 200,
+  "perDay": 10,
+  "kinds": [
+    {
+      "value": "post",
+      "title": "A post"
+    },
+    {
+      "value": "member",
+      "title": "A member"
+    },
+    {
+      "value": "other",
+      "title": "Something else"
+    }
+  ],
+  "reasons": [
+    {
+      "value": "child_safety",
+      "title": "Child safety concern"
+    },
+    {
+      "value": "explicit",
+      "title": "Sexual or violent content"
+    },
+    {
+      "value": "harassment",
+      "title": "Harassment or hate"
+    },
+    {
+      "value": "person",
+      "title": "Shows a person or private information"
+    },
+    {
+      "value": "copyright",
+      "title": "Copyright, or my photo used without permission"
+    },
+    {
+      "value": "spam",
+      "title": "Spam or a scam"
+    },
+    {
+      "value": "other",
+      "title": "Something else"
+    }
+  ]
+};
+
 export type MemberRules = {
   locationMaxLength: number;
   messages: { maxLength: number; editWindowMinutes: number; previewLength: number; emailedMessages: number; rateLimit: { seconds: number; perDay: number; newThreadsPerDay: number } };

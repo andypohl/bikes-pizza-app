@@ -78,6 +78,7 @@ export const STATUS_FOR_CODE = {
   "permission-denied": 403,
   "not-found": 404,
   "failed-precondition": 409,
+  "resource-exhausted": 429,
   unavailable: 503,
 };
 
@@ -249,6 +250,12 @@ export function createApi({ verifyToken, service, log = () => {} }) {
     api.get("/me/blocks", wrap((req) => threads.blocks(userFromClaims(req.claims))));
     api.get("/admin/threads", wrap((req) => threads.queue(req.query, secondFactorAdminFromClaims(req.claims))));
     api.get("/admin/threads/:id", wrap((req) => threads.get(req.params.id, secondFactorAdminFromClaims(req.claims))));
+  }
+
+  // Reporting a concern (a post, a member, anything): any verified member.
+  const concerns = service.concerns;
+  if (concerns) {
+    api.post("/concerns", wrap((req) => concerns.report(req.body, userFromClaims(req.claims))));
   }
 
   const users = service.users;

@@ -4,6 +4,7 @@ import '../auth/auth_service.dart';
 import '../data/post_repository.dart';
 import '../models/post.dart';
 import '../posts/comment_service.dart';
+import '../posts/concern_service.dart';
 import '../posts/post_editor.dart';
 import '../posts/profile_service.dart';
 import '../messages/thread_service.dart';
@@ -11,6 +12,7 @@ import '../posts/reaction_service.dart';
 import '../submissions/photo_picker.dart';
 import '../widgets/edit_post_button.dart';
 import '../widgets/post_article.dart';
+import 'report_concern_screen.dart';
 
 /// A post opened from a list: the [PostArticle] on its own page, with a
 /// button to open it on bikes.pizza and, for the member who posted it or
@@ -24,6 +26,7 @@ class PostDetailScreen extends StatefulWidget {
     this.repository,
     this.reactions,
     this.comments,
+    this.concerns,
     this.profiles,
     this.threads,
     this.auth,
@@ -36,6 +39,9 @@ class PostDetailScreen extends StatefulWidget {
   final PostRepository? repository;
   final ReactionService? reactions;
   final CommentService? comments;
+
+  /// With [auth], puts a Report button in the app bar; null leaves it out.
+  final ConcernService? concerns;
   final ProfileService? profiles;
   final ThreadService? threads;
   final AuthService? auth;
@@ -60,10 +66,26 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final auth = widget.auth;
     final editor = widget.editor;
     final photos = widget.photos;
+    final concerns = widget.concerns;
     final post = _post;
     return Scaffold(
       appBar: AppBar(
         actions: [
+          if (concerns != null && auth != null)
+            IconButton(
+              key: const Key('report-post'),
+              tooltip: 'Report this post',
+              icon: const Icon(Icons.flag_outlined),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ReportConcernScreen(
+                    concerns: concerns,
+                    auth: auth,
+                    post: post,
+                  ),
+                ),
+              ),
+            ),
           if (auth != null && editor != null && photos != null)
             EditPostButton(
               post: post,

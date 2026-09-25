@@ -23,6 +23,7 @@ import 'package:bikes_pizza/models/post.dart';
 import 'package:bikes_pizza/models/post_feed.dart';
 import 'package:bikes_pizza/posts/app_badge.dart';
 import 'package:bikes_pizza/posts/comment_service.dart';
+import 'package:bikes_pizza/posts/concern_service.dart';
 import 'package:bikes_pizza/posts/post_editor.dart';
 import 'package:bikes_pizza/posts/profile_service.dart';
 import 'package:bikes_pizza/posts/reaction_service.dart';
@@ -932,6 +933,17 @@ class FakeCommentService implements CommentService {
 }
 
 /// Records export requests instead of sharing a file.
+class FakeConcernService implements ConcernService {
+  final reports = <ConcernReport>[];
+  bool fail = false;
+
+  @override
+  Future<void> report(ConcernReport report) async {
+    if (fail) throw ApiException('Try again later.');
+    reports.add(report);
+  }
+}
+
 class FakeDataExporter implements DataExporter {
   int exports = 0;
   bool fail = false;
@@ -1409,6 +1421,7 @@ void main() {
   late FakeAdminService admin;
   FakeReactionService? reactions;
   late FakeCommentService comments;
+  FakeConcernService? concerns;
   late FakeDataExporter exporter;
   FakeProfileService? profiles;
   FakeSearchService? search;
@@ -1432,6 +1445,7 @@ void main() {
     admin = FakeAdminService();
     reactions = FakeReactionService();
     comments = FakeCommentService();
+    concerns = FakeConcernService();
     exporter = FakeDataExporter();
     profiles = FakeProfileService();
     search = FakeSearchService();
@@ -1528,6 +1542,7 @@ void main() {
         editor: editor,
         reactions: reactions,
         comments: comments,
+        concerns: concerns,
         profiles: profiles,
         search: search,
         threads: threads,
@@ -3456,6 +3471,110 @@ void main() {
 
     expect(tile, findsOneWidget);
     expect(find.text('Terms of use'), findsOneWidget);
+  });
+
+  testWidgets('a post has a Report button that sends a concern about it', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    await auth.signIn(email: 'andy@example.com', password: 'correct-horse');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Newest post'));
+    await tester.pumpAndSettle();
+    final flag = find.byKey(const Key('report-post'));
+    expect(flag, findsOneWidget);
+    // First in the app bar: left of the other actions.
+    expect(
+      tester.getTopLeft(flag).dx,
+      lessThan(tester.getTopLeft(find.byIcon(Icons.open_in_browser)).dx),
+    );
+
+    await tester.tap(flag);
+    await tester.pumpAndSettle();
+    expect(find.text('Report a concern'), findsOneWidget);
+    expect(find.byKey(const Key('report-about')), findsOneWidget);
+    expect(find.text('Newest post'), findsOneWidget);
+    // Nothing to send until a reason is picked.
+    final send = find.byKey(const Key('report-send'));
+    expect(tester.widget<FilledButton>(send).onPressed, isNull);
+
+    await tester.tap(find.byKey(const Key('reason-child_safety')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('report-details')),
+      'Please look at this one.',
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(send);
+    await tester.tap(send);
+    await tester.pumpAndSettle();
+
+    final report = concerns!.reports.single;
+    expect(report.kind, 'post');
+    expect(report.reason, 'child_safety');
+    expect(report.target, isNotEmpty);
+    expect(report.details, 'Please look at this one.');
+    expect(find.text('Report a concern'), findsNothing);
+    expect(
+      find.text('Thanks. Child safety reports are handled first.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('signed out, the report form offers sign-in and email instead', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    await tester.tap(find.text('Newest post'));
+    await tester.pumpAndSettle();
+    // Signed out, the post keeps its button (a visitor can still report).
+    expect(find.byKey(const Key('report-post')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('report-post')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('report-send')), findsNothing);
+    expect(find.byKey(const Key('report-signed-out')), findsOneWidget);
+    expect(find.byKey(const Key('report-email')), findsOneWidget);
+  });
+
+  testWidgets('Settings has Report a concern, which asks what it is about', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    await auth.signIn(email: 'andy@example.com', password: 'correct-horse');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+
+    final tile = find.byKey(const Key('report-concern'));
+    await tester.dragUntilVisible(
+      tile,
+      find.byType(ListView),
+      const Offset(0, -100),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(tile);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('report-kind')), findsOneWidget);
+    await tester.tap(find.text('A member'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('report-target')), 'someone');
+    await tester.tap(find.byKey(const Key('reason-harassment')));
+    await tester.pumpAndSettle();
+    final send = find.byKey(const Key('report-send'));
+    await tester.ensureVisible(send);
+    await tester.tap(send);
+    await tester.pumpAndSettle();
+
+    final report = concerns!.reports.single;
+    expect(report.kind, 'member');
+    expect(report.target, 'someone');
+    expect(report.reason, 'harassment');
+    expect(
+      find.text("Thanks. We'll look at it, normally within 24 hours."),
+      findsOneWidget,
+    );
   });
 
   testWidgets('the sign-in screen says what signing up agrees to', (

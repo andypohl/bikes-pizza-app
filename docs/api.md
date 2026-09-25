@@ -34,6 +34,7 @@ Failures are JSON with an HTTP status and a stable code:
 | 403    | `permission-denied`   | Admin endpoint without the claim                  |
 | 404    | `not-found`           | Unknown submission or endpoint                    |
 | 409    | `failed-precondition` | Unverified email; submission already posted       |
+| 429    | `resource-exhausted`  | Too many reported concerns in a day               |
 | 503    | `unavailable`         | Firestore, Storage or another dependency failed   |
 
 Messages are safe to show to the person.
@@ -443,6 +444,21 @@ Reports a comment with a reason from the contract's list
 `{ "reason": "spam" }`. One report per member per comment, never one's
 own (`409`). The second distinct reporter hides the comment until an
 admin decides; answers `{ "reported": true, "hidden": false }`.
+
+### `POST /api/concerns`
+
+Reports a concern to the moderators from the app: a post, a member, or
+anything else (the Report actions on comments and conversations cover
+those). Body: `{ "kind": "post" | "member" | "other", "target": "…",
+"reason": "…", "details": "…" }`. `kind` and `reason` come from the
+contract (`contract/concerns.json`: reasons `child_safety`, `explicit`,
+`harassment`, `person`, `copyright`, `spam`, `other`); `target` names the
+post (its id, a link or a title) or the member (username) and may be
+empty for `other`, where `details` is then required. Lengths are the
+contract's `maxTarget` and `maxDetails`; at most `perDay` reports per
+member per day (`429`). The report is stored (`concerns/{id}`) and mailed
+to the moderation address, marked urgent for `child_safety`. Answers
+`{ "reported": true, "id": "…" }`.
 
 ### `GET /api/me/notices`
 

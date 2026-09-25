@@ -366,6 +366,58 @@ export const COMMENTS = {
   }
 };
 
+/** Reporting a concern (a post, a member, or anything else) from the app: lengths, the daily limit, what can be reported and why. */
+
+export const CONCERNS = {
+  "maxDetails": 2000,
+  "maxTarget": 200,
+  "perDay": 10,
+  "kinds": [
+    {
+      "value": "post",
+      "title": "A post"
+    },
+    {
+      "value": "member",
+      "title": "A member"
+    },
+    {
+      "value": "other",
+      "title": "Something else"
+    }
+  ],
+  "reasons": [
+    {
+      "value": "child_safety",
+      "title": "Child safety concern"
+    },
+    {
+      "value": "explicit",
+      "title": "Sexual or violent content"
+    },
+    {
+      "value": "harassment",
+      "title": "Harassment or hate"
+    },
+    {
+      "value": "person",
+      "title": "Shows a person or private information"
+    },
+    {
+      "value": "copyright",
+      "title": "Copyright, or my photo used without permission"
+    },
+    {
+      "value": "spam",
+      "title": "Spam or a scam"
+    },
+    {
+      "value": "other",
+      "title": "Something else"
+    }
+  ]
+};
+
 /** The rules for member profiles and direct messages: the longest location, the message limits. */
 
 export const MEMBERS = {

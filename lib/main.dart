@@ -22,6 +22,7 @@ import 'data/post_repository.dart';
 import 'models/post_feed.dart';
 import 'posts/app_badge.dart';
 import 'posts/comment_service.dart';
+import 'posts/concern_service.dart';
 import 'posts/post_editor.dart';
 import 'posts/profile_service.dart';
 import 'posts/reaction_service.dart';
@@ -78,6 +79,7 @@ Future<Widget> _loadApp() async {
     editor: ApiPostEditor(api),
     reactions: ApiReactionService(api),
     comments: ApiCommentService(api),
+    concerns: ApiConcernService(api),
     profiles: ApiProfileService(api),
     search: ApiSearchService(api, siteUrl: SiteConfig.siteUrl),
     threads: threads,
@@ -104,6 +106,7 @@ class BikesPizzaApp extends StatelessWidget {
     this.editor,
     this.reactions,
     this.comments,
+    this.concerns,
     this.profiles,
     this.search,
     this.threads,
@@ -144,6 +147,11 @@ class BikesPizzaApp extends StatelessWidget {
   /// posts, and feeds their mention notices to the unread counters;
   /// null shows only the counts.
   final CommentService? comments;
+
+  /// Lets a member report a post, a member or anything else to the
+  /// moderators (a Report button on posts, a tile in Settings); null
+  /// leaves those out.
+  final ConcernService? concerns;
 
   /// Opens a member's profile from their username; null leaves usernames
   /// opening the member's post list.
@@ -201,6 +209,7 @@ class BikesPizzaApp extends StatelessWidget {
             editor: editor,
             reactions: reactions,
             comments: comments,
+            concerns: concerns,
             profiles: profiles,
             search: search,
             threads: threads,
@@ -238,6 +247,7 @@ class HomeShell extends StatefulWidget {
     this.editor,
     this.reactions,
     this.comments,
+    this.concerns,
     this.profiles,
     this.search,
     this.threads,
@@ -259,6 +269,11 @@ class HomeShell extends StatefulWidget {
   final PostEditor? editor;
   final ReactionService? reactions;
   final CommentService? comments;
+
+  /// Lets a member report a post, a member or anything else to the
+  /// moderators (a Report button on posts, a tile in Settings); null
+  /// leaves those out.
+  final ConcernService? concerns;
   final ProfileService? profiles;
   final SearchService? search;
   final ThreadService? threads;
@@ -409,6 +424,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         auth: widget.auth,
         reactions: widget.reactions,
         comments: widget.comments,
+        concerns: widget.concerns,
         profiles: widget.profiles,
         threads: widget.threads,
         editor: widget.editor,
@@ -423,6 +439,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         editor: widget.editor,
         reactions: widget.reactions,
         comments: widget.comments,
+        concerns: widget.concerns,
         profiles: widget.profiles,
         threads: widget.threads,
         messages: widget.messages,
@@ -445,6 +462,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         editor: widget.editor,
         reactions: widget.reactions,
         comments: widget.comments,
+        concerns: widget.concerns,
         profiles: widget.profiles,
         threads: widget.threads,
         messages: widget.messages,
@@ -466,6 +484,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         repository: widget.repository,
         reactions: widget.reactions,
         comments: widget.comments,
+        concerns: widget.concerns,
         threads: widget.threads,
         messages: widget.messages,
       ),

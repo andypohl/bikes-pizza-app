@@ -24,6 +24,7 @@ const rules = read("rules.json");
 const { palettes } = read("reactions.json");
 const comments = read("comments.json");
 const members = read("members.json");
+const concerns = read("concerns.json");
 
 const HEADER = "Generated from contract/*.json by tool/contract/generate.mjs. Do not edit; change the JSON and run the generator.";
 
@@ -93,6 +94,13 @@ function javascript({ typed }) {
   }
   out.push(`/** The rules for comments on posts: lengths, windows, page sizes, report reasons and screening thresholds. */\n`);
   out.push(`export const COMMENTS${t(": CommentRules")} = ${JSON.stringify(comments, null, 2)};\n`);
+  if (typed) {
+    out.push(
+      `export type ConcernRules = {\n  maxDetails: number;\n  maxTarget: number;\n  perDay: number;\n  kinds: Option[];\n  reasons: Option[];\n};\n`,
+    );
+  }
+  out.push(`/** Reporting a concern (a post, a member, or anything else) from the app: lengths, the daily limit, what can be reported and why. */\n`);
+  out.push(`export const CONCERNS${t(": ConcernRules")} = ${JSON.stringify(concerns, null, 2)};\n`);
   if (typed) {
     out.push(
       `export type MemberRules = {\n  locationMaxLength: number;\n  messages: { maxLength: number; editWindowMinutes: number; previewLength: number; emailedMessages: number; rateLimit: { seconds: number; perDay: number; newThreadsPerDay: number } };\n};\n`,
@@ -172,6 +180,10 @@ function dartComments() {
     `/// Direct messages: the longest message, in characters.\nconst messageMaxLength = ${members.messages.maxLength};\n`,
     `/// How long after sending a message its author may still edit it.\nconst messageEditWindow = Duration(minutes: ${members.messages.editWindowMinutes});\n`,
     `/// How much of the newest message a thread carries as its preview.\nconst messagePreviewLength = ${members.messages.previewLength};\n`,
+    `/// Reporting a concern: the longest details text, in characters.\nconst concernMaxDetails = ${concerns.maxDetails};\n`,
+    `/// Reporting a concern: the longest "what" (a link, a title or a username).\nconst concernMaxTarget = ${concerns.maxTarget};\n`,
+    dartMap("concernKinds", concerns.kinds, "What a concern can be about, value to label, in display order."),
+    dartMap("concernReasons", concerns.reasons, "The reasons a concern can be reported for, value to label, in display order."),
   ].join("\n");
 }
 
