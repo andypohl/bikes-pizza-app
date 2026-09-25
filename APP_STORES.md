@@ -22,6 +22,14 @@ automated on purpose.
   `config/local.json` (git-ignored; see README, "Build-time
   configuration") must be present. Release builds use the production
   Firebase project automatically (`lib/main.dart`); no flag is needed.
+- A website change that must reach bikes.pizza (a new page, a policy
+  edit, a URL a store form asks for) needs a release too, even when the
+  app is unchanged: the "Rebuild website" workflow
+  (`.github/workflows/deploy-site.yml`) rebuilds the production site from
+  the latest release tag whenever a post is published or edited, so a
+  manual "Deploy to production" run from `main` is overwritten by the
+  next content change. Bump the version, merge, publish the release, and
+  leave the new store bundles unuploaded.
 
 ## iOS: App Store Connect
 
