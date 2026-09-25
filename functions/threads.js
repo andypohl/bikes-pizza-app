@@ -209,12 +209,12 @@ export async function listMessages(id, query, user, { threads }) {
 
 /** Sends a message: `{message}`. Refused by the screening, a block, or the rate limit. */
 export async function sendMessage(id, data, user, deps) {
-  const { threads, now = () => new Date(), log = () => {} } = deps;
+  const { threads, members, push, now = () => new Date(), log = () => {} } = deps;
   checkId(id);
   const prepared = await prepare(data?.text, deps);
   const at = now();
   const mid = threads.newId();
-  const written = await threads.transact(id, { uid: user.uid }, ({ thread, member }) => {
+  const result = await threads.transact(id, { uid: user.uid }, ({ thread, member }) => {
     memberOf(thread, user.uid);
     if ((thread.blockedBy ?? []).length) throw new AppError("permission-denied", "This conversation is closed.");
     const rate = rateCheck(member, at);
@@ -239,10 +239,15 @@ export async function sendMessage(id, data, user, deps) {
         [`unread.${other}`]: (thread.unread?.[other] ?? 0) + 1,
       },
       member: rate,
-      result: message,
+      result: { message, other },
     };
   });
+  const { message: written, other } = result;
   log("message sent", { thread: id, by: user.uid, id: mid });
+  if (push && other) {
+    const username = members ? ((await members.get(user.uid))?.username ?? "") : "";
+    await push.messageSent({ threadId: id, other, username, text: written.text });
+  }
   return { message: publicMessage(written) };
 }
 

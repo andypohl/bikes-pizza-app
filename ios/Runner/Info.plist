@@ -13,6 +13,10 @@
 	<false/>
 	<key>CFBundleDisplayName</key>
 	<string>bikes.pizza</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>

@@ -52,6 +52,7 @@ class MemberProfile {
     this.username = '',
     this.location = '',
     this.messages = true,
+    this.notifications = const {},
     this.newsletters = const [],
   });
 
@@ -65,6 +66,10 @@ class MemberProfile {
 
   /// Whether other members may message them.
   final bool messages;
+
+  /// The member's push notification preferences by category (the contract's
+  /// member-scope categories): messages, comments, replies.
+  final Map<String, bool> notifications;
   final List<Newsletter> newsletters;
 
   factory MemberProfile.fromJson(Map<String, dynamic> json) {
@@ -74,6 +79,11 @@ class MemberProfile {
       username: json['username'] as String? ?? '',
       location: json['location'] as String? ?? '',
       messages: json['messages'] != false,
+      notifications: {
+        if (json['notifications'] is Map)
+          for (final e in (json['notifications'] as Map).entries)
+            if (e.value is bool) e.key.toString(): e.value as bool,
+      },
       newsletters: [
         if (newsletters is List)
           for (final n in newsletters.whereType<Map>())
@@ -103,6 +113,7 @@ abstract class MemberService {
     List<String>? newsletters,
     String? location,
     bool? messages,
+    Map<String, bool>? notifications,
   });
 
   /// Deletes the member's account for good: the sign-in and the profile.
@@ -151,11 +162,13 @@ class CloudFunctionsMemberService implements MemberService {
     List<String>? newsletters,
     String? location,
     bool? messages,
+    Map<String, bool>? notifications,
   }) => _call('updateMember', {
     'username': ?username,
     'newsletters': ?newsletters,
     'location': ?location,
     'messages': ?messages,
+    'notifications': ?notifications,
   });
 
   @override

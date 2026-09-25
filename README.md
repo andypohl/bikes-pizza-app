@@ -14,11 +14,20 @@ Five bottom-bar tabs:
 | Pizza    | Posts tagged `pizza`                                           |
 | Bikes    | Posts tagged `biking` or `off-road-biking`                     |
 | Store    | Product grid from Shopify, a cart, and Shopify checkout      |
-| Settings | Account (sign-in, username, newsletters, password, deletion), Posts (edit what you posted), "Show me" (bikes only, bikes + pizza, or pizza only, which hides the other feed's tab), theme, links to the privacy policy and terms of use, "Report a concern" (a post, a member or anything else, child safety included; also a flag button on every post) |
+| Settings | Account (sign-in, username, newsletters, password, deletion), Posts (edit what you posted), "Show me" (bikes only, bikes + pizza, or pizza only, which hides the other feed's tab), theme, links to the privacy policy and terms of use, "Report a concern" (a post, a member or anything else, child safety included; also a flag button on every post), Notifications (new posts, updated posts, messages, comments on your posts, replies) |
 | Admin    | For signed-in administrators: review submissions and manage users |
 
 Tapping a post opens it in-app with the hero image and full HTML body. A
 toolbar button opens the post in the browser.
+
+Push notifications (Firebase Cloud Messaging, `lib/notifications/`): new and
+updated posts are topics per feed that each device subscribes to according
+to its switches and its "Show me" choice (a hidden feed's topics are
+dropped), signed in or not; messages, comments on the member's posts, and
+replies or mentions go to the devices a member registered, if their
+preferences allow (`Settings → Notifications`). The permission is asked
+once, after the first screen. Tapping a notification opens the post or the
+conversation. The server side is `functions/push.js`.
 
 Signed-in members (verified email) see a "Submit Pizza" / "Submit Bike"
 button under the Pizza and Bikes lists, between the list and the tab bar.

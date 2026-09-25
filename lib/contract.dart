@@ -284,3 +284,52 @@ const concernReasons = <String, String>{
   'spam': 'Spam or a scam',
   'other': 'Something else',
 };
+
+/// Push notification categories, in display order: the switch's value, label and
+/// description, whether it is a per-device topic (`device`) or a member preference,
+/// and its default.
+const notificationCategories =
+    <({String value, String title, String description, bool device, bool on})>[
+      (
+        value: 'newPosts',
+        title: 'New posts',
+        description: 'When a bike or a pizza is posted (and news)',
+        device: true,
+        on: true,
+      ),
+      (
+        value: 'updatedPosts',
+        title: 'Updated posts',
+        description: 'When a post is edited',
+        device: true,
+        on: false,
+      ),
+      (
+        value: 'messages',
+        title: 'Direct messages',
+        description: 'When a member messages you',
+        device: false,
+        on: true,
+      ),
+      (
+        value: 'comments',
+        title: 'Comments on your posts',
+        description: 'When someone comments on a post you submitted',
+        device: false,
+        on: true,
+      ),
+      (
+        value: 'replies',
+        title: 'Replies and mentions',
+        description:
+            'When someone replies where you commented, or mentions you',
+        device: false,
+        on: true,
+      ),
+    ];
+
+/// Topic name prefixes for the broadcast categories; the feed is appended with a dash.
+const notificationTopics = <String, String>{
+  'newPosts': 'new-posts',
+  'updatedPosts': 'updated-posts',
+};

@@ -21,6 +21,36 @@ class FirestoreClient {
     '/v1/projects/$projectId/databases/(default)/documents:runQuery',
   );
 
+  Uri documentUri(String path) => Uri.https(
+    'firestore.googleapis.com',
+    '/v1/projects/$projectId/databases/(default)/documents/$path',
+  );
+
+  /// One document's fields with its `id` added, or null when there is no
+  /// such document (or the rules hide it).
+  Future<Map<String, dynamic>?> getDocument(String path) async {
+    final response = await _client.get(
+      documentUri(path),
+      headers: const {'Accept': 'application/json'},
+    );
+    if (response.statusCode == 404 || response.statusCode == 403) return null;
+    if (response.statusCode != 200) {
+      throw FirestoreException(
+        'Firestore returned HTTP ${response.statusCode}',
+      );
+    }
+    final document = jsonDecode(response.body);
+    if (document is! Map) {
+      throw FirestoreException('Unexpected Firestore reply');
+    }
+    final fields = document['fields'];
+    final name = document['name'] as String? ?? '';
+    return {
+      ...decodeFields(fields is Map ? fields : const {}),
+      'id': name.split('/').last,
+    };
+  }
+
   /// Runs a structured query and returns the matching documents' fields,
   /// each with its `id` (the last part of the document path) added.
   Future<List<Map<String, dynamic>>> runQuery(

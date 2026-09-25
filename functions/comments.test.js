@@ -452,3 +452,28 @@ test("a member who blocked another does not see their comments", async () => {
   const failing = await listComments("detroit-slice", {}, ada, { ...deps, blocks: async () => { throw new Error("down"); } });
   assert.equal(failing.comments.length, 2, "a failed blocks lookup hides nothing");
 });
+
+test("a published comment is pushed to the post's author and the thread it replies in", async () => {
+  const { deps, say } = await setup();
+  const pushed = [];
+  deps.push = { commentPublished: async (args) => pushed.push(args) };
+  const top = await say(ada, "Looks great");
+  assert.equal(pushed.length, 1);
+  assert.equal(pushed[0].post.slug, "detroit-slice");
+  assert.equal(pushed[0].comment.id, top.id);
+  assert.ok(Array.isArray(pushed[0].all));
+  await say(bob, "Agreed", { parentId: top.id });
+  assert.equal(pushed.length, 2);
+  assert.equal(pushed[1].comment.parentId, top.id);
+  // The thread so far is handed over, so the recipients can be worked out.
+  assert.ok(pushed[1].all.some((c) => c.id === top.id));
+});
+
+test("a held comment is not pushed until it is published", async () => {
+  const { deps, say } = await setup({ scores: { Politics: 0.9 } });
+  const pushed = [];
+  deps.push = { commentPublished: async (args) => pushed.push(args) };
+  const held = await say(ada, "Vote for pizza");
+  assert.equal(held.status, "pending");
+  assert.equal(pushed.length, 0);
+});

@@ -105,3 +105,12 @@ test("updateMember refuses a username another member holds, whatever its case", 
   assert.equal(store.docs.get("u1").username, "");
   assert.equal(store.docs.get("u1").updatedAt, undefined);
 });
+
+test("updateMember merges notification preferences with the ones already set", async () => {
+  const store = memoryStore({ u1: { email: "a@b.c", username: "ada", notifications: { messages: false } } });
+  const now = () => new Date("2026-09-25T00:00:00.000Z");
+  await updateMember({ uid: "u1" }, { notifications: { replies: false } }, { store, now });
+  assert.deepEqual((await store.get("u1")).notifications, { messages: false, replies: false });
+  await updateMember({ uid: "u1" }, { notifications: { messages: true } }, { store, now });
+  assert.deepEqual((await store.get("u1")).notifications, { messages: true, replies: false });
+});

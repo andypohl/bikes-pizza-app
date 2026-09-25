@@ -97,6 +97,10 @@ const service = {
   concerns: {
     report: async (data, user) => calls.push(["concerns.report", data, user.uid]) && { reported: true, id: "k1" },
   },
+  devices: {
+    register: async (data, user) => calls.push(["devices.register", data, user.uid]) && { registered: true },
+    remove: async (token, user) => calls.push(["devices.remove", token, user.uid]) && { removed: true },
+  },
   comments: {
     list: async (id, query, user) => calls.push(["comments.list", id, { ...query }, user.uid]) && { count: 0, comments: [], next: null },
     create: async (id, data, user) => {
@@ -382,6 +386,8 @@ test("comment routes reach the service with the caller and answer its result", a
   assert.equal((await call("/api/posts/p1/comments/c1/likes", { token: "member" })).status, 200);
   assert.equal((await post("/api/posts/p1/comments/c1/report", { reason: "spam" })).status, 200);
   assert.equal((await post("/api/concerns", { kind: "post", reason: "spam", target: "p1" })).status, 200);
+  assert.equal((await post("/api/me/devices", { token: "tok", platform: "ios" })).status, 200);
+  assert.equal((await call("/api/me/devices/tok", { token: "member", method: "DELETE" })).status, 200);
   assert.equal((await call("/api/me/notices?since=2026-09-01T00:00:00.000Z", { token: "member" })).status, 200);
   assert.equal((await call("/api/me/export", { token: "member" })).status, 200);
   assert.deepEqual(calls, [
@@ -394,6 +400,8 @@ test("comment routes reach the service with the caller and answer its result", a
     ["comments.likes", "p1", "c1", "u1"],
     ["comments.report", "p1", "c1", { reason: "spam" }, "u1"],
     ["concerns.report", { kind: "post", reason: "spam", target: "p1" }, "u1"],
+    ["devices.register", { token: "tok", platform: "ios" }, "u1"],
+    ["devices.remove", "tok", "u1"],
     ["comments.notices", "u1", { since: "2026-09-01T00:00:00.000Z" }],
     ["comments.export", "u1"],
   ]);

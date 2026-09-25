@@ -103,7 +103,13 @@ export async function updateMember(user, patch, { store, now = () => new Date(),
     throw new ValidationError("That location can't be used.");
   }
   if (username !== undefined) await store.setUsername(user.uid, username);
-  await store.set(user.uid, { ...rest, updatedAt: now() });
+  const { notifications, ...fields } = rest;
+  if (notifications) {
+    // A partial patch: the categories not named keep their setting.
+    const current = (await store.get(user.uid))?.notifications ?? {};
+    fields.notifications = { ...current, ...notifications };
+  }
+  await store.set(user.uid, { ...fields, updatedAt: now() });
   return store.get(user.uid);
 }
 

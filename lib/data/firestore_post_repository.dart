@@ -151,6 +151,19 @@ class FirestorePostRepository implements PostRepository {
   }
 
   @override
+  Future<Post?> fetchPost(String id) async {
+    if (id.isEmpty || id.contains('/')) return null;
+    final Map<String, dynamic>? row;
+    try {
+      row = await _firestore.getDocument('posts/$id');
+    } on FirestoreException catch (e) {
+      throw PostFetchException(e.message);
+    }
+    if (row == null || row['status'] != 'published') return null;
+    return Post.fromJson(row, siteUrl: siteUrl);
+  }
+
+  @override
   Future<List<PostChange>> fetchChanges({required DateTime since}) async {
     final List<Map<String, dynamic>> changed;
     final List<Map<String, dynamic>> commented;

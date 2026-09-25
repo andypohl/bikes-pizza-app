@@ -30,6 +30,9 @@ class _Changes implements PostRepository {
   @override
   Future<PostPage> fetchPosts(PostFeed feed, {int page = 1, String? uid}) =>
       throw UnimplementedError();
+
+  @override
+  Future<Post?> fetchPost(String id) => throw UnimplementedError();
 }
 
 PostChange _change(

@@ -22,6 +22,10 @@ automated on purpose.
   `config/local.json` (git-ignored; see README, "Build-time
   configuration") must be present. Release builds use the production
   Firebase project automatically (`lib/main.dart`); no flag is needed.
+- Push notifications on iOS need the APNs authentication key uploaded to
+  the Firebase project's Cloud Messaging settings (both projects; see
+  docs/firebase.md, console step 6a). Without it, iOS devices get no
+  notifications at all, though the app runs normally.
 - A website change that must reach bikes.pizza (a new page, a policy
   edit, a URL a store form asks for) needs a release too, even when the
   app is unchanged: the "Rebuild website" workflow

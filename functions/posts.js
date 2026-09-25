@@ -238,7 +238,7 @@ export async function applyEdit(posts, doc, edit, { imageBytes, extras, now = ne
  * edit per post at a time.
  */
 export async function updatePost(slug, data, actor, deps) {
-  const { posts, store, members, processImage, safeSearch, notify, siteUrl, log = () => {} } = deps;
+  const { posts, store, members, processImage, safeSearch, notify, siteUrl, push, log = () => {} } = deps;
   let doc = await load(slug, actor, posts);
   const edit = validateEdit(data, doc.feed);
 
@@ -262,6 +262,7 @@ export async function updatePost(slug, data, actor, deps) {
     }
     const updated = await applyEdit(posts, doc, edit, { imageBytes, extras });
     log("post edited", { slug: doc.slug, by: actor.uid, fields: Object.keys(edit) });
+    if (push) await push.postUpdated(updated);
     return { status: "applied", post: editable(updated, siteUrl) };
   }
   if (edit.storyFormat) throw new ValidationError("Only administrators can set the story format.");
@@ -338,7 +339,7 @@ export async function updatePost(slug, data, actor, deps) {
  * submissions.js when a reviewer approves one). Returns `{postId, postUrl,
  * postStatus}` like publishing a submission does.
  */
-export async function applyEditSubmission(data, { store, posts, siteUrl }) {
+export async function applyEditSubmission(data, { store, posts, siteUrl, push }) {
   const doc = await posts.get(data.post?.slug ?? data.post?.id);
   if (!doc) throw new AppError("not-found", "The post this edit is for no longer exists.");
   const { image: _image, images: withImages, ...edit } = data.changes ?? {};
@@ -349,6 +350,7 @@ export async function applyEditSubmission(data, { store, posts, siteUrl }) {
     for (const extra of data.images ?? []) extras.push(extra.keep ? { keep: extra.keep } : { bytes: await store.readImage(extra.path) });
   }
   const updated = await applyEdit(posts, doc, edit, { imageBytes, extras });
+  if (push) await push.postUpdated(updated);
   return { postId: updated.slug, postUrl: publicPost(updated, siteUrl).url, postStatus: "published" };
 }
 
@@ -384,7 +386,7 @@ export function validateNewPost(data, { now = new Date() } = {}) {
  * answers `{status: "applied", post}` like an edit does. The slug comes
  * from the title plus a random suffix, so two posts may share a title.
  */
-export async function createPost(data, actor, { posts, processImage, siteUrl, now = new Date(), log = () => {} }) {
+export async function createPost(data, actor, { posts, processImage, siteUrl, push, now = new Date(), log = () => {} }) {
   if (!actor.admin) throw new AppError("permission-denied", "Only administrators can write posts.");
   const post = validateNewPost(data, { now });
   const slug = slugFor(post.title, post.feed, randomUUID());
@@ -403,6 +405,7 @@ export async function createPost(data, actor, { posts, processImage, siteUrl, no
   });
   await posts.create(slug, doc);
   log("post written", { slug, feed: post.feed, by: actor.uid });
+  if (push) await push.postPublished(doc);
   return { status: "applied", post: editable(await posts.get(slug), siteUrl) };
 }
 

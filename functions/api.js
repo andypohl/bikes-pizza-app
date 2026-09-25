@@ -252,6 +252,14 @@ export function createApi({ verifyToken, service, log = () => {} }) {
     api.get("/admin/threads/:id", wrap((req) => threads.get(req.params.id, secondFactorAdminFromClaims(req.claims))));
   }
 
+  // Push notification devices: the caller's own, registered at sign-in
+  // and forgotten at sign-out.
+  const devices = service.devices;
+  if (devices) {
+    api.post("/me/devices", wrap((req) => devices.register(req.body, userFromClaims(req.claims))));
+    api.delete("/me/devices/:token", wrap((req) => devices.remove(req.params.token, userFromClaims(req.claims))));
+  }
+
   // Reporting a concern (a post, a member, anything): any verified member.
   const concerns = service.concerns;
   if (concerns) {

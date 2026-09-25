@@ -9,11 +9,14 @@ import '../data/post_repository.dart';
 import '../messages/message_tracker.dart';
 import '../messages/thread_service.dart';
 import '../posts/comment_service.dart';
+import '../notifications/notification_settings.dart';
+import '../notifications/push_coordinator.dart';
 import '../posts/concern_service.dart';
 import '../posts/profile_service.dart';
 import '../posts/reaction_service.dart';
 import 'blocked_members_screen.dart';
 import 'profile_screen.dart';
+import 'notifications_screen.dart';
 import 'report_concern_screen.dart';
 import '../app_settings.dart';
 import '../auth/auth_service.dart';
@@ -41,6 +44,8 @@ class SettingsScreen extends StatelessWidget {
     this.threads,
     this.messages,
     this.concerns,
+    this.notifications,
+    this.coordinator,
   });
 
   final AuthService auth;
@@ -70,6 +75,10 @@ class SettingsScreen extends StatelessWidget {
   /// Offers "Report a concern"; null leaves it out.
   final ConcernService? concerns;
 
+  /// Both needed for the Notifications tile; null hides it.
+  final NotificationSettings? notifications;
+  final PushCoordinator? coordinator;
+
   @override
   Widget build(BuildContext context) {
     final settings = AppSettingsScope.of(context);
@@ -98,6 +107,16 @@ class SettingsScreen extends StatelessWidget {
             choice: settings.feedChoice,
             onChanged: settings.setFeedChoice,
           ),
+          if (notifications != null && coordinator != null) ...[
+            const Divider(),
+            const _SectionHeader('Notifications'),
+            _NotificationsTile(
+              notifications: notifications!,
+              coordinator: coordinator!,
+              auth: auth,
+              members: members,
+            ),
+          ],
           const Divider(),
           const _SectionHeader('Appearance'),
           RadioGroup<ThemeMode>(
@@ -585,6 +604,42 @@ class _TermsTile extends StatelessWidget {
       subtitle: const Text('The rules for posts, comments and messages'),
       trailing: const Icon(Icons.open_in_new),
       onTap: _open,
+    );
+  }
+}
+
+/// Opens the notification switches.
+class _NotificationsTile extends StatelessWidget {
+  const _NotificationsTile({
+    required this.notifications,
+    required this.coordinator,
+    required this.auth,
+    this.members,
+  });
+
+  final NotificationSettings notifications;
+  final PushCoordinator coordinator;
+  final AuthService auth;
+  final MemberService? members;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      key: const Key('notifications'),
+      leading: const Icon(Icons.notifications_outlined),
+      title: const Text('Notifications'),
+      subtitle: const Text('New posts, messages, comments and replies'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => NotificationsScreen(
+            notifications: notifications,
+            coordinator: coordinator,
+            auth: auth,
+            members: members,
+          ),
+        ),
+      ),
     );
   }
 }

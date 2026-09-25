@@ -25,6 +25,7 @@ const { palettes } = read("reactions.json");
 const comments = read("comments.json");
 const members = read("members.json");
 const concerns = read("concerns.json");
+const notifications = read("notifications.json");
 
 const HEADER = "Generated from contract/*.json by tool/contract/generate.mjs. Do not edit; change the JSON and run the generator.";
 
@@ -101,6 +102,14 @@ function javascript({ typed }) {
   }
   out.push(`/** Reporting a concern (a post, a member, or anything else) from the app: lengths, the daily limit, what can be reported and why. */\n`);
   out.push(`export const CONCERNS${t(": ConcernRules")} = ${JSON.stringify(concerns, null, 2)};\n`);
+  if (typed) {
+    out.push(
+      `export type NotificationCategory = { value: string; title: string; description: string; scope: "device" | "member"; default: boolean };\n`,
+      `export type NotificationRules = { categories: NotificationCategory[]; topics: Record<string, string> };\n`,
+    );
+  }
+  out.push(`/** Push notifications: the categories a person can switch, and the topic names the broadcast ones use (suffixed with the feed). */\n`);
+  out.push(`export const NOTIFICATIONS${t(": NotificationRules")} = ${JSON.stringify(notifications, null, 2)};\n`);
   if (typed) {
     out.push(
       `export type MemberRules = {\n  locationMaxLength: number;\n  messages: { maxLength: number; editWindowMinutes: number; previewLength: number; emailedMessages: number; rateLimit: { seconds: number; perDay: number; newThreadsPerDay: number } };\n};\n`,
@@ -184,6 +193,39 @@ function dartComments() {
     `/// Reporting a concern: the longest "what" (a link, a title or a username).\nconst concernMaxTarget = ${concerns.maxTarget};\n`,
     dartMap("concernKinds", concerns.kinds, "What a concern can be about, value to label, in display order."),
     dartMap("concernReasons", concerns.reasons, "The reasons a concern can be reported for, value to label, in display order."),
+    dartNotifications(),
+  ].join("\n");
+}
+
+/**
+ * The notification categories as a Dart list of records, plus the topic
+ * prefixes, laid out the way `dart format` leaves them (a field whose line
+ * would pass 80 columns goes on the next line, as the formatter does).
+ */
+function dartNotifications() {
+  const field = (name, value) => {
+    const line = `        ${name}: ${value},`;
+    return line.length <= 80 ? line : `        ${name}:\n            ${value},`;
+  };
+  const rows = notifications.categories
+    .map((c) =>
+      [
+        "      (",
+        field("value", dartString(c.value)),
+        field("title", dartString(c.title)),
+        field("description", dartString(c.description)),
+        field("device", String(c.scope === "device")),
+        field("on", String(c.default)),
+        "      ),",
+      ].join("\n"),
+    )
+    .join("\n");
+  const topics = Object.entries(notifications.topics)
+    .map(([k, v]) => `  ${dartString(k)}: ${dartString(v)},`)
+    .join("\n");
+  return [
+    `/// Push notification categories, in display order: the switch's value, label and\n/// description, whether it is a per-device topic (\`device\`) or a member preference,\n/// and its default.\nconst notificationCategories =\n    <({String value, String title, String description, bool device, bool on})>[\n${rows}\n    ];\n`,
+    `/// Topic name prefixes for the broadcast categories; the feed is appended with a dash.\nconst notificationTopics = <String, String>{\n${topics}\n};\n`,
   ].join("\n");
 }
 

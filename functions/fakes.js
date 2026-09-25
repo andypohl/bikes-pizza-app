@@ -416,3 +416,47 @@ export function memoryConcernStore() {
     },
   };
 }
+
+/** In-memory device store (push.js): `byUid` maps a uid to its devices. */
+export function memoryDeviceStore() {
+  const byUid = new Map();
+  return {
+    byUid,
+    async register(uid, { token, platform }, at) {
+      for (const [other, list] of byUid) {
+        if (other !== uid) byUid.set(other, list.filter((d) => d.token !== token));
+      }
+      const list = (byUid.get(uid) ?? []).filter((d) => d.token !== token);
+      list.push({ token, platform, updatedAt: at });
+      byUid.set(uid, list);
+    },
+    async remove(uid, token) {
+      byUid.set(uid, (byUid.get(uid) ?? []).filter((d) => d.token !== token));
+    },
+    async list(uid) {
+      return [...(byUid.get(uid) ?? [])];
+    },
+    async removeAll(uid) {
+      byUid.delete(uid);
+    },
+  };
+}
+
+/** A fake Messaging client that records what it is asked to send. */
+export function fakeMessaging({ failing = new Set() } = {}) {
+  const sent = [];
+  return {
+    sent,
+    async send(message) {
+      sent.push(message);
+      return "id";
+    },
+    async sendEachForMulticast(message) {
+      sent.push(message);
+      const responses = message.tokens.map((token) =>
+        failing.has(token) ? { success: false, error: { code: "messaging/registration-token-not-registered" } } : { success: true },
+      );
+      return { successCount: responses.filter((r) => r.success).length, failureCount: responses.length - responses.filter((r) => r.success).length, responses };
+    },
+  };
+}
