@@ -195,9 +195,21 @@ Current:
 
 - `members/{uid}`: the member profile behind a Firebase user. Fields:
   `email`, `username` (empty until chosen), `newsletters` (IDs of the
-  newsletters chosen; see `functions/members.js`), `createdAt`,
+  newsletters chosen; see `functions/members.js`), `notifications` (the
+  member's push preferences by category, `messages`, `comments`,
+  `replies`; absent means the contract's default), `createdAt`,
   `updatedAt`. Written only by the member functions through the Admin SDK;
-  no client access. Records from before usernames carried a `name`, which
+  no client access.
+  - `members/{uid}/devices/{token}`: a device registered for the member's
+    personal push notifications: `token`, `platform` (`ios` or `android`),
+    `updatedAt`. Registered by the app at sign-in (`POST /api/me/devices`),
+    moved between members when a shared device changes account, dropped
+    when a push reports the token dead, and deleted with the account
+    (`functions/push.js`).
+- `concerns/{id}`: a report sent from the app's "Report a concern" form or a
+  post's Report button (`functions/concerns.js`): `uid`, `email`, `username`,
+  `kind`, `target`, `reason`, `details`, `post` (when the target is a
+  published post), `at`, `status`. Also emailed to the moderation address. Records from before usernames carried a `name`, which
   the member functions delete on their next load. (Older `users/{uid}`
   documents from the Ghost era may remain; nothing reads them.)
 - `usernames/{lowercased username}`: `{ uid, username }`, the reservation
@@ -547,6 +559,18 @@ extension, and secret values.
 6. Enable the Cloud Vision API (`vision.googleapis.com`) for the SafeSearch
    check; the functions call it with their own service account, so no key
    is needed.
+6a. Push notifications (both projects). Android needs nothing beyond the
+   app registration. iOS needs an APNs authentication key: in the Apple
+   Developer portal, Certificates, Identifiers & Profiles → Keys → +, name
+   it, tick "Apple Push Notifications service (APNs)", download the `.p8`
+   (once only; keep it with the other keys) and note the Key ID and the
+   Team ID. In the Firebase console, Project settings → Cloud Messaging →
+   the iOS app → APNs Authentication Key → Upload, with the key ID and team
+   ID. One key serves both projects and both environments (development and
+   production APNs). The app's `aps-environment` entitlement and the
+   `remote-notification` background mode are in the repo; the "Push
+   Notifications" capability appears on the App ID automatically with
+   automatic signing.
 7. Deploy rules, indexes, and functions from the repo with `firebase deploy`.
 8. Install the Resize Images extension and point it at the bucket.
 9. Set Functions secrets with the CLI (`firebase functions:secrets:set`):

@@ -503,4 +503,64 @@ void main() {
       },
     });
   });
+
+  group('fetchPost', () {
+    FirestorePostRepository repo(MockClient client) => FirestorePostRepository(
+      projectId: 'my-project',
+      siteUrl: 'https://example.com',
+      client: client,
+    );
+
+    String doc(String status) => jsonEncode({
+      'name':
+          'projects/my-project/databases/(default)/documents/posts/blue-bike',
+      'fields': {
+        'slug': {'stringValue': 'blue-bike'},
+        'feed': {'stringValue': 'bikes'},
+        'title': {'stringValue': 'Blue bike'},
+        'status': {'stringValue': status},
+        'publishedAt': {'timestampValue': '2026-09-01T12:00:00Z'},
+      },
+    });
+
+    test('gets one document by its path and parses it', () async {
+      late Uri asked;
+      final client = MockClient((request) async {
+        asked = request.url;
+        return http.Response(doc('published'), 200);
+      });
+      final post = await repo(client).fetchPost('blue-bike');
+      expect(asked.path, endsWith('/documents/posts/blue-bike'));
+      expect(post?.id, 'blue-bike');
+      expect(post?.title, 'Blue bike');
+    });
+
+    test('answers null for a missing, hidden or unpublished post', () async {
+      expect(
+        await repo(MockClient((_) async => http.Response('', 404)))
+            .fetchPost('x'),
+        isNull,
+      );
+      expect(
+        await repo(MockClient((_) async => http.Response('', 403)))
+            .fetchPost('x'),
+        isNull,
+      );
+      expect(
+        await repo(MockClient((_) async => http.Response(doc('removed'), 200)))
+            .fetchPost('blue-bike'),
+        isNull,
+      );
+      expect(
+        await repo(MockClient((_) async => http.Response('', 200)))
+            .fetchPost(''),
+        isNull,
+      );
+    });
+
+    test('a server error is a PostFetchException', () async {
+      final r = repo(MockClient((_) async => http.Response('boom', 500)));
+      expect(r.fetchPost('blue-bike'), throwsA(isA<PostFetchException>()));
+    });
+  });
 }

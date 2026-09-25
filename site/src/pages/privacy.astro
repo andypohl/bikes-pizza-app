@@ -54,6 +54,16 @@ const updated = 'September 20, 2026';
           and a location if you choose to add one. Pick a username you are
           comfortable having in public; it does not have to be your real name.
         </p>
+        <p class="mt-4">
+          If you allow notifications, the app registers a push token for your
+          device with Google's messaging service so that we can send them. The
+          token identifies the app on that device, nothing else; it is stored
+          with your account while you are signed in, invalidated when you sign
+          out, and deleted with your account. Which notifications you get is
+          up to you, under Settings in the app: new and updated posts (sent to
+          every device that opted in, whether or not it is signed in), and, for
+          members, direct messages, comments on your posts, and replies.
+        </p>
 
         <h3 class="mt-6 text-lg text-ink">Comments and messages</h3>
         <p class="mt-2">
@@ -182,7 +192,7 @@ const updated = 'September 20, 2026';
           job requires:
         </p>
         <ul class="mt-4 space-y-2 list-disc list-outside pl-6">
-          <li><span class="text-ink">Google Firebase</span> — accounts and sign-in, the database (including the posts published to the site), file storage for photos, and the server functions behind the app.</li>
+          <li><span class="text-ink">Google Firebase</span> — accounts and sign-in, the database (including the posts published to the site), file storage for photos, the server functions behind the app, and Cloud Messaging for push notifications (through Apple's and Google's notification services on the device).</li>
           <li><span class="text-ink">Google Cloud Vision</span> — the automated photo check described above.</li>
           <li><span class="text-ink">Mailgun</span> — sends the notification email that tells a reviewer a submission is waiting.</li>
           <li><span class="text-ink">Shopify</span> — runs the shop. If you buy something, your order and payment details are handled by Shopify under their privacy policy; we never see your card number.</li>

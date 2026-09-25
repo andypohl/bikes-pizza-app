@@ -418,6 +418,52 @@ export const CONCERNS = {
   ]
 };
 
+/** Push notifications: the categories a person can switch, and the topic names the broadcast ones use (suffixed with the feed). */
+
+export const NOTIFICATIONS = {
+  "categories": [
+    {
+      "value": "newPosts",
+      "title": "New posts",
+      "description": "When a bike or a pizza is posted (and news)",
+      "scope": "device",
+      "default": true
+    },
+    {
+      "value": "updatedPosts",
+      "title": "Updated posts",
+      "description": "When a post is edited",
+      "scope": "device",
+      "default": false
+    },
+    {
+      "value": "messages",
+      "title": "Direct messages",
+      "description": "When a member messages you",
+      "scope": "member",
+      "default": true
+    },
+    {
+      "value": "comments",
+      "title": "Comments on your posts",
+      "description": "When someone comments on a post you submitted",
+      "scope": "member",
+      "default": true
+    },
+    {
+      "value": "replies",
+      "title": "Replies and mentions",
+      "description": "When someone replies where you commented, or mentions you",
+      "scope": "member",
+      "default": true
+    }
+  ],
+  "topics": {
+    "newPosts": "new-posts",
+    "updatedPosts": "updated-posts"
+  }
+};
+
 /** The rules for member profiles and direct messages: the longest location, the message limits. */
 
 export const MEMBERS = {

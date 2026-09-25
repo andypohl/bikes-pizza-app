@@ -418,3 +418,12 @@ test("a member with no address on file cannot receive the email", async () => {
   assert.equal(mail.sent.length, 0);
 });
 
+
+test("a sent message is pushed to the other member, from the sender's username", async () => {
+  const { deps, say } = await setup();
+  const pushed = [];
+  deps.push = { messageSent: async (args) => pushed.push(args) };
+  const thread = await openThread({ username: "bob" }, ada, deps);
+  await say(thread.thread.id, ada, "Hello Bob");
+  assert.deepEqual(pushed, [{ threadId: thread.thread.id, other: "u2", username: "ada_bikes", text: "Hello Bob" }]);
+});

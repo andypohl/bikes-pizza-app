@@ -111,7 +111,7 @@ function notPending(status) {
  * title and the submission id, so a retry after a failure lands on the
  * same post rather than a second one.
  */
-async function publishSubmission(data, { store, posts, members, siteUrl, now, log = () => {} }) {
+async function publishSubmission(data, { store, posts, members, siteUrl, now, push, log = () => {} }) {
   const slug = slugFor(data.title, data.feed, data.id);
   const done = { postId: slug, postUrl: postUrl(siteUrl, data.feed, slug), postStatus: "published" };
   if (await posts.exists(slug)) {
@@ -142,6 +142,7 @@ async function publishSubmission(data, { store, posts, members, siteUrl, now, lo
     source: { system: "submission", id: data.id },
   });
   await posts.create(slug, doc);
+  if (push) await push.postPublished(doc);
   return done;
 }
 

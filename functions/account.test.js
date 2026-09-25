@@ -14,6 +14,7 @@ test("profile flags the newsletters the member receives", () => {
     username: "ada",
     location: "",
     messages: true,
+    notifications: { messages: true, comments: true, replies: true },
     newsletters: [
       { id: "n1", name: "Weekly", description: "Every Friday", subscribed: true },
       { id: "n2", name: "Extras", description: "", subscribed: false },
@@ -94,4 +95,12 @@ test("accountDeletedEmail reads differently when an admin removed the account", 
   assert.match(mail.text, /account for bob@x\.y has been deleted\.\n/);
   assert.doesNotMatch(mail.text, /as you asked/);
   assert.match(mail.text, /a question about this, write to contact@bikes\.pizza/);
+});
+
+test("validateUpdate takes notification preferences for member categories", () => {
+  assert.deepEqual(validateUpdate({ notifications: { messages: false } }, newsletters), { notifications: { messages: false } });
+  assert.throws(() => validateUpdate({ notifications: { newPosts: false } }, newsletters), ValidationError);
+  assert.throws(() => validateUpdate({ notifications: { comments: 1 } }, newsletters), ValidationError);
+  const p = profile({ email: "a@b.c", notifications: { replies: false } }, newsletters);
+  assert.deepEqual(p.notifications, { messages: true, comments: true, replies: false });
 });

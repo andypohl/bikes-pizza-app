@@ -19,9 +19,14 @@ import 'messages/message_tracker.dart';
 import 'messages/thread_service.dart';
 import 'data/firestore_post_repository.dart';
 import 'data/post_repository.dart';
+import 'models/post.dart';
 import 'models/post_feed.dart';
 import 'posts/app_badge.dart';
 import 'posts/comment_service.dart';
+import 'notifications/device_service.dart';
+import 'notifications/notification_settings.dart';
+import 'notifications/push_coordinator.dart';
+import 'notifications/push_service.dart';
 import 'posts/concern_service.dart';
 import 'posts/post_editor.dart';
 import 'posts/profile_service.dart';
@@ -29,9 +34,11 @@ import 'posts/reaction_service.dart';
 import 'posts/search_service.dart';
 import 'posts/unread_tracker.dart';
 import 'screens/news_screen.dart';
+import 'screens/post_detail_screen.dart';
 import 'screens/post_list_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/thread_screen.dart';
 import 'screens/store_screen.dart';
 import 'splash_screen.dart';
 import 'store/cart.dart';
@@ -62,8 +69,23 @@ Future<Widget> _loadApp() async {
   // The REST API (editing posts) signs its requests with the same session.
   final api = ApiClient(baseUrl: ApiConfig.baseUrl, token: auth.idToken);
   final threads = LiveThreadService(api, auth);
+  // Push notifications: topics for new and updated posts, the member's
+  // devices for messages, comments and replies (see docs/firebase.md).
+  final notifications = await NotificationSettings.load();
+  final push = FirebasePushService();
+  final coordinator = PushCoordinator(
+    push: push,
+    settings: settings,
+    notifications: notifications,
+    auth: auth,
+    devices: ApiDeviceService(api),
+    platform: defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android',
+  );
   return BikesPizzaApp(
     settings: settings,
+    notifications: notifications,
+    push: push,
+    coordinator: coordinator,
     repository: FirestorePostRepository(
       projectId: Firebase.app().options.projectId,
       siteUrl: SiteConfig.siteUrl,
@@ -115,6 +137,9 @@ class BikesPizzaApp extends StatelessWidget {
     this.exporter,
     this.unread,
     this.badge = const NoAppBadge(),
+    this.notifications,
+    this.push,
+    this.coordinator,
   });
 
   final AppSettings settings;
@@ -178,6 +203,13 @@ class BikesPizzaApp extends StatelessWidget {
   final UnreadTracker? unread;
   final AppBadge badge;
 
+  /// Push notifications: the device switches, the messaging service (taps
+  /// open what they point at) and the coordinator that keeps subscriptions
+  /// and the device registration in step; all null in tests without them.
+  final NotificationSettings? notifications;
+  final PushService? push;
+  final PushCoordinator? coordinator;
+
   static const _seed = Color(0xFF80C6C4); // teal from the app icon
 
   @override
@@ -218,6 +250,9 @@ class BikesPizzaApp extends StatelessWidget {
             exporter: exporter,
             unread: unread,
             badge: badge,
+            notifications: notifications,
+            push: push,
+            coordinator: coordinator,
           ),
         ),
       ),
@@ -256,6 +291,9 @@ class HomeShell extends StatefulWidget {
     this.exporter,
     this.unread,
     this.badge = const NoAppBadge(),
+    this.notifications,
+    this.push,
+    this.coordinator,
   });
 
   final PostRepository repository;
@@ -282,6 +320,9 @@ class HomeShell extends StatefulWidget {
   final DataExporter? exporter;
   final UnreadTracker? unread;
   final AppBadge badge;
+  final NotificationSettings? notifications;
+  final PushService? push;
+  final PushCoordinator? coordinator;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -298,6 +339,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   _Tab? _tab;
   int _shownBadge = -1;
   StreamSubscription<AppUser?>? _users;
+  StreamSubscription<PushTap>? _taps;
   String? _refreshedFor;
 
   /// Whether the signed-in account is an administrator, which adds the
@@ -318,6 +360,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     });
     _refreshUnread();
     _checkAdmin(widget.auth.currentUser);
+    _startPush();
   }
 
   @override
@@ -326,7 +369,71 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     widget.unread?.removeListener(_showBadge);
     widget.messages?.removeListener(_showBadge);
     _users?.cancel();
+    _taps?.cancel();
+    widget.coordinator?.dispose();
     super.dispose();
+  }
+
+  /// Follows the notification settings and the session, asks for the
+  /// permission once the first screen is up, and opens whatever a tapped
+  /// notification points at.
+  void _startPush() {
+    final coordinator = widget.coordinator;
+    final push = widget.push;
+    coordinator?.start();
+    if (push != null) {
+      _taps = push.taps.listen(_openTap);
+      push.initialTap().then((tap) {
+        if (tap != null) _openTap(tap);
+      });
+    }
+    if (coordinator != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) coordinator.ensurePermission();
+      });
+    }
+  }
+
+  Future<void> _openTap(PushTap tap) async {
+    if (!mounted) return;
+    final navigator = Navigator.of(context);
+    if (tap.type == 'post') {
+      final Post? post;
+      try {
+        post = await widget.repository.fetchPost(tap.id);
+      } on PostFetchException {
+        return;
+      }
+      if (post == null || !mounted) return;
+      widget.unread?.markRead(post);
+      navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) => PostDetailScreen(
+            post: post!,
+            repository: widget.repository,
+            reactions: widget.reactions,
+            comments: widget.comments,
+            concerns: widget.concerns,
+            profiles: widget.profiles,
+            threads: widget.threads,
+            auth: widget.auth,
+            editor: widget.editor,
+            photos: widget.photos,
+          ),
+        ),
+      );
+    } else if (tap.type == 'thread') {
+      final threads = widget.threads;
+      if (threads == null || widget.auth.currentUser == null) return;
+      final thread = await threads.thread(tap.id).first;
+      if (thread == null || !mounted) return;
+      navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              ThreadScreen(thread: thread, service: threads, auth: widget.auth),
+        ),
+      );
+    }
   }
 
   @override
@@ -487,6 +594,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         concerns: widget.concerns,
         threads: widget.threads,
         messages: widget.messages,
+        notifications: widget.notifications,
+        coordinator: widget.coordinator,
       ),
       _Tab.admin => AdminScreen(auth: widget.auth, admin: admin!),
     };

@@ -45,6 +45,9 @@ abstract class PostRepository {
   /// Every post published, edited or commented on after [since], newest
   /// change first.
   Future<List<PostChange>> fetchChanges({required DateTime since});
+
+  /// One published post by its id (slug), or null when there is none.
+  Future<Post?> fetchPost(String id);
 }
 
 class PostFetchException implements Exception {

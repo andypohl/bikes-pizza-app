@@ -312,7 +312,7 @@ export async function listReplies(slug, id, user, deps) {
  * case the members it mentions get a notice. Answers `{comment}`.
  */
 export async function createComment(slug, data, user, deps) {
-  const { comments, members, now = () => new Date(), newId, log = () => {} } = deps;
+  const { comments, members, push, now = () => new Date(), newId, log = () => {} } = deps;
   const post = await loadPost(slug, deps);
   if (!data || typeof data !== "object") throw new ValidationError("A comment needs some text.");
   const parentId = data.parentId === undefined || data.parentId === null || data.parentId === "" ? null : checkId(data.parentId);
@@ -320,7 +320,7 @@ export async function createComment(slug, data, user, deps) {
   const prepared = await prepare(data.text, deps);
   const at = now();
   const id = newId();
-  const written = await comments.transact(post.slug, { uid: user.uid }, ({ post: current, comments: all, member }) => {
+  const result = await comments.transact(post.slug, { uid: user.uid }, ({ post: current, comments: all, member }) => {
     const member_ = rateCheck(member, at);
     let top = null;
     if (parentId) {
@@ -347,9 +347,13 @@ export async function createComment(slug, data, user, deps) {
       replyCount: 0,
       reportCount: 0,
     });
-    return { ...settle(current, all, { [id]: doc }), member: member_, result: doc };
+    return { ...settle(current, all, { [id]: doc }), member: member_, result: { doc, all } };
   });
-  if (written.status === "published") await notifyMentions({ ...written, notified: [] }, post.slug, { comments, now });
+  const { doc: written, all } = result;
+  if (written.status === "published") {
+    await notifyMentions({ ...written, notified: [] }, post.slug, { comments, now });
+    if (push) await push.commentPublished({ post, comment: written, all });
+  }
   log("comment written", { post: post.slug, id, by: user.uid, status: written.status, hold: written.hold });
   return { comment: publicComment(written, { viewer: user }) };
 }
@@ -599,7 +603,7 @@ export async function adminQueue(query, admin, { posts, comments, siteUrl }) {
  * remove (as an admin) one comment. Answers the comment as the admin sees it.
  */
 export async function adminAct(slug, id, action, admin, deps) {
-  const { comments, now = () => new Date(), log = () => {} } = deps;
+  const { comments, posts, push, now = () => new Date(), log = () => {} } = deps;
   checkSlug(slug);
   checkId(id);
   if (!ADMIN_ACTIONS.includes(action)) throw new ValidationError("Unknown action.");
@@ -612,9 +616,16 @@ export async function adminAct(slug, id, action, admin, deps) {
     }
     if (doc.status !== "pending" && doc.status !== "hidden") throw new AppError("failed-precondition", "That comment is not waiting for review.");
     const next = markNotified({ ...doc, status: "published", hold: null, reportCount: 0 });
-    return { ...settle(post, all, { [id]: next }), clearReports: true, result: { doc: next, before: doc } };
+    return { ...settle(post, all, { [id]: next }), clearReports: true, result: { doc: next, before: doc, all } };
   });
-  if (action === "approve") await notifyMentions({ ...result.doc, notified: result.before.notified ?? [] }, slug, { comments, now });
+  if (action === "approve") {
+    await notifyMentions({ ...result.doc, notified: result.before.notified ?? [] }, slug, { comments, now });
+    // A held comment going up is new to everyone; tell them now.
+    if (push && posts && result.before.status === "pending") {
+      const post = await posts.get(slug);
+      if (post) await push.commentPublished({ post, comment: result.doc, all: result.all });
+    }
+  }
   log("comment reviewed", { post: slug, id, by: admin.uid, action });
   return { comment: publicComment(result.doc, { admin: true }) };
 }

@@ -4,6 +4,7 @@
 
 import { MEMBERS, USERNAME_PATTERN, USERNAME_RULE } from "./contract.js";
 import { ValidationError } from "./errors.js";
+import { preferences, validatePreferences } from "./push.js";
 
 export { USERNAME_PATTERN, USERNAME_RULE, ValidationError };
 
@@ -53,6 +54,7 @@ export function profile(member, newsletters) {
     username: member.username ?? "",
     location: member.location ?? "",
     messages: member.messages !== false,
+    notifications: preferences(member),
     newsletters: newsletters.map((n) => ({
       id: n.id,
       name: n.name,
@@ -82,6 +84,7 @@ export function validateUpdate(data, allowed) {
     if (typeof data.messages !== "boolean") throw new ValidationError("messages must be true or false.");
     patch.messages = data.messages;
   }
+  if ("notifications" in data) patch.notifications = validatePreferences(data.notifications);
   if ("newsletters" in data) {
     const ids = data.newsletters;
     if (!Array.isArray(ids) || ids.some((id) => typeof id !== "string")) {

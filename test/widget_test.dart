@@ -21,6 +21,10 @@ import 'package:bikes_pizza/messages/message_tracker.dart';
 import 'package:bikes_pizza/messages/thread_service.dart';
 import 'package:bikes_pizza/models/post.dart';
 import 'package:bikes_pizza/models/post_feed.dart';
+import 'package:bikes_pizza/notifications/device_service.dart';
+import 'package:bikes_pizza/notifications/notification_settings.dart';
+import 'package:bikes_pizza/notifications/push_coordinator.dart';
+import 'package:bikes_pizza/notifications/push_service.dart';
 import 'package:bikes_pizza/posts/app_badge.dart';
 import 'package:bikes_pizza/posts/comment_service.dart';
 import 'package:bikes_pizza/posts/concern_service.dart';
@@ -53,6 +57,18 @@ class FakePostRepository implements PostRepository {
   final requestedFeeds = <PostFeed>[];
   final requestedUids = <String>[];
   final requestedNewsPages = <int>[];
+  final fetchedIds = <String>[];
+
+  @override
+  Future<Post?> fetchPost(String id) async {
+    fetchedIds.add(id);
+    for (final posts in byFeed.values) {
+      for (final post in posts) {
+        if (post.id == id) return post;
+      }
+    }
+    return null;
+  }
 
   @override
   Future<PostPage> fetchPosts(
@@ -355,14 +371,18 @@ class FakeMemberService implements MemberService {
     return profile;
   }
 
+  final notificationUpdates = <Map<String, bool>>[];
+
   @override
   Future<MemberProfile> update({
     String? username,
     List<String>? newsletters,
     String? location,
     bool? messages,
+    Map<String, bool>? notifications,
   }) async {
     if (username == 'taken') throw MemberException('That username is taken.');
+    if (notifications != null) notificationUpdates.add(notifications);
     updates.add((
       username: username,
       newsletters: newsletters,
@@ -374,6 +394,7 @@ class FakeMemberService implements MemberService {
       username: username ?? profile.username,
       location: location ?? profile.location,
       messages: messages ?? profile.messages,
+      notifications: {...profile.notifications, ...?notifications},
       newsletters: [
         for (final n in profile.newsletters)
           Newsletter(
@@ -944,6 +965,57 @@ class FakeConcernService implements ConcernService {
   }
 }
 
+class FakePushService implements PushService {
+  final subscribed = <String>{};
+  bool permission = true;
+  int asked = 0;
+  final _taps = StreamController<PushTap>.broadcast();
+  PushTap? initial;
+
+  @override
+  Future<bool> requestPermission() async {
+    asked += 1;
+    return permission;
+  }
+
+  @override
+  Future<bool> get granted async => permission;
+
+  @override
+  Future<String?> token() async => 'device-token';
+
+  @override
+  Stream<String> get tokenRefreshes => const Stream.empty();
+
+  @override
+  Future<void> subscribe(String topic) async => subscribed.add(topic);
+
+  @override
+  Future<void> unsubscribe(String topic) async => subscribed.remove(topic);
+
+  @override
+  Future<void> resetToken() async {}
+
+  @override
+  Stream<PushTap> get taps => _taps.stream;
+
+  void tap(PushTap tap) => _taps.add(tap);
+
+  @override
+  Future<PushTap?> initialTap() async => initial;
+}
+
+class FakeDeviceService implements DeviceService {
+  final registered = <String>[];
+
+  @override
+  Future<void> register(String token, {required String platform}) async =>
+      registered.add('$platform:$token');
+
+  @override
+  Future<void> remove(String token) async {}
+}
+
 class FakeDataExporter implements DataExporter {
   int exports = 0;
   bool fail = false;
@@ -1486,9 +1558,25 @@ void main() {
     UnreadTracker? unread,
     AppBadge badge = const NoAppBadge(),
     AppSettings? settings,
+    FakePushService? push,
+    NotificationSettings? notifications,
+    FakeDeviceService? devices,
   }) async {
     useSize(tester, size);
     auth = FakeAuthService();
+    final appSettings = settings ?? AppSettings();
+    PushCoordinator? coordinator;
+    if (push != null) {
+      notifications ??= NotificationSettings();
+      coordinator = PushCoordinator(
+        push: push,
+        settings: appSettings,
+        notifications: notifications,
+        auth: auth,
+        devices: devices,
+        platform: 'ios',
+      );
+    }
     passkeys?.auth = auth;
     final threadService = threads;
     messages = threadService == null
@@ -1530,7 +1618,7 @@ void main() {
     });
     await tester.pumpWidget(
       BikesPizzaApp(
-        settings: settings ?? AppSettings(),
+        settings: appSettings,
         repository: repo,
         auth: auth,
         store: store ??= FakeStoreRepository(),
@@ -1551,6 +1639,9 @@ void main() {
         exporter: exporter,
         unread: unread,
         badge: badge,
+        notifications: notifications,
+        push: push,
+        coordinator: coordinator,
       ),
     );
     await tester.pumpAndSettle();
@@ -3575,6 +3666,103 @@ void main() {
       find.text("Thanks. We'll look at it, normally within 24 hours."),
       findsOneWidget,
     );
+  });
+
+  testWidgets('notifications: permission asked at start, topics follow the '
+      'switches and the feed choice', (tester) async {
+    final push = FakePushService();
+    final settings = AppSettings(feedChoice: FeedChoice.pizzaOnly);
+    await pumpApp(tester, push: push, settings: settings);
+    expect(push.asked, 1);
+    expect(push.subscribed, {'new-posts-pizza', 'new-posts-news'});
+
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    final tile = find.byKey(const Key('notifications'));
+    await tester.dragUntilVisible(
+      tile,
+      find.byType(ListView),
+      const Offset(0, -100),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(tile);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('notification-settings')), findsOneWidget);
+    expect(find.byKey(const Key('notifications-signed-out')), findsOneWidget);
+    // Updated posts is off by default; turning it on subscribes its topics.
+    await tester.tap(find.byKey(const Key('notify-updatedPosts')));
+    await tester.pumpAndSettle();
+    expect(push.subscribed, contains('updated-posts-pizza'));
+    expect(push.subscribed, isNot(contains('updated-posts-bikes')));
+    await tester.tap(find.byKey(const Key('notify-newPosts')));
+    await tester.pumpAndSettle();
+    expect(push.subscribed, {'updated-posts-pizza', 'updated-posts-news'});
+    // Not asked again.
+    expect(push.asked, 1);
+  });
+
+  testWidgets('signed in, the notification screen saves the member switches '
+      'and the device is registered', (tester) async {
+    final push = FakePushService();
+    final devices = FakeDeviceService();
+    members = FakeMemberService();
+    await pumpApp(tester, push: push, devices: devices);
+    await auth.signIn(email: 'andy@example.com', password: 'correct-horse');
+    await tester.pumpAndSettle();
+    expect(devices.registered, ['ios:device-token']);
+
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    final tile = find.byKey(const Key('notifications'));
+    await tester.dragUntilVisible(
+      tile,
+      find.byType(ListView),
+      const Offset(0, -100),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(tile);
+    await tester.pumpAndSettle();
+
+    final replies = find.byKey(const Key('notify-replies'));
+    expect(replies, findsOneWidget);
+    expect(tester.widget<SwitchListTile>(replies).value, isTrue);
+    await tester.tap(replies);
+    await tester.pumpAndSettle();
+    expect(members!.notificationUpdates, [
+      {'replies': false},
+    ]);
+    expect(tester.widget<SwitchListTile>(replies).value, isFalse);
+  });
+
+  testWidgets('a tapped notification opens the post it names', (tester) async {
+    final push = FakePushService();
+    final repo = await pumpApp(tester, push: push);
+    final newest = repo.byFeed[PostFeed.all]!.first;
+    push.tap(PushTap(type: 'post', id: newest.id));
+    await tester.pumpAndSettle();
+    expect(repo.fetchedIds, [newest.id]);
+    expect(find.text('Newest post body', findRichText: true), findsOneWidget);
+    expect(find.byIcon(Icons.open_in_browser), findsOneWidget);
+  });
+
+  testWidgets('when notifications are denied the screen says so', (
+    tester,
+  ) async {
+    final push = FakePushService()..permission = false;
+    await pumpApp(tester, push: push);
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    final tile = find.byKey(const Key('notifications'));
+    await tester.dragUntilVisible(
+      tile,
+      find.byType(ListView),
+      const Offset(0, -100),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(tile);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('notifications-denied')), findsOneWidget);
   });
 
   testWidgets('the sign-in screen says what signing up agrees to', (

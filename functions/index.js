@@ -41,6 +41,7 @@ import { GoogleAuth } from "google-auth-library";
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { getMessaging } from "firebase-admin/messaging";
 import { getStorage } from "firebase-admin/storage";
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
@@ -61,6 +62,7 @@ import { isMailConfigured, sendMail } from "./mail.js";
 import { moderateText } from "./moderate.js";
 import * as passkeys from "./passkeys.js";
 import * as postEditing from "./posts.js";
+import * as pushing from "./push.js";
 import * as profiles from "./profiles.js";
 import * as searching from "./search.js";
 import { firestoreThreadStore } from "./thread_store.js";
@@ -131,6 +133,9 @@ const posts = () => firestorePostStore(getFirestore(), getStorage().bucket());
 const comments = () => firestoreCommentStore(getFirestore());
 /** Direct message threads and blocks (thread_store.js). */
 const threads = () => firestoreThreadStore(getFirestore());
+const devices = () => pushing.firestoreDeviceStore(getFirestore());
+/** The push sender: broadcasts to topics, personal notifications to registered devices (push.js). */
+const push = () => pushing.createPush({ messaging: getMessaging(), devices: devices(), members: firestoreMemberStore(getFirestore()), log: logger.info });
 
 /** Translates failures inside `work` into callable errors. */
 async function guarded(uid, what, work) {
@@ -347,6 +352,7 @@ const moderate = (text) => moderateText(text, { getToken: () => googleAuth.getAc
 const commentDeps = () => ({
   posts: posts(),
   comments: comments(),
+  push: push(),
   members: firestoreMemberStore(getFirestore()),
   settings: () => getSettings({ store: firestoreSiteSettings(getFirestore()) }),
   moderate,
@@ -389,6 +395,7 @@ const threadDeps = () => ({
   threads: threads(),
   members: firestoreMemberStore(getFirestore()),
   comments: comments(),
+  push: push(),
   moderate,
   siteUrl: siteUrl(),
   // Continuing by email: addresses from Firebase Auth, the mail through Mailgun.
@@ -420,6 +427,7 @@ const threadDeps = () => ({
 const removeMemberData = async (uid) => {
   await commenting.deleteMemberData(uid, commentDeps());
   await messaging.deleteMemberThreads(uid, threadDeps());
+  await devices().removeAll(uid);
 };
 
 /** What the user-administration endpoints need: Auth admin, members, posts (a rename reaches the threads too). */
@@ -445,6 +453,7 @@ const queueDeps = () => ({
   posts: posts(),
   members: firestoreMemberStore(getFirestore()),
   siteUrl: siteUrl(),
+  push: push(),
   log: logger.info,
 });
 
@@ -465,6 +474,7 @@ const service = {
       posts: posts(),
       members: firestoreMemberStore(getFirestore()),
       siteUrl: siteUrl(),
+      push: push(),
       log: logger.info,
     });
     // An approved edit changes a post at once; a queued post waits for its slot.
@@ -507,6 +517,7 @@ const service = {
         safeSearch,
         notify,
         siteUrl: siteUrl(),
+        push: push(),
         log: logger.info,
       });
       if (result.status === "applied") await rebuildWebsite(`post ${id} edited by admin`);
@@ -515,7 +526,7 @@ const service = {
     // The admin page's news editor: write, list and take down posts.
     list: (query, admin) => postEditing.listPosts(query, admin, { posts: posts(), siteUrl: siteUrl() }),
     create: async (data, admin) => {
-      const result = await postEditing.createPost(data, admin, { posts: posts(), processImage, siteUrl: siteUrl(), log: logger.info });
+      const result = await postEditing.createPost(data, admin, { posts: posts(), processImage, siteUrl: siteUrl(), push: push(), log: logger.info });
       await rebuildWebsite(`post ${result.post.id} written by admin`);
       return result;
     },
@@ -533,6 +544,10 @@ const service = {
   },
   concerns: {
     report: (data, user) => concernReports.reportConcern(data, user, concernDeps()),
+  },
+  devices: {
+    register: (data, user) => pushing.registerDevice(data, user, { devices: devices(), log: logger.info }),
+    remove: (token, user) => pushing.removeDevice(token, user, { devices: devices(), log: logger.info }),
   },
   // Comments change only the post's counts, which the app reads live and
   // the website picks up at its next rebuild, so nothing is rebuilt here.

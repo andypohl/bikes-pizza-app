@@ -445,6 +445,22 @@ Reports a comment with a reason from the contract's list
 own (`409`). The second distinct reporter hides the comment until an
 admin decides; answers `{ "reported": true, "hidden": false }`.
 
+### `POST /api/me/devices`
+
+Registers the caller's device for their personal push notifications
+(messages, comments on their posts, replies and mentions):
+`{ "token": "<FCM registration token>", "platform": "ios" | "android" }`.
+The token is moved to the caller if another member had it (a shared
+device). Answers `{ "registered": true }`. Broadcast notifications (new and
+updated posts) do not need this: the app subscribes to topics
+(`new-posts-<feed>`, `updated-posts-<feed>`) directly with Firebase.
+
+### `DELETE /api/me/devices/{token}`
+
+Forgets the device. Answers `{ "removed": true }`. (The app does not
+normally call this: at sign-out it invalidates the token instead, and the
+next push to it removes the record.)
+
 ### `POST /api/concerns`
 
 Reports a concern to the moderators from the app: a post, a member, or
