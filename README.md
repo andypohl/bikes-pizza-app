@@ -286,7 +286,7 @@ shown. On agreement (`functions/thread_email.js`, `agreeEmail` in
 `functions/threads.js`) the app emails the conversation's newest ten
 messages to the member who agreed, drawn as chat bubbles in an HTML
 part (the asker's on the right in the app's teal; real, selectable
-text) with a plain-text part alongside, from the Mailgun sender with
+text) with a plain-text part alongside, from the app's sender with
 Reply-To set to the asker, and a "Previous messages" link to the
 website's read-only thread page (`/messages/<thread>/`,
 `site/src/pages/messages/index.astro` and
@@ -377,22 +377,24 @@ never reaches the post. The functions then ask GitHub to rebuild
 bikes.pizza so the post appears (`functions/rebuild.js`). The site URL
 and environment come from `functions/.env` (`functions/.env.example`).
 
-The email goes out through Mailgun's HTTP API. Configure once per
-Firebase project:
+The email goes out through Cloudflare Email Service's REST API
+(`functions/mail.js`), from a sending subdomain onboarded in the
+Cloudflare dashboard (Email Service → Email Sending → Onboard Domain,
+which adds the DNS records itself). Configure once per Firebase project:
 
 ```sh
-# Secret:
-firebase functions:secrets:set MAILGUN_API_KEY
-# Not secret, in functions/.env and as repository variables for the deploy
-# workflow: MAILGUN_DOMAIN (a verified sending domain, or the sandbox domain
-# for tests), SUBMISSION_NOTIFY_EMAIL (recipient), optionally
-# SUBMISSION_FROM_EMAIL (sender), MAILGUN_API_BASE (EU-region accounts only)
-# and REVIEW_PAGE_URL.
+# Secret: a Cloudflare API token with "Email Sending: Edit".
+firebase functions:secrets:set CLOUDFLARE_EMAIL_TOKEN
+# Not secret, in functions/.env and as environment variables for the deploy
+# workflow: CLOUDFLARE_ACCOUNT_ID (the account the sending domain is
+# onboarded in), SUBMISSION_NOTIFY_EMAIL (recipient), optionally
+# MAIL_FROM_EMAIL (sender; defaults to the bikes.pizza mailer) and
+# REVIEW_PAGE_URL.
 ```
 
-Without a key, domain and recipient, the submission is still stored and the
-email is skipped with a warning in the function logs. Mailgun sandbox
-domains only deliver to recipients authorized in Mailgun.
+Without the token, the account ID and a recipient, the submission is still
+stored and the email is skipped with a warning in the function logs. The
+same token and account serve both projects.
 
 ## Store (Shopify)
 

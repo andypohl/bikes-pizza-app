@@ -191,13 +191,13 @@ test("deleteUser still succeeds when the email cannot be sent", async () => {
   const result = await deleteUser("u2", {
     ...f.deps,
     notify: async () => {
-      throw new Error("mailgun down");
+      throw new Error("mail down");
     },
   });
   assert.deepEqual(result, { deleted: "u2" });
   assert.equal(f.authUsers.has("u2"), false);
   assert.equal(f.records.has("u2"), false);
-  assert.deepEqual(f.log, [["account deletion email failed", { uid: "u2", message: "mailgun down" }]]);
+  assert.deepEqual(f.log, [["account deletion email failed", { uid: "u2", message: "mail down" }]]);
 });
 
 test("deleteUser without a notifier behaves as before", async () => {

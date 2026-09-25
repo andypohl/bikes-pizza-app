@@ -38,6 +38,8 @@ const adminSiteId = cfg.require("adminSiteId");
 
 /** Cloudflare zone of `domain`; DNS is skipped while `manageDns` is false. */
 const cloudflareZoneId = cfg.require("cloudflareZoneId");
+/** Cloudflare account whose Email Service sends the functions' email (the sending domain is onboarded there by hand). */
+const cloudflareAccountId = cfg.require("cloudflareAccountId");
 const manageDns = cfg.getBoolean("manageDns") ?? true;
 
 /** GitHub repository (owner/name) and the environment the stack deploys. */
@@ -378,7 +380,7 @@ new gcp.serviceaccount.IAMMember(
 // Secrets the functions read. Only the entries are managed here; values are
 // set with `firebase functions:secrets:set` and never pass through state.
 
-for (const secretId of ["MAILGUN_API_KEY"]) {
+for (const secretId of ["CLOUDFLARE_EMAIL_TOKEN"]) {
   new gcp.secretmanager.Secret(`secret-${secretId}`, { project: project.projectId, secretId, replication: { auto: {} } }, apisReady);
 }
 
@@ -415,6 +417,7 @@ const variables: Record<string, pulumi.Input<string>> = {
   GCP_DEPLOY_SERVICE_ACCOUNT: deployer.email,
   GCP_WORKLOAD_IDENTITY_PROVIDER: providerResourceName,
   SITE_URL: `https://${domain}`,
+  CLOUDFLARE_ACCOUNT_ID: cloudflareAccountId,
   PUBLIC_API_URL: `https://${submissionsDomain}`,
   REVIEW_PAGE_URL: `https://${submissionsDomain}/`,
   SHOPIFY_STORE_DOMAIN: shopifyStoreDomain,
