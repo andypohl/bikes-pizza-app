@@ -380,8 +380,21 @@ new gcp.serviceaccount.IAMMember(
 // Secrets the functions read. Only the entries are managed here; values are
 // set with `firebase functions:secrets:set` and never pass through state.
 
+// The functions run as the project's default compute service account, which
+// must be allowed to read each secret (the Firebase CLI otherwise tries to
+// grant it during the deploy, which the deploy service account may not do).
 for (const secretId of ["CLOUDFLARE_EMAIL_TOKEN"]) {
-  new gcp.secretmanager.Secret(`secret-${secretId}`, { project: project.projectId, secretId, replication: { auto: {} } }, apisReady);
+  const secret = new gcp.secretmanager.Secret(`secret-${secretId}`, { project: project.projectId, secretId, replication: { auto: {} } }, apisReady);
+  new gcp.secretmanager.SecretIamMember(
+    `secret-${secretId}-functions-accessor`,
+    {
+      project: project.projectId,
+      secretId: secret.secretId,
+      role: "roles/secretmanager.secretAccessor",
+      member: pulumi.interpolate`serviceAccount:${project.number}-compute@developer.gserviceaccount.com`,
+    },
+    opts,
+  );
 }
 
 // ---------------------------------------------------------------------------
