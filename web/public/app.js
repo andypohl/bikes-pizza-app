@@ -76,6 +76,9 @@ let handled = false; // guards against acting twice on auth state changes
 // session); only then is the profile checked before sending them on, so
 // returning members are not held up by a round trip.
 let freshSignIn = false;
+// A message for the signed-out page, shown once the sign-out lands there
+// (a new account's verification notice, or an unverified sign-in refused).
+let notice = null;
 
 // Usernames: kept in step with `USERNAME_PATTERN` in functions/account.js.
 const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,24}$/;
@@ -226,8 +229,20 @@ function describe(error) {
 /** Continues with whatever the person came here to do. */
 async function proceed(user) {
   if (!user.emailVerified) {
-    $("#verify-email").textContent = user.email ?? "";
-    show("verify");
+    // A password account whose address was never verified (Google and
+    // Apple arrive verified): a fresh link goes out and the session ends,
+    // since the member functions refuse unverified tokens anyway.
+    const email = user.email ?? "";
+    try {
+      await sendEmailVerification(user, actionCodeSettings());
+    } catch {
+      // Too many requests, most likely; the earlier email still works.
+    }
+    notice = {
+      text: `Please check your email and verify your email address first. We sent a new verification link to ${email}.`,
+      ok: false,
+    };
+    await signOut(auth);
     return;
   }
   // Back from the verification link, the account says verified but the ID
@@ -968,9 +983,21 @@ $("#auth-form").addEventListener("submit", async (event) => {
   }
   await attemptSignIn(async () => {
     if (mode === "signup") {
+      // The account is created signed out: the person signs in once the
+      // emailed link has been opened; their choices wait in savePending.
       const { user } = await createUserWithEmailAndPassword(auth, email, password);
       savePending(user.uid, { username, newsletter: form.newsletter.checked });
-      await sendEmailVerification(user, actionCodeSettings());
+      try {
+        await sendEmailVerification(user, actionCodeSettings());
+      } catch {
+        // Signing in before verifying sends another one.
+      }
+      notice = {
+        text: `Check your email: we sent a verification link to ${email}. Open it, then sign in here.`,
+        ok: true,
+      };
+      setMode("signin");
+      await signOut(auth);
     } else {
       await signInWithEmailAndPassword(auth, email, password);
     }
@@ -1010,38 +1037,12 @@ $("#apple").addEventListener("click", () => {
   return signInWith(apple);
 });
 
-$("#verified").addEventListener("click", async () => {
-  busy(true);
-  try {
-    await auth.currentUser?.reload();
-    if (auth.currentUser?.emailVerified) {
-      await proceed(auth.currentUser);
-    } else {
-      say("Not verified yet. Open the link in the email, then try again.");
-    }
-  } finally {
-    busy(false);
-  }
-});
-
-$("#resend").addEventListener("click", async () => {
-  busy(true);
-  try {
-    await sendEmailVerification(auth.currentUser, actionCodeSettings());
-    say("Verification email sent again.", true);
-  } catch (error) {
-    say(describe(error) ?? "Could not send the email.");
-  } finally {
-    busy(false);
-  }
-});
-
 $("#retry").addEventListener("click", () => {
   if (auth.currentUser) proceed(auth.currentUser);
   else show("auth");
 });
 
-for (const id of ["#signout-verify", "#signout-setup", "#signout-error"]) {
+for (const id of ["#signout-setup", "#signout-error"]) {
   $(id).addEventListener("click", async () => {
     handled = false;
     await signOut(auth);
@@ -1065,6 +1066,9 @@ onAuthStateChanged(auth, (user) => {
       deleted = false;
       busy(false);
       say("Your account has been deleted.", true);
+    } else if (notice) {
+      say(notice.text, notice.ok);
+      notice = null;
     }
     return;
   }

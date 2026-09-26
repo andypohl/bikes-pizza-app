@@ -159,6 +159,11 @@ class FakeAuthService implements AuthService {
   AppUser? _parked;
   int cancelledSecondFactors = 0;
 
+  /// Emails of accounts created in this session, and those among them
+  /// whose verification link was "opened".
+  final created = <String>{};
+  final verified = <String>{};
+
   @override
   Future<void> signIn({required String email, required String password}) async {
     if (password != 'correct-horse') {
@@ -166,6 +171,24 @@ class FakeAuthService implements AuthService {
         'Email or password is incorrect.',
         badCredentials: true,
       );
+    }
+    if (created.contains(email)) {
+      if (!verified.contains(email)) {
+        verificationEmails++;
+        throw AuthException(
+          'Please check your email and verify your email address first. '
+          'We sent a new verification link to $email.',
+        );
+      }
+      _complete(
+        AppUser(
+          uid: 'u2',
+          email: email,
+          emailVerified: true,
+          providerIds: const ['password'],
+        ),
+      );
+      return;
     }
     _complete(
       AppUser(uid: 'u1', email: email, providerIds: const ['password']),
@@ -243,16 +266,26 @@ class FakeAuthService implements AuthService {
   @override
   Future<bool> isAdmin() async => admin;
 
+  /// Whether the session counts as having a second factor; a passkey
+  /// sign-in (FakePasskeyService) turns it on.
+  bool secondFactor = true;
+
+  @override
+  Future<bool> hasSecondFactor() async => secondFactor;
+
   @override
   Future<String?> idToken() async =>
       _user == null ? null : 'token-${_user!.uid}';
 
   @override
-  Future<void> createAccount({
+  Future<String> createAccount({
     required String email,
     required String password,
-  }) async =>
-      _set(AppUser(uid: 'u2', email: email, providerIds: const ['password']));
+  }) async {
+    created.add(email);
+    verificationEmails++;
+    return 'u2';
+  }
 
   final resetEmails = <String>[];
 
@@ -479,6 +512,7 @@ class FakePasskeyService implements PasskeyService {
       throw PasskeyException('This device has no passkey for bikes.pizza yet.');
     }
     signIns++;
+    auth?.secondFactor = true;
     auth?._set(
       AppUser(
         uid: 'u9',
@@ -2524,9 +2558,13 @@ void main() {
     );
     await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
     await tester.pumpAndSettle();
-    expect(auth.currentUser?.email, 'new@example.com');
-    // Back on Settings, signed in.
-    expect(find.text('new@example.com'), findsOneWidget);
+    // Created, emailed a verification link, and left signed out: the
+    // screen is now the sign-in form with the email kept.
+    expect(auth.currentUser, isNull);
+    expect(auth.verificationEmails, 1);
+    expect(find.byKey(const Key('sign-in-notice')), findsOneWidget);
+    expect(find.textContaining('new@example.com'), findsWidgets);
+    expect(find.widgetWithText(FilledButton, 'Sign in'), findsOneWidget);
   });
 
   Future<void> openSignIn(WidgetTester tester) async {
@@ -2905,11 +2943,29 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
     await tester.pumpAndSettle();
 
-    // Nothing is sent until the email is verified.
+    // Nothing is sent until the email is verified: the account was created
+    // signed out, and signing in before opening the link is refused (with
+    // a fresh link).
     expect(members!.updates, isEmpty);
-    expect(find.byKey(const Key('verify-email')), findsOneWidget);
-    await tester.tap(find.byKey(const Key('verify-email')));
+    expect(auth.currentUser, isNull);
+    expect(auth.verificationEmails, 1);
+    await tester.enterText(find.byType(TextField).at(1), 'correct-horse');
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
     await tester.pumpAndSettle();
+    expect(
+      find.textContaining('verify your email address first'),
+      findsOneWidget,
+    );
+    expect(auth.currentUser, isNull);
+    expect(auth.verificationEmails, 2);
+    expect(members!.updates, isEmpty);
+
+    // The link was opened: the sign-in goes through and the choices are sent.
+    auth.verified.add('new@example.com');
+    await tester.enterText(find.byType(TextField).at(1), 'correct-horse');
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
+    await tester.pumpAndSettle();
+    expect(auth.currentUser?.emailVerified, isTrue);
     expect(members!.updates, hasLength(1));
     expect(members!.updates.single.username, 'newbie');
     expect(members!.updates.single.newsletters, isEmpty);
@@ -4436,6 +4492,76 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('admin-denied')), findsOneWidget);
     expect(find.textContaining('two-factor authentication'), findsOneWidget);
+  });
+
+  testWidgets(
+    'an admin without a second factor must set one up: passkey signs in',
+    (tester) async {
+      passkeys = FakePasskeyService();
+      await pumpApp(tester);
+      auth.admin = true;
+      auth.secondFactor = false;
+      await signInWithGoogle(tester);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('admin-2fa')), findsOneWidget);
+      // No way back: the system back gesture leaves the screen in place.
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('admin-2fa')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('admin-2fa-passkey')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('admin-2fa')), findsNothing);
+      expect(passkeys!.passkeys.first.name, 'The app on iPhone or iPad');
+      expect(passkeys!.signIns, 1);
+      expect(auth.currentUser, isNotNull);
+      expect(
+        find.textContaining('signed in as an administrator'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'an admin without a second factor can enroll an authenticator, then signs in again',
+    (tester) async {
+      await pumpApp(tester);
+      auth.admin = true;
+      auth.secondFactor = false;
+      await signInWithGoogle(tester);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('admin-2fa')), findsOneWidget);
+      // Without passkeys on this build, only the authenticator is offered.
+      expect(find.byKey(const Key('admin-2fa-passkey')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('admin-2fa-totp')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('totp-code')), '123456');
+      await tester.tap(find.byKey(const Key('totp-finish')));
+      await tester.pumpAndSettle();
+      expect(auth.factors, hasLength(1));
+      // Enrolled, but this session never presented a code: signed out.
+      expect(auth.currentUser, isNull);
+      expect(find.byKey(const Key('admin-2fa')), findsNothing);
+      expect(
+        find.textContaining('Sign in again with the code'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('an admin without a second factor can sign out instead', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    auth.admin = true;
+    auth.secondFactor = false;
+    await signInWithGoogle(tester);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('admin-2fa-sign-out')));
+    await tester.pumpAndSettle();
+    expect(auth.currentUser, isNull);
+    expect(find.byKey(const Key('admin-2fa')), findsNothing);
   });
 
   testWidgets('the users screen grants admin access with a switch', (

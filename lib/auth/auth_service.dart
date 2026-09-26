@@ -97,9 +97,19 @@ abstract class AuthService {
 
   AppUser? get currentUser;
 
+  /// Signs in with a password. A password account whose email address was
+  /// never verified is refused: it gets a fresh verification link and is
+  /// signed out again, since the member functions need a verified email.
   Future<void> signIn({required String email, required String password});
 
-  Future<void> createAccount({required String email, required String password});
+  /// Creates a password account, emails its verification link and signs
+  /// out again; the member signs in once the address is verified. Returns
+  /// the new account's uid, for what waits on the device meanwhile
+  /// (`PendingProfile`).
+  Future<String> createAccount({
+    required String email,
+    required String password,
+  });
 
   Future<void> sendPasswordReset(String email);
 
@@ -124,6 +134,11 @@ abstract class AuthService {
   Future<void> signInWithApple();
 
   Future<void> signOut();
+
+  /// Whether this session was established with a second factor: a passkey
+  /// sign-in, or the code from an authenticator app. The admin API refuses
+  /// admin sessions without one.
+  Future<bool> hasSecondFactor();
 
   // ---- two-factor authentication (optional, an authenticator app) ----
 
@@ -187,17 +202,44 @@ class FirebaseAuthService implements AuthService {
           email: email.trim(),
           password: password,
         );
+        final user = _auth.currentUser;
+        if (user != null && !user.emailVerified) await _rejectUnverified(user);
       });
 
+  /// A password sign-in on an address that was never verified: a fresh
+  /// link goes out and the session ends, with a message saying so.
+  Future<Never> _rejectUnverified(fb.User user) async {
+    final email = user.email ?? '';
+    try {
+      await user.sendEmailVerification();
+    } on fb.FirebaseAuthException {
+      // Too many requests, most likely; the earlier email still works.
+    }
+    await _auth.signOut();
+    throw AuthException(
+      'Please check your email and verify your email address first. '
+      'We sent a new verification link to $email.',
+    );
+  }
+
   @override
-  Future<void> createAccount({
+  Future<String> createAccount({
     required String email,
     required String password,
   }) => _guard(() async {
-    await _auth.createUserWithEmailAndPassword(
+    final credential = await _auth.createUserWithEmailAndPassword(
       email: email.trim(),
       password: password,
     );
+    final user = credential.user ?? _auth.currentUser;
+    final uid = user?.uid ?? '';
+    try {
+      await user?.sendEmailVerification();
+    } on fb.FirebaseAuthException {
+      // Signing in before verifying sends another one.
+    }
+    await _auth.signOut();
+    return uid;
   });
 
   @override
@@ -398,6 +440,22 @@ class FirebaseAuthService implements AuthService {
   }
 
   @override
+  Future<bool> hasSecondFactor() async {
+    final user = _auth.currentUser;
+    if (user == null) return false;
+    try {
+      final claims = (await user.getIdTokenResult()).claims ?? const {};
+      // Firebase marks tokens minted after a second factor; a passkey
+      // sign-in's custom token carries `passkey` (see passkeys.js).
+      final firebase = claims['firebase'];
+      final factor = firebase is Map ? firebase['sign_in_second_factor'] : null;
+      return factor != null || claims['passkey'] == true;
+    } on fb.FirebaseAuthException {
+      return false;
+    }
+  }
+
+  @override
   Future<String?> idToken() async {
     final user = _auth.currentUser;
     if (user == null) return null;
@@ -446,10 +504,10 @@ class FirebaseAuthService implements AuthService {
   /// Runs [action], translating Firebase error codes into readable messages.
   /// A sign-in that needs its second factor is parked for
   /// [resolveSecondFactor] and reported as [SecondFactorRequired].
-  Future<void> _guard(Future<void> Function() action) async {
+  Future<T> _guard<T>(Future<T> Function() action) async {
     _pendingEmail = null;
     try {
-      await action();
+      return await action();
     } on AuthException {
       rethrow;
     } on fb.FirebaseAuthMultiFactorException catch (e) {

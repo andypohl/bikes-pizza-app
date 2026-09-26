@@ -351,7 +351,10 @@ Only Firebase users with the `admin` custom claim can open it; grant the
 first one with `tool/grant_admin.py you@example.com` (revoke with
 `--revoke`). After that, admins can grant or revoke it for other accounts
 with the Admin switch on an account's detail in Manage Users (admin page
-or app); nobody can revoke their own.
+or app); nobody can revoke their own. In the app, an administrator whose
+sign-in had no second factor is taken straight to a setup screen that only
+a passkey (recommended), an authenticator app or signing out can leave
+(`lib/admin/admin_second_factor_screen.dart`).
 Reviewers must also use two-factor authentication: on first sign-in the
 page shows a QR code to scan with an authenticator app and asks for a
 code, and every sign-in afterwards asks for the code; the API refuses admin
@@ -502,9 +505,11 @@ to posts published before this existed.
 
 The app's Settings → Account → Manage account screen (`lib/account/`) and
 the website's account page use them; the app adds a password change for
-email/password accounts. Password accounts must verify their email first
-(Settings shows a "Verify your email" tile); Google and Apple accounts are
-verified already. Newsletter sending is not part of this app yet; the flag
+email/password accounts. Creating a password account (app or website)
+emails a verification link and signs the new member out again; signing in
+before opening it is refused with a message and a fresh link, so a
+member's first session always has a verified email. Google and Apple
+accounts are verified already. Newsletter sending is not part of this app yet; the flag
 records the choice. Both screens also offer two-factor authentication, off
 by default: turning it on walks through adding bikes.pizza to an
 authenticator app (QR code, or on the phone a button that opens the app)

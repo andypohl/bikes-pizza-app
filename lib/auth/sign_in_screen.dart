@@ -24,8 +24,11 @@ enum _Mode { signIn, createAccount }
 /// the passkey again for a device that has one but was interrupted.
 ///
 /// Creating an account asks for the password twice, plus a username and
-/// whether to get the newsletter; those last two wait on the device (see
-/// [PendingProfile]) until the email is verified, since the member
+/// whether to get the newsletter. The account is created signed out: a
+/// verification link is emailed and the screen switches to signing in,
+/// which works once the link has been opened (an unverified sign-in is
+/// refused with a fresh link). The username and newsletter choice wait on
+/// the device (see [PendingProfile]) until then, since the member
 /// functions need a verified email.
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key, required this.auth, this.passkeys});
@@ -56,6 +59,9 @@ class _SignInScreenState extends State<SignInScreen> {
   bool _awaitingCode = false;
   String? _secondFactorEmail;
   bool _passkeysAvailable = false;
+  // Good news, as opposed to [_error]: the account was created and its
+  // verification link sent.
+  String? _notice;
   String? _error;
 
   @override
@@ -81,6 +87,7 @@ class _SignInScreenState extends State<SignInScreen> {
   void _switchMode(_Mode mode) => setState(() {
     _mode = mode;
     _error = null;
+    _notice = null;
     // Keep the email across modes; only the passwords are cleared.
     _password.clear();
     _confirm.clear();
@@ -91,24 +98,34 @@ class _SignInScreenState extends State<SignInScreen> {
     setState(() {
       _busy = true;
       _error = null;
+      _notice = null;
     });
     try {
       if (_isSignIn) {
         await widget.auth.signIn(email: _email.text, password: _password.text);
+        if (mounted) Navigator.of(context).pop();
       } else {
-        await widget.auth.createAccount(
-          email: _email.text,
+        final email = _email.text.trim();
+        final uid = await widget.auth.createAccount(
+          email: email,
           password: _password.text,
         );
-        final uid = widget.auth.currentUser?.uid;
-        if (uid != null) {
+        if (uid.isNotEmpty) {
           await PendingProfile(
             username: _username.text.trim(),
             newsletter: _newsletter,
           ).save(uid);
         }
+        if (!mounted) return;
+        setState(() {
+          _mode = _Mode.signIn;
+          _password.clear();
+          _confirm.clear();
+          _notice =
+              'Check your email: we sent a verification link to $email. '
+              'Open it, then sign in here.';
+        });
       }
-      if (mounted) Navigator.of(context).pop();
     } on SecondFactorRequired catch (e) {
       await _secondFactor(e.email);
     } on AuthException catch (e) {
@@ -460,6 +477,14 @@ class _SignInScreenState extends State<SignInScreen> {
                     onChanged: _busy
                         ? null
                         : (on) => setState(() => _newsletter = on ?? false),
+                  ),
+                ],
+                if (_notice != null) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    _notice!,
+                    key: const Key('sign-in-notice'),
+                    style: TextStyle(color: theme.colorScheme.primary),
                   ),
                 ],
                 if (_error != null) ...[
