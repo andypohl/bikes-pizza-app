@@ -463,7 +463,7 @@ const service = {
     list: (query) => adminUsers.listUsers(query, userAdminDeps()),
     get: (uid) => adminUsers.getUser(uid, userAdminDeps()),
     update: async (uid, data, admin) => {
-      const result = await adminUsers.updateUser(uid, data, userAdminDeps());
+      const result = await adminUsers.updateUser(uid, data, { ...userAdminDeps(), by: admin });
       logger.info("user updated by admin", { uid, by: admin.uid, fields: Object.keys(data ?? {}) });
       if (result.renamed) await rebuildWebsite(`member ${uid} renamed by admin`);
       return result;

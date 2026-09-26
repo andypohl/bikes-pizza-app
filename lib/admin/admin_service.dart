@@ -42,6 +42,7 @@ abstract class AdminService {
     String? username,
     String? email,
     List<String>? newsletters,
+    bool? admin,
   });
 
   Future<void> deleteUser(String uid);
@@ -437,6 +438,7 @@ class AdminUser {
     required this.uid,
     required this.email,
     this.emailVerified = false,
+    this.admin = false,
     this.username = '',
     this.subscribed = false,
     this.providers = const [],
@@ -451,6 +453,9 @@ class AdminUser {
   final String uid;
   final String email;
   final bool emailVerified;
+
+  /// Whether the account carries the `admin` custom claim.
+  final bool admin;
   final String username;
   final bool subscribed;
 
@@ -478,6 +483,7 @@ class AdminUser {
       uid: json['uid'] as String? ?? '',
       email: json['email'] as String? ?? '',
       emailVerified: json['emailVerified'] == true,
+      admin: json['admin'] == true,
       username: json['username'] as String? ?? '',
       subscribed: json['subscribed'] == true,
       providers: [if (providers is List) ...providers.whereType<String>()],
@@ -617,6 +623,7 @@ class ApiAdminService implements AdminService {
     String? username,
     String? email,
     List<String>? newsletters,
+    bool? admin,
   }) async => AdminUser.fromJson(
     await _api.patch(
       '/admin/users/${_id(uid)}',
@@ -624,6 +631,7 @@ class ApiAdminService implements AdminService {
         'username': ?username,
         'email': ?email,
         'newsletters': ?newsletters,
+        'admin': ?admin,
       },
     ),
   );

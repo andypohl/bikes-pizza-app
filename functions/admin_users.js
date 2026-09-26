@@ -17,6 +17,7 @@ const PROVIDER_LABELS = { password: "Email", "google.com": "Google", "apple.com"
  * @property {(maxResults: number, pageToken?: string) => Promise<{users: object[], pageToken?: string}>} listUsers
  * @property {(uid: string) => Promise<object>} getUser
  * @property {(uid: string, props: object) => Promise<object>} updateUser
+ * @property {(uid: string, claims: object) => Promise<void>} setCustomUserClaims
  * @property {(uid: string) => Promise<void>} deleteUser
  */
 
@@ -53,6 +54,7 @@ function summarise(user, member, posts, newsletters) {
     uid: user.uid,
     email: user.email ?? member?.email ?? "",
     emailVerified: Boolean(user.emailVerified),
+    admin: user.customClaims?.admin === true,
     username: member?.username ?? "",
     subscribed: newsletters.some((n) => subscribedTo.has(n.id)),
     providers: providersOf(user),
@@ -113,30 +115,49 @@ export async function getUser(uid, { auth, members, posts: postStore, newsletter
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
- * Applies the admin's edits: `username`, `email` and `newsletters` (the
- * full list of IDs). The email changes on the Auth user and the member
- * record; a username change is written onto the member's posts. Returns
- * the fresh detail plus `renamed` so the caller can rebuild the website.
+ * Applies the admin's edits: `username`, `email`, `newsletters` (the
+ * full list of IDs) and `admin` (whether the account carries the `admin`
+ * custom claim; `deps.by`, the acting admin, may not take away their own).
+ * The email changes on the Auth user and the member record; a username
+ * change is written onto the member's posts. Returns the fresh detail plus
+ * `renamed` so the caller can rebuild the website.
  */
 export async function updateUser(uid, data, deps) {
-  const { auth, members, posts, newsletters, log = () => {} } = deps;
+  const { auth, members, posts, newsletters, by, log = () => {} } = deps;
   if (!data || typeof data !== "object" || Array.isArray(data)) throw new ValidationError("Nothing to update.");
   const patch = {};
   if ("email" in data) {
     if (typeof data.email !== "string" || !EMAIL_PATTERN.test(data.email.trim())) throw new ValidationError("That email address doesn't look right.");
     patch.email = data.email.trim();
   }
+  let admin;
+  if ("admin" in data) {
+    if (typeof data.admin !== "boolean") throw new ValidationError("Admin must be true or false.");
+    admin = data.admin;
+    if (!admin && by?.uid === uid) throw new AppError("failed-precondition", "You can't take away your own admin access.");
+  }
   const rest = {};
   if ("username" in data) rest.username = data.username;
   if ("newsletters" in data) rest.newsletters = data.newsletters;
   const memberPatch = Object.keys(rest).length ? validateUpdate(rest, newsletters) : {};
-  if (!Object.keys(patch).length && !Object.keys(memberPatch).length) throw new ValidationError("Nothing to update.");
+  if (!Object.keys(patch).length && !Object.keys(memberPatch).length && admin === undefined) {
+    throw new ValidationError("Nothing to update.");
+  }
 
+  let existing;
   try {
-    await auth.getUser(uid);
+    existing = await auth.getUser(uid);
   } catch (error) {
     if (error?.code === "auth/user-not-found") throw new AppError("not-found", "No such user.");
     throw error;
+  }
+  if (admin !== undefined && Boolean(existing.customClaims?.admin) !== admin) {
+    // Custom claims are replaced as a whole; keep whatever else is there.
+    const claims = { ...(existing.customClaims ?? {}) };
+    if (admin) claims.admin = true;
+    else delete claims.admin;
+    await auth.setCustomUserClaims(uid, claims);
+    log(admin ? "admin access granted" : "admin access revoked", { uid, by: by?.uid });
   }
   if (patch.email) {
     try {

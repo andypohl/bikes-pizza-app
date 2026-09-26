@@ -44,6 +44,10 @@ function fakes({ users, members = {}, posts = [] } = {}) {
           }
           Object.assign(authUsers.get(uid), props);
         },
+        async setCustomUserClaims(uid, claims) {
+          if (!authUsers.has(uid)) throw notFound();
+          authUsers.get(uid).customClaims = claims;
+        },
         async deleteUser(uid) {
           if (!authUsers.delete(uid)) throw notFound();
         },
@@ -154,6 +158,27 @@ test("updateUser changes email, username and newsletters, and renames the member
   const same = await updateUser("u1", { newsletters: ["news"] }, f.deps);
   assert.equal(same.renamed, false);
   assert.equal(same.subscribed, true);
+});
+
+test("updateUser grants and revokes the admin claim, but never the acting admin's own", async () => {
+  const f = fakes({ users: USERS, members: MEMBERS, posts: POSTS });
+  const deps = { ...f.deps, by: { uid: "u2" } };
+  const isValidation = (e) => e instanceof ValidationError;
+  assert.equal((await getUser("u1", deps)).admin, false);
+  const granted = await updateUser("u1", { admin: true }, deps);
+  assert.equal(granted.admin, true);
+  assert.equal(granted.renamed, false);
+  assert.deepEqual(f.authUsers.get("u1").customClaims, { admin: true });
+  assert.deepEqual(f.log.at(-1), ["admin access granted", { uid: "u1", by: "u2" }]);
+  // Already an admin: nothing is written again.
+  const logged = f.log.length;
+  await updateUser("u1", { admin: true }, deps);
+  assert.equal(f.log.length, logged);
+  const revoked = await updateUser("u1", { admin: false }, deps);
+  assert.equal(revoked.admin, false);
+  assert.deepEqual(f.authUsers.get("u1").customClaims, {});
+  await assert.rejects(updateUser("u2", { admin: false }, deps), (e) => e instanceof AppError && e.code === "failed-precondition");
+  await assert.rejects(updateUser("u1", { admin: "yes" }, deps), isValidation);
 });
 
 test("updateUser refuses bad input, taken usernames and duplicate emails", async () => {

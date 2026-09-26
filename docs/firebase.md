@@ -151,9 +151,11 @@ OAuth token that has the cloud-platform scope.
 - The app exposes email sign-in, account creation, password reset,
   Google sign-in, Apple sign-in (iOS only), and sign-out from Settings,
   through the `AuthService` facade in `lib/auth/`.
-- No custom claims or roles yet. Admin-only actions (approving photos, for
-  example) will use a custom claim set from a Cloud Function or the Admin
-  SDK, not a hardcoded list of emails.
+- Admin-only actions (reviewing submissions, managing users, and so on)
+  need the `admin` custom claim on the Auth user plus a second factor. The
+  first admin is granted with `tool/grant_admin.py`; admins grant or revoke
+  it for other accounts with the Admin switch in Manage Users
+  (`functions/admin_users.js` sets the claim). Nobody can revoke their own.
 
 ### Google sign-in details
 
