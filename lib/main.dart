@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import 'account/data_export.dart';
 import 'account/member_service.dart';
+import 'admin/admin_second_factor_screen.dart';
 import 'admin/admin_screen.dart';
 import 'admin/admin_service.dart';
 import 'api/api_client.dart';
@@ -346,6 +347,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   /// Admin tab; checked once per account.
   bool _admin = false;
   String? _adminFor;
+  bool _promptingSecondFactor = false;
+  String? _pendingAppliedFor;
 
   @override
   void initState() {
@@ -356,6 +359,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     // Signing in or out changes whose mentions count.
     _users = widget.auth.userChanges.listen((user) {
       if (user?.uid != _refreshedFor) _refreshUnread();
+      _finishSignUp(user);
       _checkAdmin(user);
     });
     _refreshUnread();
@@ -441,8 +445,23 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) _refreshUnread();
   }
 
+  /// Sends the username and newsletter choice a new member made at sign-up
+  /// once they sign in verified (`PendingProfile`, kept on the device).
+  Future<void> _finishSignUp(AppUser? user) async {
+    final members = widget.members;
+    if (members == null || user == null || !user.emailVerified) return;
+    if (user.uid == _pendingAppliedFor) return;
+    _pendingAppliedFor = user.uid;
+    try {
+      await members.applyPending(user.uid);
+    } on Object {
+      // The account screen asks again.
+    }
+  }
+
   /// Looks up the admin claim when a different account signs in, and
-  /// drops the tab when the account signs out.
+  /// drops the tab when the account signs out. An administrator whose
+  /// session has no second factor is asked to set one up first.
   Future<void> _checkAdmin(AppUser? user) async {
     if (widget.admin == null) return;
     if (user == null) {
@@ -453,8 +472,34 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     if (user.uid == _adminFor) return;
     _adminFor = user.uid;
     final admin = await widget.auth.isAdmin();
-    if (mounted && _adminFor == user.uid && admin != _admin) {
-      setState(() => _admin = admin);
+    if (!mounted || _adminFor != user.uid) return;
+    if (admin != _admin) setState(() => _admin = admin);
+    if (admin) await _requireSecondFactor(user);
+  }
+
+  /// Admin screens and API calls need a session established with a second
+  /// factor (a passkey, or an authenticator code). Without one, the setup
+  /// screen takes over until the admin adds a passkey, enrolls an
+  /// authenticator app, or signs out.
+  Future<void> _requireSecondFactor(AppUser user) async {
+    if (_promptingSecondFactor) return;
+    if (await widget.auth.hasSecondFactor()) return;
+    if (!mounted || widget.auth.currentUser?.uid != user.uid) return;
+    _promptingSecondFactor = true;
+    try {
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => AdminSecondFactorScreen(
+            auth: widget.auth,
+            passkeys: widget.passkeys,
+          ),
+        ),
+      );
+    } finally {
+      _promptingSecondFactor = false;
     }
   }
 
