@@ -125,20 +125,29 @@ abstract class MemberService {
 extension AccountSetup on MemberService {
   /// Sends the [PendingProfile] saved for [uid], if any, once the member is
   /// verified. Returns the resulting profile, or null when there was
-  /// nothing to send or the member already has a username. Failures (a
-  /// username taken meanwhile) are swallowed: the account screen asks again.
+  /// nothing to send or the member already has a username. The choices are
+  /// only forgotten once they have been sent (or turned out to be
+  /// unnecessary): a failure, whether the account is not verified yet, the
+  /// network is down or the username was taken meanwhile, keeps them for
+  /// the next attempt. Once the member has a username, from any source,
+  /// they are dropped.
   Future<MemberProfile?> applyPending(String uid) async {
-    final pending = await PendingProfile.take(uid);
+    final pending = await PendingProfile.peek(uid);
     if (pending == null) return null;
     try {
       final profile = await load();
-      if (profile.username.isNotEmpty) return null;
-      return await update(
+      if (profile.username.isNotEmpty) {
+        await PendingProfile.clear(uid);
+        return null;
+      }
+      final updated = await update(
         username: pending.username,
         newsletters: pending.newsletter
             ? [for (final n in profile.newsletters) n.id]
             : const [],
       );
+      await PendingProfile.clear(uid);
+      return updated;
     } on MemberException {
       return null;
     }
