@@ -28,6 +28,12 @@
             "appId": "1:35386977394:ios:d6295589f1bd84768326eb",
             "uploadDebugSymbols": false,
             "fileOutput": "ios/dev/GoogleService-Info.plist"
+          },
+          "Profile": {
+            "projectId": "bikes-pizza-dev",
+            "appId": "1:35386977394:ios:d6295589f1bd84768326eb",
+            "uploadDebugSymbols": false,
+            "fileOutput": "ios/dev/GoogleService-Info.plist"
           }
         }
       },
