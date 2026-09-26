@@ -347,8 +347,11 @@ without one the screens say so and point at Settings → Manage account.
 https://submissions.bikes.pizza/. It works through the REST API at
 `/api/` on the same site (`functions/api.js`, documented in `docs/api.md`),
 which the app can use too.
-Only Firebase users with the `admin` custom claim can open it; grant it
-with `tool/grant_admin.py you@example.com` (revoke with `--revoke`).
+Only Firebase users with the `admin` custom claim can open it; grant the
+first one with `tool/grant_admin.py you@example.com` (revoke with
+`--revoke`). After that, admins can grant or revoke it for other accounts
+with the Admin switch on an account's detail in Manage Users (admin page
+or app); nobody can revoke their own.
 Reviewers must also use two-factor authentication: on first sign-in the
 page shows a QR code to scan with an authenticator app and asks for a
 code, and every sign-in afterwards asks for the code; the API refuses admin

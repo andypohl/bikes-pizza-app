@@ -1115,6 +1115,7 @@ class FakeAdminService implements AdminService {
   final dequeued = <String>[];
   final postedNow = <String>[];
   final updates = <(String, String?, String?, List<String>?)>[];
+  final adminUpdates = <(String, bool)>[];
   final deleted = <String>[];
   final listedStatuses = <String>[];
 
@@ -1293,11 +1294,14 @@ class FakeAdminService implements AdminService {
     String? username,
     String? email,
     List<String>? newsletters,
+    bool? admin,
   }) async {
     _check();
     updates.add((uid, username, email, newsletters));
+    if (admin != null) adminUpdates.add((uid, admin));
     final was = accounts.firstWhere((u) => u.uid == uid);
     return AdminUser(
+      admin: admin ?? was.admin,
       uid: uid,
       email: email ?? was.email,
       username: username ?? was.username,
@@ -4432,6 +4436,32 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('admin-denied')), findsOneWidget);
     expect(find.textContaining('two-factor authentication'), findsOneWidget);
+  });
+
+  testWidgets('the users screen grants admin access with a switch', (
+    tester,
+  ) async {
+    await settingsAsAdmin(tester);
+    await tester.tap(find.byKey(const Key('admin-users')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('user-u1')));
+    await tester.pumpAndSettle();
+
+    final toggle = find.byKey(const Key('user-admin'));
+    expect(tester.widget<SwitchListTile>(toggle).value, isFalse);
+    expect(tester.widget<SwitchListTile>(toggle).onChanged, isNotNull);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('user-save')));
+    await tester.pumpAndSettle();
+
+    expect(admin.adminUpdates.single, ('u1', true));
+    expect(admin.updates.single, ('u1', null, null, null));
+    expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
+    expect(
+      tester.widget<FilledButton>(find.byKey(const Key('user-save'))).onPressed,
+      isNull,
+    );
   });
 
   testWidgets('the users screen lists users and edits one', (tester) async {

@@ -255,9 +255,11 @@ class _UsersScreenState extends State<UsersScreen> {
   }
 }
 
-/// One account: the details, the editable username, email and
-/// newsletters (Save enabled once something differs), a password reset
-/// for password accounts, and Delete behind an "Are you sure?".
+/// One account: the details, the editable username, email, admin switch
+/// and newsletters (Save enabled once something differs), a password reset
+/// for password accounts, and Delete behind an "Are you sure?". The admin
+/// switch is read-only on the signed-in admin's own account: nobody may
+/// take away their own access.
 class UserDetail extends StatefulWidget {
   const UserDetail({
     super.key,
@@ -287,6 +289,7 @@ class _UserDetailState extends State<UserDetail> {
   final _username = TextEditingController();
   final _email = TextEditingController();
   final _selected = <String>{};
+  bool _admin = false;
   AdminUser? _user;
   ApiException? _error;
   bool _busy = false;
@@ -328,6 +331,7 @@ class _UserDetailState extends State<UserDetail> {
     _user = user;
     _username.text = user.username;
     _email.text = user.email;
+    _admin = user.admin;
     _selected
       ..clear()
       ..addAll([
@@ -337,7 +341,8 @@ class _UserDetailState extends State<UserDetail> {
   }
 
   /// What differs from the loaded account; all null when nothing does.
-  ({String? username, String? email, List<String>? newsletters}) _changes() {
+  ({String? username, String? email, List<String>? newsletters, bool? admin})
+  _changes() {
     final user = _user!;
     final username = _username.text.trim();
     final email = _email.text.trim();
@@ -350,13 +355,17 @@ class _UserDetailState extends State<UserDetail> {
       username: username != user.username ? username : null,
       email: email != user.email ? email : null,
       newsletters: before.join(',') != now.join(',') ? now : null,
+      admin: _admin != user.admin ? _admin : null,
     );
   }
 
   bool get _dirty {
     if (_user == null) return false;
     final c = _changes();
-    return c.username != null || c.email != null || c.newsletters != null;
+    return c.username != null ||
+        c.email != null ||
+        c.newsletters != null ||
+        c.admin != null;
   }
 
   Future<void> _save() async {
@@ -371,6 +380,7 @@ class _UserDetailState extends State<UserDetail> {
         username: changes.username,
         email: changes.email,
         newsletters: changes.newsletters,
+        admin: changes.admin,
       ),
     );
     if (!mounted) return;
@@ -427,6 +437,7 @@ class _UserDetailState extends State<UserDetail> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final user = _user;
+    final isSelf = widget.auth.currentUser?.uid == widget.uid;
     final error = _error;
     if (error != null) return AdminError(error: error, onRetry: _load);
     if (user == null) return const Center(child: CircularProgressIndicator());
@@ -486,6 +497,22 @@ class _UserDetailState extends State<UserDetail> {
           DetailRow(
             'Last sign-in',
             when(user.lastSignInAt).isEmpty ? 'never' : when(user.lastSignInAt),
+          ),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            key: const Key('user-admin'),
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Admin'),
+            subtitle: Text(
+              isSelf
+                  ? "You can't change your own admin access."
+                  : 'Can open the admin screens and pages; they also need a '
+                        'passkey sign-in.',
+            ),
+            value: _admin,
+            onChanged: _busy || isSelf
+                ? null
+                : (on) => setState(() => _admin = on),
           ),
           if (user.newsletters.isNotEmpty) ...[
             const SizedBox(height: 8),

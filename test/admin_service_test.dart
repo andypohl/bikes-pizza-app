@@ -287,6 +287,8 @@ void main() {
         'username': 'ada',
         'newsletters': [],
       });
+      await s.updateUser('u1', admin: true);
+      expect(jsonDecode(requests.last.body), {'admin': true});
 
       await s.deleteUser('u1');
       expect(requests.last.method, 'DELETE');

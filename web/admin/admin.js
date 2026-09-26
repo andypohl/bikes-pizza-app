@@ -174,6 +174,12 @@ function render(data) {
     if (!user.username) open.title = "No username chosen yet";
     open.addEventListener("click", () => openDetail(user.uid));
     name.append(open);
+    if (user.admin) {
+      const tag = document.createElement("span");
+      tag.className = "yes";
+      tag.textContent = " admin";
+      name.append(tag);
+    }
 
     const news = document.createElement("td");
     news.innerHTML = user.subscribed ? '<span class="yes">Subscribed</span>' : '<span class="no">No</span>';
@@ -215,6 +221,7 @@ function formValues() {
   return {
     username: form.username.value.trim(),
     email: form.email.value.trim(),
+    admin: form.admin.checked,
     newsletters: [...form.querySelectorAll("input[name=newsletter]:checked")].map((i) => i.value),
   };
 }
@@ -226,6 +233,7 @@ function changes() {
   const out = {};
   if (now.username !== current.username) out.username = now.username;
   if (now.email !== current.email) out.email = now.email;
+  if (now.admin !== Boolean(current.admin)) out.admin = now.admin;
   const before = current.newsletters.filter((n) => n.subscribed).map((n) => n.id).sort().join(",");
   if (now.newsletters.slice().sort().join(",") !== before) out.newsletters = now.newsletters;
   return out;
@@ -245,6 +253,12 @@ function fill(user) {
   $("#d-verified").textContent = user.emailVerified ? "Yes" : "No";
   $("#d-joined").textContent = when(user.createdAt) || "unknown";
   $("#d-last").textContent = when(user.lastSignInAt) || "never";
+  // Nobody may take away their own admin access, so the switch is read-only
+  // on the signed-in admin's own account.
+  const self = user.uid === auth.currentUser?.uid;
+  form.admin.checked = Boolean(user.admin);
+  form.admin.disabled = self;
+  $("#d-admin-label").title = self ? "You can't change your own admin access." : "";
 
   const box = $("#d-newsletters");
   box.replaceChildren();
