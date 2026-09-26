@@ -64,9 +64,12 @@ class _AccountScreenState extends State<AccountScreen> {
     });
     try {
       final user = widget.auth.currentUser;
-      // Choices saved at sign-up are sent before the profile is shown.
+      // Choices saved at sign-up are sent before the profile is shown, once
+      // the email is verified (the member functions refuse them before).
       final profile =
-          (user == null ? null : await widget.members.applyPending(user.uid)) ??
+          (user == null || !user.emailVerified
+              ? null
+              : await widget.members.applyPending(user.uid)) ??
           await widget.members.load();
       if (!mounted) return;
       setState(() => _apply(profile));

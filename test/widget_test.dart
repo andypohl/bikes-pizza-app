@@ -4564,6 +4564,44 @@ void main() {
     expect(find.byKey(const Key('admin-2fa')), findsNothing);
   });
 
+  testWidgets('sign-up choices survive a failed first attempt to send them', (
+    tester,
+  ) async {
+    members = FakeMemberService()
+      ..profile = const MemberProfile(
+        email: 'new@example.com',
+        newsletters: [Newsletter(id: 'weekly', name: 'Weekly')],
+      );
+    await openSignIn(tester);
+    await tester.tap(find.text('New here? Create an account'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).at(0), 'new@example.com');
+    await tester.enterText(find.byType(TextField).at(1), 'correct-horse');
+    await tester.enterText(
+      find.byKey(const Key('confirm-password')),
+      'correct-horse',
+    );
+    await tester.enterText(find.byKey(const Key('username')), 'demouser');
+    await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
+    await tester.pumpAndSettle();
+
+    // Verified, but the account cannot be reached at the first sign-in.
+    auth.verified.add('new@example.com');
+    members!.fail = true;
+    await tester.enterText(find.byType(TextField).at(1), 'correct-horse');
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
+    await tester.pumpAndSettle();
+    expect(auth.currentUser?.emailVerified, isTrue);
+    expect(members!.updates, isEmpty);
+
+    // The choices were kept: opening the account sends them.
+    members!.fail = false;
+    await openAccount(tester);
+    expect(members!.updates, hasLength(1));
+    expect(members!.updates.single.username, 'demouser');
+    expect(find.text('demouser'), findsOneWidget);
+  });
+
   testWidgets('the users screen grants admin access with a switch', (
     tester,
   ) async {

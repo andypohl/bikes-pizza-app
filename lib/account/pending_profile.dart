@@ -21,14 +21,20 @@ class PendingProfile {
     await prefs.setBool(_newsletterKey(uid), newsletter);
   }
 
-  /// The choices saved for [uid], removed from the device once read.
-  static Future<PendingProfile?> take(String uid) async {
+  /// The choices saved for [uid], if any. They stay on the device until
+  /// [clear] is called, so a failed attempt to send them can be retried.
+  static Future<PendingProfile?> peek(String uid) async {
     final prefs = await SharedPreferences.getInstance();
     final username = prefs.getString(_usernameKey(uid));
     if (username == null) return null;
     final newsletter = prefs.getBool(_newsletterKey(uid)) ?? true;
+    return PendingProfile(username: username, newsletter: newsletter);
+  }
+
+  /// Forgets the choices saved for [uid].
+  static Future<void> clear(String uid) async {
+    final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_usernameKey(uid));
     await prefs.remove(_newsletterKey(uid));
-    return PendingProfile(username: username, newsletter: newsletter);
   }
 }
