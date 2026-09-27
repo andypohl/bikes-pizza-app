@@ -344,7 +344,11 @@ creating it with defaults on first use.
   0.5 or more, or a person-like object scores 0.5 or more; the counts and
   top scores are kept on the record for the reviewer). Thresholds are in
   `functions/vision.js`. Then it stores the images in Cloud Storage and a
-  `submissions` document in Firestore, and emails `SUBMISSION_NOTIFY_EMAIL`
+  `submissions` document in Firestore, and emails the project's
+  administrators (the accounts with the `admin` claim and a verified
+  address, plus any addresses in `SUBMISSION_NOTIFY_EMAIL`; reported
+  concerns and new members are announced to the same people, see
+  `functions/admin_notices.js`)
   through Cloudflare Email Service with a link to the review page
   (`REVIEW_PAGE_URL`, the submissions domain when empty). Needs the
   `CLOUDFLARE_EMAIL_TOKEN` secret and `CLOUDFLARE_ACCOUNT_ID`; without them
@@ -514,11 +518,14 @@ the site.
 - iOS: `apple-app-site-association` lists
   `<Team ID>.<bundle ID>` under `webcredentials`, and
   `ios/Runner/Runner.entitlements` carries the Associated Domains
-  entitlement with `webcredentials:bikes.pizza` and
-  `webcredentials:bikes-pizza.dev?mode=developer` (the suffix makes
-  development-signed builds, including the simulator, fetch the file
-  straight from the site instead of Apple's CDN; App Store builds ignore
-  it). The App ID in Apple Developer has the Associated Domains capability
+  entitlement with `webcredentials:bikes.pizza`,
+  `webcredentials:bikes-pizza.dev` and
+  `webcredentials:bikes-pizza.dev?mode=developer`. The suffix makes
+  development-signed builds fetch the file straight from the site instead
+  of Apple's CDN, but a device only honors it with Settings → Developer →
+  Associated Domains Development turned on, and App Store builds ignore
+  it; the plain entry is what lets a development build on a phone use
+  passkeys without that setting. The App ID in Apple Developer has the Associated Domains capability
   enabled (ticked by hand under Identifiers). Apple fetches the file
   through its CDN, so a change can take up to a day to reach devices.
   The app side is `lib/auth/passkey_service.dart` on the `passkeys`

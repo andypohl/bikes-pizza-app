@@ -55,13 +55,16 @@ const RETIRED_FIELDS = ["name"];
  * in step with the Firebase user so the record stays findable, drops
  * fields that are no longer kept (the name, from before usernames), and
  * fills in `joinedAt` from `joinedAt(uid)` (the Firebase user's creation
- * time) when the record has none.
+ * time) when the record has none. `onCreated(record)` is told about a
+ * record made here, which is how a new member is announced; it must not
+ * throw.
  *
  * @param {{uid: string, email: string}} user
- * @param {{store: MemberStore, now?: () => Date, joinedAt?: (uid: string) => Promise<string|null>}} deps
+ * @param {{store: MemberStore, now?: () => Date, joinedAt?: (uid: string) => Promise<string|null>,
+ *   onCreated?: (record: MemberRecord) => Promise<void>}} deps
  * @returns {Promise<MemberRecord>}
  */
-export async function loadMember(user, { store, now = () => new Date(), joinedAt }) {
+export async function loadMember(user, { store, now = () => new Date(), joinedAt, onCreated }) {
   const existing = await store.get(user.uid);
   if (existing) {
     const stale = RETIRED_FIELDS.filter((field) => field in existing);
@@ -84,6 +87,7 @@ export async function loadMember(user, { store, now = () => new Date(), joinedAt
     joinedAt: (joinedAt && (await joinedAt(user.uid).catch(() => null))) || now().toISOString(),
   };
   await store.set(user.uid, { ...record, createdAt: now(), updatedAt: now() });
+  if (onCreated) await onCreated(record);
   return record;
 }
 
