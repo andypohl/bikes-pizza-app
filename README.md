@@ -393,9 +393,9 @@ which adds the DNS records itself). Configure once per Firebase project:
 firebase functions:secrets:set CLOUDFLARE_EMAIL_TOKEN
 # Not secret, in functions/.env and as environment variables for the deploy
 # workflow: CLOUDFLARE_ACCOUNT_ID (the account the sending domain is
-# onboarded in), SUBMISSION_NOTIFY_EMAIL (recipient), optionally
-# MAIL_FROM_EMAIL (sender; defaults to the bikes.pizza mailer) and
-# REVIEW_PAGE_URL.
+# onboarded in), optionally SUBMISSION_NOTIFY_EMAIL (addresses to notify
+# besides the project's administrators), MAIL_FROM_EMAIL (sender; defaults
+# to the bikes.pizza mailer) and REVIEW_PAGE_URL.
 ```
 
 Without the token, the account ID and a recipient, the submission is still

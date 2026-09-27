@@ -48,6 +48,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret, defineString } from "firebase-functions/params";
 import { logger } from "firebase-functions";
 import { profile, validateUpdate } from "./account.js";
+import * as adminNotices from "./admin_notices.js";
 import * as adminUsers from "./admin_users.js";
 import * as webauthn from "@simplewebauthn/server";
 import { createApi } from "./api.js";
@@ -92,7 +93,9 @@ const siteUrl = () => siteUrlParam.value().trim() || "https://bikes.pizza";
 // skipped with a warning.
 const cloudflareEmailToken = defineSecret("CLOUDFLARE_EMAIL_TOKEN");
 const cloudflareAccountId = defineString("CLOUDFLARE_ACCOUNT_ID", { default: "" });
-// Who to tell about new submissions.
+// The project's administrators are told about new submissions, reported
+// concerns and new members (admin_notices.js). Addresses listed here,
+// comma-separated, are told as well.
 const notifyEmail = defineString("SUBMISSION_NOTIFY_EMAIL", { default: "" });
 // Sender of everything the functions send; its domain must be onboarded to
 // Email Sending in the Cloudflare account. Empty means the bikes.pizza mailer.
@@ -107,8 +110,30 @@ function mailer() {
   const from = fromEmail.value().trim() || DEFAULT_FROM;
   return (message) => sendMail({ token, accountId, from, ...message });
 }
-// Who to tell about reported concerns; empty means SUBMISSION_NOTIFY_EMAIL.
+// More addresses to tell about reported concerns; empty means
+// SUBMISSION_NOTIFY_EMAIL.
 const concernEmailTo = defineString("CONCERN_NOTIFY_EMAIL", { default: "" });
+/**
+ * Sends a notice to the administrators and the `extra` addresses. Returns
+ * whether anyone was written to; throws when every attempt failed.
+ */
+async function tellAdmins(what, message, extra = notifyEmail.value()) {
+  const send = mailer();
+  if (!send) {
+    logger.warn(`${what} email skipped: CLOUDFLARE_EMAIL_TOKEN or CLOUDFLARE_ACCOUNT_ID not set`);
+    return false;
+  }
+  const to = await adminNotices.adminRecipients({ auth: getAuth(), extra, log: logger.warn });
+  if (!to.length) {
+    logger.warn(`${what} email skipped: no administrators and no SUBMISSION_NOTIFY_EMAIL`);
+    return false;
+  }
+  const { sent, failures } = await adminNotices.sendToAll(to, message, send);
+  if (failures.length) logger.warn(`${what} email failed for some`, { sent, failures });
+  if (!sent) throw new Error(failures[0]);
+  return true;
+}
+
 // Link put in the notification email; empty means the submissions site.
 const reviewPageUrl = defineString("REVIEW_PAGE_URL", { default: "" });
 
@@ -171,13 +196,27 @@ function withMember(request, what, work) {
   return guarded(request.auth?.uid, what, async () => {
     const user = verifiedUser(request);
     const store = firestoreMemberStore(getFirestore());
-    const member = await loadMember(user, { store, joinedAt });
+    const provider = request.auth.token.firebase?.sign_in_provider;
+    const member = await loadMember(user, { store, joinedAt, onCreated: (record) => announceMember(record, provider) });
     return work({ user, store, member });
   });
 }
 
-// updateMember also renames the member on their posts (and rebuilds the site).
-const memberOptions = { region: "us-central1", secrets: [githubDispatchToken] };
+// Tells the administrators about a new member: the record is made the
+// first time someone with a verified address signs in. Never fails the
+// call that made the record.
+async function announceMember({ email, joinedAt: joined }, provider) {
+  try {
+    const mail = adminNotices.signupEmail({ email, provider, joinedAt: joined, adminUrl: adminNotices.adminUrlFor(siteUrl()) });
+    await tellAdmins("new member", mail);
+  } catch (error) {
+    logger.warn("new member email failed", { message: error.message });
+  }
+}
+
+// updateMember also renames the member on their posts (and rebuilds the
+// site); either can be the call that makes the record and announces it.
+const memberOptions = { region: "us-central1", secrets: [githubDispatchToken, cloudflareEmailToken] };
 
 export const member = onCall(memberOptions, (request) =>
   withMember(request, "load your account", async ({ member }) => profile(member, NEWSLETTERS)),
@@ -256,7 +295,8 @@ const passkeyDeps = () => ({
 
 const passkeyOptions = { region: "us-central1" };
 
-export const passkeyRegisterOptions = onCall(passkeyOptions, (request) =>
+// Loads the member like the account functions, so it can announce one too.
+export const passkeyRegisterOptions = onCall({ ...passkeyOptions, secrets: [cloudflareEmailToken] }, (request) =>
   withMember(request, "start adding a passkey", ({ user, member }) =>
     passkeys.registrationOptions(user, member, passkeyDeps()),
   ),
@@ -302,18 +342,9 @@ function reviewUrl() {
 }
 
 async function notify(submission, user) {
-  const to = notifyEmail.value().trim();
-  const send = mailer();
-  if (!to || !send) {
-    logger.warn(
-      "submission email skipped: CLOUDFLARE_EMAIL_TOKEN, CLOUDFLARE_ACCOUNT_ID or SUBMISSION_NOTIFY_EMAIL not set",
-    );
-    return false;
-  }
   try {
     const mail = notificationEmail({ ...submission, userEmail: user.email, reviewUrl: reviewUrl() });
-    await send({ to, replyTo: user.email, ...mail });
-    return true;
+    return await tellAdmins("submission", { replyTo: user.email, ...mail });
   } catch (error) {
     // The submission is stored either way; do not fail it.
     logger.warn("submission email failed", { uid: user.uid, message: error.message });
@@ -364,13 +395,8 @@ const concernDeps = () => ({
   now: () => new Date(),
   log: logger.info,
   notify: async (concern) => {
-    const to = concernEmailTo.value().trim() || notifyEmail.value().trim();
-    const send = mailer();
-    if (!to || !send) {
-      logger.warn("concern email skipped: CLOUDFLARE_EMAIL_TOKEN, CLOUDFLARE_ACCOUNT_ID or CONCERN_NOTIFY_EMAIL not set", { id: concern.id });
-      return;
-    }
-    await send({ to, replyTo: concern.email, ...concernReports.concernEmail(concern, { siteUrl: siteUrl() }) });
+    const extra = concernEmailTo.value().trim() || notifyEmail.value();
+    await tellAdmins("concern", { replyTo: concern.email, ...concernReports.concernEmail(concern, { siteUrl: siteUrl() }) }, extra);
   },
 });
 

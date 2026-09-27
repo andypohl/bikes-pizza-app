@@ -45,6 +45,16 @@ test("loadMember creates a record with defaults on first use", async () => {
   assert.deepEqual(store.docs.get("u1").createdAt, now());
 });
 
+test("loadMember tells onCreated about a new record, and only then", async () => {
+  const store = memoryStore();
+  const created = [];
+  const onCreated = async (record) => void created.push(record);
+  const member = await loadMember({ uid: "u1", email: "a@b.c" }, { store, now, onCreated });
+  assert.deepEqual(created, [member]);
+  await loadMember({ uid: "u1", email: "a@b.c" }, { store, now, onCreated });
+  assert.equal(created.length, 1);
+});
+
 test("loadMember takes the join date from the Firebase user, and fills it in for older records", async () => {
   const store = memoryStore();
   const joinedAt = async (uid) => (uid === "u1" ? "2025-03-04T05:06:07.000Z" : null);
