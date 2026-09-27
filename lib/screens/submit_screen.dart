@@ -49,8 +49,8 @@ class _SubmitScreenState extends State<SubmitScreen> {
 
   Future<void> _pickPhoto() async {
     final source = await choosePhotoSource(context);
-    if (source == null) return;
-    final photo = await widget.photos.pick(source);
+    if (source == null || !mounted) return;
+    final photo = await widget.photos.pick(source, context);
     if (photo == null || !mounted) return;
     setState(() {
       _photo = photo;
@@ -60,8 +60,8 @@ class _SubmitScreenState extends State<SubmitScreen> {
 
   Future<void> _addPicture() async {
     final source = await choosePhotoSource(context);
-    if (source == null) return;
-    final photo = await widget.photos.pick(source);
+    if (source == null || !mounted) return;
+    final photo = await widget.photos.pick(source, context);
     if (photo == null || !mounted) return;
     setState(() => _extras.add(photo));
   }

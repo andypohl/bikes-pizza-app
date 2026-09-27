@@ -44,6 +44,7 @@ import 'screens/store_screen.dart';
 import 'splash_screen.dart';
 import 'store/cart.dart';
 import 'store/store_repository.dart';
+import 'submissions/photo_library.dart';
 import 'submissions/photo_picker.dart';
 import 'submissions/submission_service.dart';
 import 'widgets/layout.dart';
@@ -98,7 +99,11 @@ Future<Widget> _loadApp() async {
     members: CloudFunctionsMemberService(),
     passkeys: FirebasePasskeyService(),
     submissions: CloudFunctionsSubmissionService(),
-    photos: ImagePickerPhotoPicker(),
+    photos: DevicePhotoPicker(
+      library: !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS
+          ? DevicePhotoLibrary()
+          : null,
+    ),
     editor: ApiPostEditor(api),
     reactions: ApiReactionService(api),
     comments: ApiCommentService(api),

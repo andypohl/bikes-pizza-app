@@ -1370,7 +1370,10 @@ class FakePhotoPicker implements PhotoPicker {
   );
 
   @override
-  Future<SubmissionPhoto?> pick(PhotoSource source) async {
+  Future<SubmissionPhoto?> pick(
+    PhotoSource source,
+    BuildContext context,
+  ) async {
     sources.add(source);
     if (cancel) return null;
     return SubmissionPhoto(
