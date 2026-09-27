@@ -89,7 +89,9 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Choose a photo of your bike or pizza to submit to the blog.</string>
+	<string>Choose a photo of your bike or pizza to submit to the blog. You can share all of your photos or only the ones you select.</string>
+	<key>PHPhotoLibraryPreventAutomaticLimitedAccessAlert</key>
+	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Take a photo of your bike or pizza to submit to the blog.</string>
 </dict>

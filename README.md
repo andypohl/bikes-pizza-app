@@ -300,7 +300,10 @@ sharing.
 ## Member submissions
 
 The Submit Pizza / Submit Bike form (`lib/screens/submit_screen.dart`) asks
-for a main photo (camera or library, scaled to 2048px on the device), up
+for a main photo (camera or library, scaled to 2048px on the device; on
+iOS the library is the app's own grid of the photos the member gave it
+access to, all or a selection, `lib/screens/library_photo_screen.dart`,
+and on Android the system picker), up
 to four additional pictures ("Additional pictures", the same picker), a
 title, who it is from, and a description or story. Submitting calls the
 `submitPost` Cloud Function, which normalises each photo (rotation, 2048px
