@@ -579,7 +579,13 @@ Google, Apple), verification, join and last sign-in dates and their posts;
 username, email and newsletter are editable, with Save enabled only once
 something changed and Close never asking about unsaved edits. Email
 accounts get a Reset password button (Firebase emails the usual reset
-link). Two-factor authentication is required, as on the review page.
+link). Accounts with an authenticator app enrolled get a Reset two-factor
+button, for a member who can no longer produce the code: it only emails
+the account's owner a link, and the enrollment is removed when they open
+it within the hour and confirm on `/account/reset-two-factor/`
+(`functions/second_factor_reset.js`), so talking an administrator into it
+while posing as the member is not enough. Two-factor authentication is
+required, as on the review page.
 Delete user, in red, asks "Are you sure?" and then removes the Auth
 user and the member profile, freeing the username; the member's posts
 stay, credited as they were. **Comments** is the review desk for

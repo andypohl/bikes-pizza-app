@@ -28,7 +28,11 @@
 //                    posts something then asks GitHub to rebuild the
 //                    website (rebuild.js).
 // purgeNotices:      scheduled nightly; drops mention notices older than
-//                    sixty days (comments.js).
+//                    sixty days (comments.js) and expired two-factor
+//                    reset links.
+// confirmSecondFactorReset: callable, no sign-in; the owner's
+//                    confirmation of a two-factor reset an administrator
+//                    asked for (second_factor_reset.js).
 // api:               HTTPS; the REST API behind /api/ on the submissions
 //                    Hosting site (list, fetch, review, create, queues,
 //                    site settings such as the website's submit button,
@@ -66,6 +70,7 @@ import * as postEditing from "./posts.js";
 import * as pushing from "./push.js";
 import * as profiles from "./profiles.js";
 import * as searching from "./search.js";
+import * as secondFactorReset from "./second_factor_reset.js";
 import { firestoreThreadStore } from "./thread_store.js";
 import * as messaging from "./threads.js";
 import * as reactions from "./reactions.js";
@@ -427,6 +432,27 @@ const removeMemberData = async (uid) => {
   await devices().removeAll(uid);
 };
 
+/** What resetting two-factor authentication needs (second_factor_reset.js). */
+const secondFactorResetDeps = () => ({
+  auth: getAuth(),
+  store: secondFactorReset.firestoreResetStore(getFirestore()),
+  send: mailer(),
+  siteUrl: siteUrl(),
+  log: logger.info,
+});
+
+/**
+ * The second half of a two-factor reset an administrator asked for: the
+ * account's owner confirms with the token from the link they were emailed.
+ * Needs no sign-in, since being unable to sign in is why it exists; the
+ * token is the proof.
+ */
+export const confirmSecondFactorReset = onCall({ region: "us-central1", secrets: [cloudflareEmailToken] }, (request) =>
+  guarded(undefined, "reset two-factor authentication", () =>
+    secondFactorReset.confirmReset(request.data?.token, secondFactorResetDeps()),
+  ),
+);
+
 /** What the user-administration endpoints need: Auth admin, members, posts (a rename reaches the threads too). */
 const userAdminDeps = () => ({
   auth: getAuth(),
@@ -499,6 +525,8 @@ const service = {
       logger.info("user deleted by admin", { uid, by: admin.uid });
       return result;
     },
+    // Only emails the owner; the reset is confirmSecondFactorReset's.
+    resetTwoFactor: (uid, admin) => secondFactorReset.requestReset(uid, { ...secondFactorResetDeps(), by: admin }),
   },
   posts: {
     mine: (user) => postEditing.listMyPosts(user, { posts: posts(), siteUrl: siteUrl() }),
@@ -637,10 +665,12 @@ const queueRunner = (feed) =>
 export const postBikesQueue = queueRunner("bikes");
 export const postPizzaQueue = queueRunner("pizza");
 
-/** Drops mention notices older than sixty days, every night. */
+/** Drops mention notices older than sixty days, and two-factor reset links that have expired, every night. */
 export const purgeNotices = onSchedule({ schedule: "every day 04:30", timeZone: TIME_ZONE, region: "us-central1" }, async () => {
   const purged = await commenting.purgeNotices({ comments: comments() });
   logger.info("notices purged", { purged });
+  const resets = await secondFactorReset.purgeResets(secondFactorResetDeps());
+  logger.info("two-factor reset links purged", { purged: resets });
 });
 
 export const api = onRequest(

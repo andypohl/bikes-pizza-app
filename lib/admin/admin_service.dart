@@ -46,6 +46,11 @@ abstract class AdminService {
   });
 
   Future<void> deleteUser(String uid);
+
+  /// Emails the account's owner a link that resets their two-factor
+  /// authentication (the authenticator app); nothing changes until they
+  /// open it and confirm. Returns the address it went to.
+  Future<String> resetTwoFactor(String uid);
 }
 
 DateTime? _date(Object? value) =>
@@ -439,6 +444,7 @@ class AdminUser {
     required this.email,
     this.emailVerified = false,
     this.admin = false,
+    this.twoFactor = false,
     this.username = '',
     this.subscribed = false,
     this.providers = const [],
@@ -456,6 +462,9 @@ class AdminUser {
 
   /// Whether the account carries the `admin` custom claim.
   final bool admin;
+
+  /// Whether an authenticator app is enrolled (what a reset removes).
+  final bool twoFactor;
   final String username;
   final bool subscribed;
 
@@ -484,6 +493,7 @@ class AdminUser {
       email: json['email'] as String? ?? '',
       emailVerified: json['emailVerified'] == true,
       admin: json['admin'] == true,
+      twoFactor: json['twoFactor'] == true,
       username: json['username'] as String? ?? '',
       subscribed: json['subscribed'] == true,
       providers: [if (providers is List) ...providers.whereType<String>()],
@@ -639,4 +649,10 @@ class ApiAdminService implements AdminService {
   @override
   Future<void> deleteUser(String uid) =>
       _api.delete('/admin/users/${_id(uid)}');
+
+  @override
+  Future<String> resetTwoFactor(String uid) async {
+    final sent = await _api.post('/admin/users/${_id(uid)}/reset-two-factor');
+    return sent['email'] as String? ?? '';
+  }
 }

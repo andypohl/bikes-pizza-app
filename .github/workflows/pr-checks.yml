@@ -217,7 +217,7 @@ jobs:
       # parse; the Firebase config files must be valid JSON.
       - name: Check the pages parse
         run: |
-          for f in web/*/*.js; do node --check "$f"; done
+          for f in web/*/*.js web/public/*/*.js; do node --check "$f"; done
 
       - name: Check the config files parse
         run: |

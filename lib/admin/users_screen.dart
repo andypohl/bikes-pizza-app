@@ -412,6 +412,42 @@ class _UserDetailState extends State<UserDetail> {
     }
   }
 
+  /// Only emails the owner: the reset happens when they open the link and
+  /// confirm, so posing as a member to an administrator is not enough.
+  Future<void> _resetTwoFactor() async {
+    final user = _user;
+    if (user == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final sure = await confirmDanger(
+      context,
+      title: 'Reset two-factor authentication?',
+      message:
+          '${user.email} is emailed a link. Nothing changes until they open '
+          'it and confirm, within an hour.',
+      confirmLabel: 'Send email',
+      confirmKey: const Key('confirm-reset-two-factor'),
+    );
+    if (!sure || !mounted) return;
+    setState(() => _busy = true);
+    final email = await guardAdmin(
+      context,
+      widget.auth,
+      () => widget.admin.resetTwoFactor(user.uid),
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (email != null) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Confirmation email sent to $email. Two-factor authentication '
+            'is reset once they confirm.',
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> _delete() async {
     final user = _user;
     if (user == null) return;
@@ -491,6 +527,10 @@ class _UserDetailState extends State<UserDetail> {
           ),
           DetailRow('Verified', user.emailVerified ? 'Yes' : 'No'),
           DetailRow(
+            'Two-factor',
+            user.twoFactor ? 'On (authenticator app)' : 'Off',
+          ),
+          DetailRow(
             'Joined',
             when(user.createdAt).isEmpty ? 'unknown' : when(user.createdAt),
           ),
@@ -549,6 +589,12 @@ class _UserDetailState extends State<UserDetail> {
                   key: const Key('user-reset-password'),
                   onPressed: _busy ? null : _resetPassword,
                   child: const Text('Reset password'),
+                ),
+              if (user.twoFactor)
+                OutlinedButton(
+                  key: const Key('user-reset-two-factor'),
+                  onPressed: _busy ? null : _resetTwoFactor,
+                  child: const Text('Reset two-factor'),
                 ),
               OutlinedButton(
                 key: const Key('user-delete'),

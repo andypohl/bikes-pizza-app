@@ -1150,6 +1150,7 @@ class FakeAdminService implements AdminService {
   final postedNow = <String>[];
   final updates = <(String, String?, String?, List<String>?)>[];
   final adminUpdates = <(String, bool)>[];
+  final twoFactorResets = <String>[];
   final deleted = <String>[];
   final listedStatuses = <String>[];
 
@@ -1207,6 +1208,7 @@ class FakeAdminService implements AdminService {
       uid: 'u1',
       email: 'ada@example.com',
       emailVerified: true,
+      twoFactor: true,
       username: 'ada_bikes',
       subscribed: true,
       providers: ['Email'],
@@ -1356,6 +1358,13 @@ class FakeAdminService implements AdminService {
   Future<void> deleteUser(String uid) async {
     _check();
     deleted.add(uid);
+  }
+
+  @override
+  Future<String> resetTwoFactor(String uid) async {
+    _check();
+    twoFactorResets.add(uid);
+    return accounts.firstWhere((u) => u.uid == uid).email;
   }
 }
 
@@ -4603,6 +4612,49 @@ void main() {
     expect(members!.updates, hasLength(1));
     expect(members!.updates.single.username, 'demouser');
     expect(find.text('demouser'), findsOneWidget);
+  });
+
+  testWidgets('the users screen emails a two-factor reset for the owner to '
+      'confirm', (tester) async {
+    await settingsAsAdmin(tester);
+    await tester.tap(find.byKey(const Key('admin-users')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('user-u1')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('On (authenticator app)'), findsOneWidget);
+    final reset = find.byKey(const Key('user-reset-two-factor'));
+    await tester.ensureVisible(reset);
+    await tester.tap(reset);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Nothing changes until they open'), findsOne);
+
+    // Backing out sends nothing.
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(admin.twoFactorResets, isEmpty);
+
+    await tester.tap(reset);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm-reset-two-factor')));
+    await tester.pumpAndSettle();
+    expect(admin.twoFactorResets, ['u1']);
+    expect(
+      find.textContaining('Confirmation email sent to ada@example.com'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('an account without two-factor has nothing to reset', (
+    tester,
+  ) async {
+    await settingsAsAdmin(tester);
+    await tester.tap(find.byKey(const Key('admin-users')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('user-u2')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('user-reset-two-factor')), findsNothing);
   });
 
   testWidgets('the users screen grants admin access with a switch', (

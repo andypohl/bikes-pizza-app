@@ -55,6 +55,8 @@ function summarise(user, member, posts, newsletters) {
     email: user.email ?? member?.email ?? "",
     emailVerified: Boolean(user.emailVerified),
     admin: user.customClaims?.admin === true,
+    // Whether an authenticator app is enrolled (what a reset would remove).
+    twoFactor: (user.multiFactor?.enrolledFactors ?? []).length > 0,
     username: member?.username ?? "",
     subscribed: newsletters.some((n) => subscribedTo.has(n.id)),
     providers: providersOf(user),

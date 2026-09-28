@@ -202,11 +202,15 @@ void main() {
           return {'uid': 'u1', 'email': 'new@example.com', 'username': 'ada'};
         }
         if (request.method == 'DELETE') return {'deleted': 'u1'};
+        if (request.url.path.endsWith('/reset-two-factor')) {
+          return {'sent': true, 'email': 'ada@example.com'};
+        }
         if (request.url.path.endsWith('/u1')) {
           return {
             'uid': 'u1',
             'email': 'ada@example.com',
             'emailVerified': true,
+            'twoFactor': true,
             'username': 'ada',
             'subscribed': true,
             'providers': ['Email', 'Google'],
@@ -274,6 +278,8 @@ void main() {
 
       final user = await s.user('u1');
       expect(user.hasPassword, isTrue);
+      expect(user.twoFactor, isTrue);
+      expect(page.users[0].twoFactor, isFalse);
       expect(user.providers, ['Email', 'Google']);
       expect(user.newsletters.single.subscribed, isTrue);
       expect(user.posts.single.title, 'Trek');
@@ -289,6 +295,10 @@ void main() {
       });
       await s.updateUser('u1', admin: true);
       expect(jsonDecode(requests.last.body), {'admin': true});
+
+      expect(await s.resetTwoFactor('u1'), 'ada@example.com');
+      expect(requests.last.method, 'POST');
+      expect(requests.last.url.path, '/api/admin/users/u1/reset-two-factor');
 
       await s.deleteUser('u1');
       expect(requests.last.method, 'DELETE');

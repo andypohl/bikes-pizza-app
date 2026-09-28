@@ -128,6 +128,19 @@ test("listUsers orders by most recent post, then newest sign-up, and pages", asy
   assert.equal(page2.pages, 2);
 });
 
+test("users say whether an authenticator app is enrolled", async () => {
+  const { deps } = fakes({
+    users: [
+      { uid: "u1", email: "a@b.c", multiFactor: { enrolledFactors: [{ uid: "f1", factorId: "totp" }] } },
+      { uid: "u2", email: "b@b.c", multiFactor: { enrolledFactors: [] } },
+      { uid: "u3", email: "c@b.c" },
+    ],
+  });
+  assert.equal((await getUser("u1", deps)).twoFactor, true);
+  assert.equal((await getUser("u2", deps)).twoFactor, false);
+  assert.equal((await getUser("u3", deps)).twoFactor, false);
+});
+
 test("listUsers walks every Auth page", async () => {
   const many = Array.from({ length: 1500 }, (_, i) => ({ uid: `u${i}`, email: `${i}@x.y`, metadata: {} }));
   const { deps } = fakes({ users: many });
