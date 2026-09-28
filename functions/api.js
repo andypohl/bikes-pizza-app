@@ -60,6 +60,7 @@
 //   GET  /api/admin/users/:uid          admin
 //   PATCH /api/admin/users/:uid         admin; {username?, email?, newsletters?}
 //   DELETE /api/admin/users/:uid        admin
+//   POST /api/admin/users/:uid/reset-two-factor   admin; emails the owner a link that resets it
 //
 // The admin page (web/admin/) reaches these through the same rewrite on its
 // own Hosting site.
@@ -95,8 +96,8 @@ export const BODY_LIMIT = "32mb";
  * review(input, admin) and a `queue` with info(feed) and
  * remove(input, admin), a
  * `site` with settings() and updateSettings(data, admin), `users`
- * with list(query), get(uid), update(uid, data, admin) and remove(uid,
- * admin), and `posts` with mine(user), get(id, actor) and update(id, data,
+ * with list(query), get(uid), update(uid, data, admin), remove(uid,
+ * admin) and resetTwoFactor(uid, admin), and `posts` with mine(user), get(id, actor) and update(id, data,
  * actor); see index.js for the wiring.
  */
 export function createApi({ verifyToken, service, log = () => {} }) {
@@ -290,6 +291,12 @@ export function createApi({ verifyToken, service, log = () => {} }) {
       "/admin/users/:uid",
       wrap((req) => users.remove(req.params.uid, secondFactorAdminFromClaims(req.claims))),
     );
+    if (users.resetTwoFactor) {
+      api.post(
+        "/admin/users/:uid/reset-two-factor",
+        wrap((req) => users.resetTwoFactor(req.params.uid, secondFactorAdminFromClaims(req.claims))),
+      );
+    }
   }
 
   app.use("/api", api);

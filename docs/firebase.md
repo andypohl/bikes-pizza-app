@@ -333,6 +333,17 @@ creating it with defaults on first use.
   on the Auth user and the member record; a username change is written to
   the member's posts and rebuilds the website), and delete a user (Auth
   user and member record; posts stay).
+- Resetting two-factor authentication (`functions/second_factor_reset.js`)
+  takes two steps by two people. `POST /api/admin/users/:uid/reset-two-factor`
+  (admin) emails the account's owner a link and changes nothing. The link
+  carries a random token in its fragment and opens the page
+  `web/public/reset-two-factor/`, where the owner confirms; that calls the
+  `confirmSecondFactorReset` callable, which needs no sign-in (the token is
+  the proof) and removes the account's enrolled factors. Only the token's
+  hash is kept, at `secondFactorResets/{hash}`, for one hour and one use;
+  asking again retires the earlier link, a changed email address voids it,
+  and the nightly `purgeNotices` run drops the expired ones. Passkeys and
+  the password are not touched. The owner is emailed again once it is done.
 - `submitPost`: takes a member's bike or pizza submission (the main photo
   and up to four additional pictures as base64, title, from, description),
   normalises each photo and makes a thumbnail (sharp), runs each through

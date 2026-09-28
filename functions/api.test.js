@@ -52,6 +52,7 @@ const service = {
     },
     update: async (uid, data, admin) => calls.push(["users.update", uid, data, admin.uid]) && { uid, ...data },
     remove: async (uid, admin) => calls.push(["users.remove", uid, admin.uid]) && { deleted: uid },
+    resetTwoFactor: async (uid, admin) => calls.push(["users.resetTwoFactor", uid, admin.uid]) && { sent: true, email: "a@b.c" },
   },
   posts: {
     mine: async (user) => calls.push(["posts.mine", user.uid]) && { posts: [{ id: "p1" }] },
@@ -275,6 +276,7 @@ test("admin user routes need an admin who used a second factor, and pass the bod
     assert.equal((await call("/api/admin/users/u1", { token })).status, 403);
     assert.equal((await call("/api/admin/users/u1", { token, method: "PATCH", body: { username: "x" } })).status, 403);
     assert.equal((await call("/api/admin/users/u1", { token, method: "DELETE" })).status, 403);
+    assert.equal((await call("/api/admin/users/u1/reset-two-factor", { token, method: "POST" })).status, 403);
   }
   const refused = await call("/api/admin/users", { token: "admin" });
   assert.match(refused.body.error.message, /Two-factor/);
@@ -293,6 +295,11 @@ test("admin user routes need an admin who used a second factor, and pass the bod
   const patched = await call("/api/admin/users/u1", { token: "admin2fa", method: "PATCH", body: { username: "ada", newsletters: [] } });
   assert.equal(patched.status, 200);
   assert.deepEqual(calls.at(-1), ["users.update", "u1", { username: "ada", newsletters: [] }, "a1"]);
+
+  const reset = await call("/api/admin/users/u1/reset-two-factor", { token: "admin2fa", method: "POST" });
+  assert.equal(reset.status, 200);
+  assert.deepEqual(reset.body, { sent: true, email: "a@b.c" });
+  assert.deepEqual(calls.at(-1), ["users.resetTwoFactor", "u1", "a1"]);
 
   const removed = await call("/api/admin/users/u1", { token: "admin2fa", method: "DELETE" });
   assert.equal(removed.status, 200);

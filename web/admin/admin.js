@@ -292,6 +292,9 @@ function fill(user) {
 
   // Only password accounts have a password to reset.
   $("#d-reset").hidden = !user.providers.includes("Email");
+  // And only an enrolled authenticator app can be reset.
+  $("#d-two-factor").textContent = user.twoFactor ? "On (authenticator app)" : "Off";
+  $("#d-reset-two-factor").hidden = !user.twoFactor;
   refreshDirty();
 }
 
@@ -346,6 +349,26 @@ $("#d-reset").addEventListener("click", async () => {
     say(describe(error) ?? "Could not send the reset email.");
   } finally {
     $("#d-reset").disabled = false;
+  }
+});
+
+// Resetting two-factor authentication only emails the owner: the reset
+// happens when they open the link and confirm, so posing as a member to an
+// administrator is not enough to get it.
+$("#d-reset-two-factor").addEventListener("click", async () => {
+  if (!current) return;
+  const user = current;
+  $("#confirm-text").textContent =
+    `Email ${user.email} a link to reset two-factor authentication? Nothing changes until they open it and confirm, within an hour.`;
+  if (!(await confirmYesNo())) return;
+  $("#d-reset-two-factor").disabled = true;
+  try {
+    const sent = await api(`/api/admin/users/${encodeURIComponent(user.uid)}/reset-two-factor`, { method: "POST" });
+    say(`Confirmation email sent to ${sent.email}. Two-factor authentication is reset once they confirm.`, true);
+  } catch (error) {
+    say(describe(error) ?? "Could not send the confirmation email.");
+  } finally {
+    $("#d-reset-two-factor").disabled = false;
   }
 });
 

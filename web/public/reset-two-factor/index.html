@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Reset two-factor authentication · bikes.pizza</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../style.css" />
+  </head>
+  <body>
+    <main class="card" id="app" data-state="loading">
+      <a class="brand" id="site-link" href="https://bikes.pizza/"><img src="../logo.png" alt="" width="512" height="512" />bikes.pizza</a>
+
+      <section data-view="loading">
+        <p class="muted">Loading…</p>
+      </section>
+
+      <section data-view="confirm" hidden>
+        <h1>Reset two-factor authentication?</h1>
+        <p>
+          Signing in to your bikes.pizza account will no longer ask for a code
+          from your authenticator app. You can set it up again from your
+          account afterwards. Your password and passkeys stay as they are.
+        </p>
+        <button type="button" class="primary" id="confirm">Reset two-factor authentication</button>
+      </section>
+
+      <section data-view="done" hidden>
+        <h1>Two-factor authentication is reset</h1>
+        <p>You can sign in without a code now, and turn it on again from your account.</p>
+        <button type="button" class="primary" id="sign-in">Sign in</button>
+      </section>
+
+      <section data-view="invalid" hidden>
+        <h1>This link does not work</h1>
+        <p id="invalid-detail">This link is not valid or has expired. Ask for a new one.</p>
+      </section>
+
+      <p class="message" id="message" role="status" hidden></p>
+    </main>
+
+    <script type="module" src="reset.js"></script>
+  </body>
+</html>
