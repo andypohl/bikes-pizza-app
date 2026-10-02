@@ -160,16 +160,35 @@ void main() {
       expect(fresh.baseline.isBefore(before), isFalse);
       expect(fresh.badgeAsked, isFalse);
 
-      final repo = _Changes([_change('a', 'bikes', 30)]);
+      // Changed after the fresh baseline, whatever today's date is.
+      final later = DateTime.now().toUtc().add(const Duration(days: 1));
+      Post post(String id) => Post(
+        id: id,
+        feed: 'bikes',
+        title: id,
+        url: '',
+        publishedAt: later,
+        commentCount: 0,
+        commentTimes: const [],
+      );
+      final repo = _Changes([
+        PostChange(
+          id: 'a',
+          feed: 'bikes',
+          changedAt: later,
+          commentedAt: null,
+          commentTimes: const [],
+        ),
+      ]);
       await fresh.refresh(repo);
-      await fresh.markRead(_post('a', 'bikes', 30));
+      await fresh.markRead(post('a'));
       await fresh.setBadgeAsked();
 
       final restored = await UnreadTracker.load();
       expect(restored.baseline, fresh.baseline);
       expect(restored.badgeAsked, isTrue);
-      expect(restored.isUnread(_post('a', 'bikes', 30)), isFalse);
-      expect(restored.isUnread(_post('z', 'bikes', 30)), isTrue);
+      expect(restored.isUnread(post('a')), isFalse);
+      expect(restored.isUnread(post('z')), isTrue);
     },
   );
 
