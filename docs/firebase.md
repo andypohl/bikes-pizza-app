@@ -69,10 +69,10 @@ API:
 
 - iOS key: allowed bundle IDs = the app's bundle ID.
 - Android key: allowed applications = the app's package name paired with a
-  signing-certificate SHA-1. Only the local debug keystore's fingerprint is
-  listed so far. **Before a Play release, add the Play App Signing key's
-  SHA-1 here too**, or Firebase calls from the store build will be rejected.
-  This is the same fingerprint the Google sign-in provider needs.
+  signing-certificate SHA-1, one entry per signing key: the local debug
+  keystore, the Play App Signing key and the upload key. A build signed
+  with a key that is not listed has its Firebase calls rejected. These are
+  the same fingerprints the Google sign-in provider needs.
 - Browser key: unused by the app; left as Firebase created it.
 
 Registering a new iOS or Android app makes Firebase create another key for
@@ -161,9 +161,9 @@ OAuth token that has the cloud-platform scope.
 
 - Android needs the SHA-1 and SHA-256 fingerprints of every signing key
   registered on the Android app in Firebase. The local debug keystore's
-  fingerprints were added with `firebase apps:android:sha:create`. The Play
-  App Signing key's fingerprints (from Play Console, Setup, App signing)
-  still need adding before a Play release; add them the same way.
+  fingerprints were added with `firebase apps:android:sha:create`, and so
+  were those of the Play App Signing key and the upload key (both shown in
+  Play Console under App signing). A new key is added the same way.
 - After enabling Google or adding fingerprints, re-run
   `flutterfire configure` so `google-services.json` and
   `GoogleService-Info.plist` pick up the OAuth client IDs.
@@ -663,8 +663,8 @@ steps that remain are in Apple Developer and Play Console:
   `/__/auth/handler` return URLs) and the Sign in with Apple key. The old
   App ID `com.pizzapredator.pizzaPredator` can be deleted in the portal
   once no provisioning profile references it.
-- Play Console: after the first upload, register the Play App Signing
-  key's SHA-1 and SHA-256 on the Android app in both Firebase projects
+- Play Console: the Play App Signing key's and the upload key's SHA-1
+  and SHA-256 are registered on the Android app in both Firebase projects
   (development through the Pulumi config lists, production with
-  `firebase apps:android:sha:create`) and on the production Android API
-  key's restrictions.
+  `firebase apps:android:sha:create`). The production Android API key's
+  restrictions need the same SHA-1s (Google Cloud console, Credentials).

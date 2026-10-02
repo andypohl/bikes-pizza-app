@@ -20,6 +20,10 @@ config:
   bikes-pizza:androidPackageName: com.pizzapredator.bikes_pizza
   bikes-pizza:androidSha1Hashes:
     - ef0cadbffbd43c2b15430c039558c018c393c0b7
+    - 6648121b83179abf063d626333e2db305752d858
+    - 72c05efed32868b8951ebee0b15d73344f4ed71b
   bikes-pizza:androidSha256Hashes:
     - 559fe57203508dcf04519ae7e57e47289d7e0c0e404520ab9354e18aafae172f
+    - b2cfeed1c92d9b68156088eaeb507db36f4e6ea8e2ad007be7ffd92bd2f45ed3
+    - 1d69237084d1c3dac72a197eb08325c7938b3d134e887e57eef3994c250666a3
   bikes-pizza:shopifyStoreDomain: shop.bikes.pizza

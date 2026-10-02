@@ -5,7 +5,9 @@
       "namespace": "android_app",
       "package_name": "com.pizzapredator.bikes_pizza",
       "sha256_cert_fingerprints": [
-        "55:9F:E5:72:03:50:8D:CF:04:51:9A:E7:E5:7E:47:28:9D:7E:0C:0E:40:45:20:AB:93:54:E1:8A:AF:AE:17:2F"
+        "55:9F:E5:72:03:50:8D:CF:04:51:9A:E7:E5:7E:47:28:9D:7E:0C:0E:40:45:20:AB:93:54:E1:8A:AF:AE:17:2F",
+        "B2:CF:EE:D1:C9:2D:9B:68:15:60:88:EA:EB:50:7D:B3:6F:4E:6E:A8:E2:AD:00:7B:E7:FF:D9:2B:D2:F4:5E:D3",
+        "1D:69:23:70:84:D1:C3:DA:C7:2A:19:7E:B0:83:25:C7:93:8B:3D:13:4E:88:7E:57:EE:F3:99:4C:25:06:66:A3"
       ]
     }
   }
