@@ -488,14 +488,19 @@ signed-in user with a verified email:
 
 Usernames are 3 to 24 letters, digits or underscores and unique regardless
 of case; each is reserved at `usernames/{lowercased}` in the same
-transaction that stores it, so two members can never share one. A member
-without a username (Google and Apple sign-ins, and accounts from before
-usernames existed) is asked to choose one: on the website right after
-signing in, in the app on the account screen. Creating a password account
-asks for the username and the newsletter choice up front; because the
-member functions need a verified email, those wait on the device (browser
-`localStorage`, or the app's preferences) and are sent once the email is
-verified. The username is the default credit on the submission form.
+transaction that stores it, so two members can never share one. A new
+member record gets a generated username (`<adjective>_<noun>_<digits>`,
+from word lists in `functions/members.js`), flagged `usernameGenerated`
+until the member picks their own, so a Google or Apple sign-in can post
+straight away; the account page and screen invite them to change it.
+Creating a password account asks for the username and the newsletter
+choice up front; because the member functions need a verified email,
+those wait on the device (browser `localStorage`, or the app's
+preferences) and are sent once the email is verified, replacing the
+generated name. An account from before usernames existed, with none at
+all, is asked to choose one: on the website right after signing in, in
+the app on the account screen. The username is the default credit on the
+submission form.
 
 **Usernames on posts.** Each submitted post carries its credit (the
 member's account id, username and the name they typed), so the website

@@ -1,0 +1,11 @@
+Thank you for reviewing bikes.pizza. A screen recording is attached.
+
+Purpose: a free community for people 13 and over who like bicycles and pizza. Members share photos with a short story; others react, comment and message. No ads, in-app purchases or tracking; merchandise is sold through Shopify checkout.
+
+Access: browsing and the store need no account. Sign in from Settings with the demo account provided. Submit photos from the Bikes or Pizza tab; each is screened automatically and reviewed by a person before publication. Report or block from any post, comment or conversation. Delete the account in Settings.
+
+Services: Firebase, Google Cloud Vision and Natural Language (screening), Mailgun, Shopify.
+
+No regional differences; not a regulated industry.
+
+Andy Pohl, Pizza Predator LLC

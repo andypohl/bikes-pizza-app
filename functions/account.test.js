@@ -12,6 +12,7 @@ test("profile flags the newsletters the member receives", () => {
   assert.deepEqual(profile(member, newsletters), {
     email: "a@b.c",
     username: "ada",
+    usernameGenerated: false,
     location: "",
     messages: true,
     notifications: { messages: true, comments: true, replies: true },
@@ -24,6 +25,7 @@ test("profile flags the newsletters the member receives", () => {
 
 test("profile shows an empty username until one is chosen", () => {
   assert.equal(profile({ email: "a@b.c", newsletters: [] }, newsletters).username, "");
+  assert.equal(profile({ email: "a@b.c", username: "saucy_slice_42", usernameGenerated: true }, newsletters).usernameGenerated, true);
 });
 
 test("profile carries the location and the messages switch", () => {

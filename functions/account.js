@@ -40,11 +40,14 @@ export function validateLocation(value) {
  * The profile the account page shows: contact details plus every newsletter
  * the member could receive, flagged with whether they currently do, the
  * location shown on their public profile and whether other members may
- * message them. A member without a username (signed up before usernames
- * existed, or through Google or Apple) gets an empty string; the clients
- * ask them to choose one.
+ * message them. `usernameGenerated` is true while the username is the one
+ * picked for them when the record was made (members.js); the clients then
+ * let a username chosen at sign-up replace it and invite the member to
+ * rename themselves. An empty username (signed up before usernames
+ * existed, or no generated one could be reserved) makes the clients ask
+ * for one.
  *
- * @param {{email: string, username?: string|null, newsletters?: string[], location?: string, messages?: boolean}} member
+ * @param {{email: string, username?: string|null, usernameGenerated?: boolean, newsletters?: string[], location?: string, messages?: boolean}} member
  * @param {{id: string, name: string, description?: string|null}[]} newsletters
  */
 export function profile(member, newsletters) {
@@ -52,6 +55,7 @@ export function profile(member, newsletters) {
   return {
     email: member.email,
     username: member.username ?? "",
+    usernameGenerated: member.usernameGenerated === true,
     location: member.location ?? "",
     messages: member.messages !== false,
     notifications: preferences(member),

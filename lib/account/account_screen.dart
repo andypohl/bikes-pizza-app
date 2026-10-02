@@ -12,8 +12,9 @@ import 'totp_setup_screen.dart';
 /// Lets a signed-in member edit their username and newsletters, change
 /// their password (password accounts only), turn two-factor authentication
 /// on or off, manage passkeys (when [passkeys] is given), and sign out. A
-/// member without a username yet (a new account, or one from before
-/// usernames) is asked to choose one here.
+/// member whose username was picked for them when the account was made is
+/// invited to change it here; one without any (an account from before
+/// usernames) is asked to choose one.
 class AccountScreen extends StatefulWidget {
   const AccountScreen({
     super.key,
@@ -156,12 +157,17 @@ class _AccountScreenState extends State<AccountScreen> {
             subtitle: Text(_signInMethods(user)),
           ),
           const _Heading('Profile'),
-          if (profile.username.isEmpty)
+          if (profile.username.isEmpty || profile.usernameGenerated)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(
-                'Choose a username. It is shown when you are credited for '
-                'a post.',
+                profile.username.isEmpty
+                    ? 'Choose a username. It is shown when you are credited '
+                          'for a post.'
+                    : 'We picked a username for you. Change it to anything '
+                          'you like; it is shown when you are credited for a '
+                          'post.',
+                key: const Key('username-note'),
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ),

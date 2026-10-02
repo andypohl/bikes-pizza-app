@@ -425,6 +425,7 @@ class FakeMemberService implements MemberService {
     profile = MemberProfile(
       email: profile.email,
       username: username ?? profile.username,
+      usernameGenerated: username == null && profile.usernameGenerated,
       location: location ?? profile.location,
       messages: messages ?? profile.messages,
       notifications: {...profile.notifications, ...?notifications},
@@ -2986,6 +2987,69 @@ void main() {
     await openAccount(tester);
     expect(find.text('newbie'), findsOneWidget);
     expect(members!.updates, hasLength(1));
+  });
+
+  testWidgets('a username picked at sign-up replaces the generated one', (
+    tester,
+  ) async {
+    members = FakeMemberService()
+      ..profile = const MemberProfile(
+        email: 'new@example.com',
+        username: 'saucy_slice_42',
+        usernameGenerated: true,
+        newsletters: [Newsletter(id: 'weekly', name: 'Weekly')],
+      );
+    await openSignIn(tester);
+    await tester.tap(find.text('New here? Create an account'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).at(0), 'new@example.com');
+    await tester.enterText(find.byType(TextField).at(1), 'correct-horse');
+    await tester.enterText(
+      find.byKey(const Key('confirm-password')),
+      'correct-horse',
+    );
+    await tester.enterText(find.byKey(const Key('username')), 'newbie');
+    await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
+    await tester.pumpAndSettle();
+
+    auth.verified.add('new@example.com');
+    await tester.enterText(find.byType(TextField).at(1), 'correct-horse');
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
+    await tester.pumpAndSettle();
+    expect(members!.updates, hasLength(1));
+    expect(members!.updates.single.username, 'newbie');
+
+    // Chosen now, so the account screen no longer says it was picked.
+    await openAccount(tester);
+    expect(find.text('newbie'), findsOneWidget);
+    expect(find.byKey(const Key('username-note')), findsNothing);
+  });
+
+  testWidgets('a member with a generated username is invited to change it', (
+    tester,
+  ) async {
+    members = FakeMemberService()
+      ..profile = const MemberProfile(
+        email: 'member@example.com',
+        username: 'saucy_slice_42',
+        usernameGenerated: true,
+      );
+    await openSignIn(tester);
+    await tester.ensureVisible(find.byKey(const Key('google-sign-in')));
+    await tester.tap(find.byKey(const Key('google-sign-in')));
+    await tester.pumpAndSettle();
+    await openAccount(tester);
+
+    expect(find.textContaining('We picked a username for you'), findsOneWidget);
+    expect(find.text('saucy_slice_42'), findsOneWidget);
+    expect(members!.updates, isEmpty);
+
+    await tester.enterText(find.byKey(const Key('username')), 'ada');
+    await tester.ensureVisible(find.byKey(const Key('save-profile')));
+    await tester.tap(find.byKey(const Key('save-profile')));
+    await tester.pumpAndSettle();
+    expect(members!.updates.single.username, 'ada');
+    expect(find.byKey(const Key('username-note')), findsNothing);
   });
 
   testWidgets('password accounts can change their password', (tester) async {
