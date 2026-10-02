@@ -14,6 +14,22 @@
       },
       "oauth_client": [
         {
+          "client_id": "79972934725-ak3fgml90mej4r9f5bahokkm217jomee.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.pizzapredator.bikes_pizza",
+            "certificate_hash": "72c05efed32868b8951ebee0b15d73344f4ed71b"
+          }
+        },
+        {
+          "client_id": "79972934725-mpg5v4e08v1r0hur5l2sc1rergouip4f.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.pizzapredator.bikes_pizza",
+            "certificate_hash": "6648121b83179abf063d626333e2db305752d858"
+          }
+        },
+        {
           "client_id": "79972934725-truktsepvjda5f97j0oq86v3tcf8iud9.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
