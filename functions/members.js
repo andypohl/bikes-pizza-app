@@ -4,6 +4,8 @@
 // callables). Usernames are unique regardless of case: each one is reserved
 // at usernames/{lowercased} pointing back at the member's uid.
 
+import { randomInt } from "node:crypto";
+
 import { FieldPath, FieldValue } from "firebase-admin/firestore";
 
 import { usernameKey } from "./account.js";
@@ -26,9 +28,41 @@ export const DEFAULT_NEWSLETTERS = ["news"];
 const RETIRED_FIELDS = ["name"];
 
 /**
+ * Words a new member's username is made from: `<adjective>_<noun>_<2 digits>`,
+ * so a Google or Apple account is ready to post without a setup step (the
+ * member can rename themselves on the account page). Everything stays
+ * within `USERNAME_PATTERN` and well under its 24 characters.
+ */
+const USERNAME_ADJECTIVES = [
+  "breezy", "cheesy", "chunky", "crispy", "crusty", "doughy", "flaky", "fresh", "gritty",
+  "hungry", "mellow", "peppy", "rusty", "saucy", "speedy", "spicy", "toasty", "zesty",
+];
+const USERNAME_NOUNS = [
+  "calzone", "crank", "cruiser", "crust", "fixie", "gravel", "pedaler", "pie", "rider",
+  "roadie", "saddle", "slice", "spoke", "sprocket", "tandem", "wheelie",
+];
+
+/** How many generated usernames to try before giving up on one. */
+const USERNAME_TRIES = 5;
+
+/**
+ * A random username in the house style. `random(n)` returns an integer in
+ * `[0, n)`; the default is cryptographically random, tests pass their own.
+ *
+ * @param {(n: number) => number} [random]
+ */
+export function generateUsername(random = randomInt) {
+  const adjective = USERNAME_ADJECTIVES[random(USERNAME_ADJECTIVES.length)];
+  const noun = USERNAME_NOUNS[random(USERNAME_NOUNS.length)];
+  return `${adjective}_${noun}_${10 + random(90)}`;
+}
+
+/**
  * @typedef {object} MemberRecord
  * @property {string} email
- * @property {string} username  Empty until the member chooses one
+ * @property {string} username  Empty only when none could be reserved
+ * @property {boolean} [usernameGenerated]  True while the username is the
+ *   one picked at creation rather than one the member chose
  * @property {string[]} newsletters  IDs from {@link NEWSLETTERS}
  * @property {string} [joinedAt]  ISO; when the Firebase user was created
  * @property {string} [location]  Shown on the public profile; "" when unset
@@ -55,16 +89,19 @@ const RETIRED_FIELDS = ["name"];
  * in step with the Firebase user so the record stays findable, drops
  * fields that are no longer kept (the name, from before usernames), and
  * fills in `joinedAt` from `joinedAt(uid)` (the Firebase user's creation
- * time) when the record has none. `onCreated(record)` is told about a
- * record made here, which is how a new member is announced; it must not
- * throw.
+ * time) when the record has none. A new record gets a generated username
+ * (see {@link generateUsername}), flagged `usernameGenerated` so the
+ * clients know a choice made at sign-up should replace it; if every try
+ * collides the username is left empty and the clients ask for one.
+ * `onCreated(record)` is told about a record made here, which is how a
+ * new member is announced; it must not throw.
  *
  * @param {{uid: string, email: string}} user
  * @param {{store: MemberStore, now?: () => Date, joinedAt?: (uid: string) => Promise<string|null>,
- *   onCreated?: (record: MemberRecord) => Promise<void>}} deps
+ *   onCreated?: (record: MemberRecord) => Promise<void>, random?: (n: number) => number}} deps
  * @returns {Promise<MemberRecord>}
  */
-export async function loadMember(user, { store, now = () => new Date(), joinedAt, onCreated }) {
+export async function loadMember(user, { store, now = () => new Date(), joinedAt, onCreated, random }) {
   const existing = await store.get(user.uid);
   if (existing) {
     const stale = RETIRED_FIELDS.filter((field) => field in existing);
@@ -87,6 +124,17 @@ export async function loadMember(user, { store, now = () => new Date(), joinedAt
     joinedAt: (joinedAt && (await joinedAt(user.uid).catch(() => null))) || now().toISOString(),
   };
   await store.set(user.uid, { ...record, createdAt: now(), updatedAt: now() });
+  for (let i = 0; i < USERNAME_TRIES && !record.username; i++) {
+    const candidate = generateUsername(random);
+    try {
+      await store.setUsername(user.uid, candidate);
+      record.username = candidate;
+      record.usernameGenerated = true;
+      await store.set(user.uid, { usernameGenerated: true });
+    } catch (error) {
+      if (!(error instanceof AppError && error.code === "already-exists")) throw error;
+    }
+  }
   if (onCreated) await onCreated(record);
   return record;
 }
@@ -106,7 +154,10 @@ export async function updateMember(user, patch, { store, now = () => new Date(),
   if (rest.location && banned && matchWords(rest.location, await banned()).length) {
     throw new ValidationError("That location can't be used.");
   }
-  if (username !== undefined) await store.setUsername(user.uid, username);
+  if (username !== undefined) {
+    await store.setUsername(user.uid, username);
+    rest.usernameGenerated = false;
+  }
   const { notifications, ...fields } = rest;
   if (notifications) {
     // A partial patch: the categories not named keep their setting.

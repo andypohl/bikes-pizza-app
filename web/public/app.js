@@ -6,8 +6,10 @@
 // optional two-factor authentication (an authenticator app), passkeys
 // (Face ID, Touch ID or the device's screen lock, which also stand in for
 // the authenticator code) and deleting the account.
-// Members without a username (new sign-ups, Google and Apple accounts,
-// accounts from before usernames) are asked to choose one first.
+// A new member gets a generated username (the functions pick one when
+// the record is made); a username chosen at sign-up replaces it, and the
+// account page invites them to change it. Members without any username
+// (accounts from before usernames) are asked to choose one first.
 //
 // Query parameters:
 //   mode=signin|signup   which tab to open first (default signin)
@@ -267,7 +269,7 @@ async function ensureProfile(user) {
   try {
     let { data } = await loadMember();
     const pending = takePending(user.uid);
-    if (pending && !data.username) {
+    if (pending && (!data.username || data.usernameGenerated)) {
       try {
         ({ data } = await updateMember({
           username: pending.username,
@@ -361,6 +363,7 @@ function renderProfile(user, profile) {
   $("#account-email").textContent = profile.email;
   $("#account-method").textContent = signInMethods(user);
   $("#profile-form").username.value = profile.username;
+  $("#username-generated").hidden = !profile.usernameGenerated;
   renderNewsletters($("#newsletters"), profile.newsletters);
   renderPassword(user);
   void renderMfa(user);

@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import { usernameKey } from "./account.js";
 import { AppError } from "./errors.js";
-import { DEFAULT_NEWSLETTERS, loadMember, updateMember } from "./members.js";
+import { DEFAULT_NEWSLETTERS, generateUsername, loadMember, updateMember } from "./members.js";
 
 /** In-memory MemberStore with the same username reservation rules. */
 function memoryStore(initial = {}, reservations = {}) {
@@ -38,11 +38,43 @@ function memoryStore(initial = {}, reservations = {}) {
 
 const now = () => new Date("2026-01-02T03:04:05Z");
 
-test("loadMember creates a record with defaults on first use", async () => {
+/** A `random` that always picks the first word and the lowest number. */
+const first = () => 0;
+
+test("loadMember creates a record with defaults and a generated username on first use", async () => {
   const store = memoryStore();
-  const member = await loadMember({ uid: "u1", email: "a@b.c" }, { store, now });
-  assert.deepEqual(member, { email: "a@b.c", username: "", newsletters: DEFAULT_NEWSLETTERS, joinedAt: now().toISOString() });
+  const member = await loadMember({ uid: "u1", email: "a@b.c" }, { store, now, random: first });
+  assert.deepEqual(member, {
+    email: "a@b.c",
+    username: "breezy_calzone_10",
+    usernameGenerated: true,
+    newsletters: DEFAULT_NEWSLETTERS,
+    joinedAt: now().toISOString(),
+  });
   assert.deepEqual(store.docs.get("u1").createdAt, now());
+  assert.equal(store.docs.get("u1").usernameGenerated, true);
+  assert.deepEqual([...store.usernames], [["breezy_calzone_10", "u1"]]);
+});
+
+test("loadMember tries other generated usernames when one is taken, and leaves it empty when all are", async () => {
+  const store = memoryStore({}, { breezy_calzone_10: "u0" });
+  let calls = 0;
+  const random = (n) => (calls++ < 3 ? 0 : n - 1);
+  const member = await loadMember({ uid: "u1", email: "a@b.c" }, { store, now, random });
+  assert.equal(member.username, "zesty_wheelie_99");
+  assert.equal(member.usernameGenerated, true);
+  const stuck = await loadMember({ uid: "u2", email: "b@b.c" }, { store, now, random: first });
+  assert.equal(stuck.username, "");
+  assert.equal(stuck.usernameGenerated, undefined);
+  assert.equal(store.docs.get("u2").username, "");
+});
+
+test("generateUsername stays within the username rule", () => {
+  for (let i = 0; i < 200; i++) {
+    const username = generateUsername();
+    assert.match(username, /^[a-z]+_[a-z]+_\d\d$/);
+    assert.ok(username.length <= 24, username);
+  }
 });
 
 test("loadMember tells onCreated about a new record, and only then", async () => {
@@ -51,6 +83,7 @@ test("loadMember tells onCreated about a new record, and only then", async () =>
   const onCreated = async (record) => void created.push(record);
   const member = await loadMember({ uid: "u1", email: "a@b.c" }, { store, now, onCreated });
   assert.deepEqual(created, [member]);
+  assert.equal(member.usernameGenerated, true);
   await loadMember({ uid: "u1", email: "a@b.c" }, { store, now, onCreated });
   assert.equal(created.length, 1);
 });
@@ -99,10 +132,11 @@ test("updateMember merges the patch and returns the record", async () => {
   assert.deepEqual(updated, { email: "a@b.c", username: "ada", newsletters: [], updatedAt: now() });
 });
 
-test("updateMember reserves a username and releases the old one", async () => {
-  const store = memoryStore({ u1: { email: "a@b.c", username: "ada", newsletters: [] } }, { ada: "u1" });
+test("updateMember reserves a username, releases the old one and marks it chosen", async () => {
+  const store = memoryStore({ u1: { email: "a@b.c", username: "ada", usernameGenerated: true, newsletters: [] } }, { ada: "u1" });
   const updated = await updateMember({ uid: "u1" }, { username: "Lovelace" }, { store, now });
   assert.equal(updated.username, "Lovelace");
+  assert.equal(updated.usernameGenerated, false);
   assert.deepEqual([...store.usernames], [["lovelace", "u1"]]);
 });
 

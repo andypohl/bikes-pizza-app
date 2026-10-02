@@ -50,6 +50,7 @@ class MemberProfile {
   const MemberProfile({
     required this.email,
     this.username = '',
+    this.usernameGenerated = false,
     this.location = '',
     this.messages = true,
     this.notifications = const {},
@@ -58,8 +59,12 @@ class MemberProfile {
 
   final String email;
 
-  /// Empty until the member has chosen one.
+  /// Empty only when none could be given (accounts from before usernames).
   final String username;
+
+  /// Whether [username] is the one picked when the account was made rather
+  /// than one the member chose; a choice saved at sign-up replaces it.
+  final bool usernameGenerated;
 
   /// Shown on the member's public profile; empty when unset.
   final String location;
@@ -77,6 +82,7 @@ class MemberProfile {
     return MemberProfile(
       email: json['email'] as String? ?? '',
       username: json['username'] as String? ?? '',
+      usernameGenerated: json['usernameGenerated'] == true,
       location: json['location'] as String? ?? '',
       messages: json['messages'] != false,
       notifications: {
@@ -125,18 +131,18 @@ abstract class MemberService {
 extension AccountSetup on MemberService {
   /// Sends the [PendingProfile] saved for [uid], if any, once the member is
   /// verified. Returns the resulting profile, or null when there was
-  /// nothing to send or the member already has a username. The choices are
-  /// only forgotten once they have been sent (or turned out to be
+  /// nothing to send or the member already chose a username. The choices
+  /// are only forgotten once they have been sent (or turned out to be
   /// unnecessary): a failure, whether the account is not verified yet, the
   /// network is down or the username was taken meanwhile, keeps them for
-  /// the next attempt. Once the member has a username, from any source,
-  /// they are dropped.
+  /// the next attempt. Once the member has a username they chose, from any
+  /// source, they are dropped; a generated one is replaced.
   Future<MemberProfile?> applyPending(String uid) async {
     final pending = await PendingProfile.peek(uid);
     if (pending == null) return null;
     try {
       final profile = await load();
-      if (profile.username.isNotEmpty) {
+      if (profile.username.isNotEmpty && !profile.usernameGenerated) {
         await PendingProfile.clear(uid);
         return null;
       }
