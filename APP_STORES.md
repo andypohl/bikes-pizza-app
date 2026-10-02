@@ -61,10 +61,12 @@ Each release:
 2. Upload it. Either open the archive in Xcode's Organizer (Window,
    Organizer), press Distribute App, choose App Store Connect and follow
    the prompts; or use the Transporter app from the Mac App Store and
-   drop the `.ipa` on it. In the Organizer's options, untick "Manage
-   Version and Build Number": with it on, Xcode raises the build number
-   past what App Store Connect has seen, and the next bump in
-   `pubspec.yaml` then has to skip past that.
+   drop the `.ipa` on it. The Organizer only lists archives Xcode made
+   itself; one built by `flutter build ipa` is added to the list by
+   opening it (`open build/ios/archive/Runner.xcarchive`). In the
+   Organizer's options, untick "Manage Version and Build Number": with
+   it on, Xcode raises the build number past what App Store Connect has
+   seen, and the next bump in `pubspec.yaml` then has to skip past that.
 3. The build appears in App Store Connect under the app's TestFlight tab
    after processing (a few minutes). Install it on a phone through
    TestFlight and check the release there first. Passkeys in particular
@@ -136,13 +138,24 @@ Each release:
    The workflow can also be run by hand from the Actions tab; the bundle
    is then a run artifact.
 2. In Play Console, the app, Testing, Internal testing, Create new
-   release. Upload the bundle, add release notes, review and roll out.
-   Testers on the internal list get it within minutes; use it to check
-   the build on a real phone.
-3. When it is good, promote the same release to Production (Release,
-   Production, Create new release, or "Promote release" from the
-   internal track) and roll out. Google's review is usually hours, up to
-   a few days.
+   release. Drop the bundle on the upload box, add release notes (inside
+   the `<en-US>` tags), press Next, then Save and publish. Internal
+   releases skip Google's review and are the way to try a build on a
+   real device: install from the tester opt-in link (the track's Testers
+   tab, "Copy link") with a Google account on the tester list. "Item not
+   found" in the Play Store app right after publishing means the store
+   has not caught up yet; the link's web page works first, and its
+   Install button pushes the app to the device.
+3. When it is good, release the same bundle to Production (Release,
+   Production, Create new release, Add from library, or "Promote
+   release" from the internal track), save, then on the Publishing
+   overview press "Submit changes for review". Production needs its
+   countries chosen on the track's Countries / regions tab the first
+   time. Until the first review passes, the app appears to testers under
+   a temporary name, "<package name> (unreviewed)".
+
+   The same bundle can be released to internal testing again at any
+   time from the library, without waiting for the production review.
 
 After the **first** upload of a new package name, Play shows the app
 signing key it generated under Setup, App signing. Its SHA-1 and SHA-256
@@ -157,7 +170,24 @@ builds, in these places (docs/firebase.md has the details):
 - `site/public/.well-known/assetlinks.json` (the SHA-256);
 - the `PASSKEY_ORIGINS` variable (`android:apk-key-hash:` plus the
   SHA-256 as base64url; the Pulumi program derives it for development,
-  production is set by hand on the GitHub environment).
+  production is set by hand on the GitHub environment);
+- the production Android API key's application restrictions (Google
+  Cloud console, APIs & Services, Credentials, "Android key"): add a
+  row with the package name and the SHA-1, and press Save at the bottom
+  of the page (rows added without saving are lost). Without this every
+  Firebase call from the store build is rejected, so the app shows
+  nothing at all.
+
+Registering the upload key's fingerprints in the same places is
+optional (Play re-signs what it receives), but lets a bundle built
+locally with the upload key run against production too. The site and
+functions changes reach bikes.pizza with the next release.
+
+Review times, from the first submissions in October 2026: Google
+quotes up to 7 days for a review, with a first one often taking a few
+days; Apple's first review took a few days with questions in the
+Resolution Center, and updates are usually reviewed within a day. An
+urgent iOS fix can ask for an expedited review from App Store Connect.
 
 ## Store listing (first release of the renamed app)
 
