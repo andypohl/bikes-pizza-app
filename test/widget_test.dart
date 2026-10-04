@@ -3195,6 +3195,50 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  // The order of the provider buttons, top to bottom, by key.
+  Future<List<String>> providerOrder(WidgetTester tester) async {
+    final keys = ['google-sign-in', 'apple-sign-in', 'passkey-sign-in'];
+    final found = [
+      for (final k in keys)
+        if (find.byKey(Key(k)).evaluate().isNotEmpty) k,
+    ];
+    found.sort(
+      (a, b) => tester
+          .getTopLeft(find.byKey(Key(a)))
+          .dy
+          .compareTo(tester.getTopLeft(find.byKey(Key(b))).dy),
+    );
+    return found;
+  }
+
+  testWidgets('iOS lists Apple, then Google, then the passkey', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    passkeys = FakePasskeyService();
+    await openSignIn(tester);
+    expect(await providerOrder(tester), [
+      'apple-sign-in',
+      'google-sign-in',
+      'passkey-sign-in',
+    ]);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('Android lists Google, then Apple, then the passkey', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    AppleSignInConfig.debugServicesIdOverride = 'com.example.web';
+    addTearDown(() => AppleSignInConfig.debugServicesIdOverride = null);
+    passkeys = FakePasskeyService();
+    await openSignIn(tester);
+    expect(await providerOrder(tester), [
+      'google-sign-in',
+      'apple-sign-in',
+      'passkey-sign-in',
+    ]);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   testWidgets('a device with a passkey can sign in with it', (tester) async {
     passkeys = FakePasskeyService();
     await pumpApp(tester);

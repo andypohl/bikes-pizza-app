@@ -241,6 +241,44 @@ class _SignInScreenState extends State<SignInScreen> {
       (defaultTargetPlatform == TargetPlatform.android &&
           AppleSignInConfig.isConfigured);
 
+  List<Widget> _providerButtons(ThemeData theme) {
+    final google = OutlinedButton.icon(
+      key: const Key('google-sign-in'),
+      onPressed: _busy
+          ? null
+          : () => _withProvider(widget.auth.signInWithGoogle),
+      icon: const Icon(Icons.g_mobiledata, size: 28),
+      label: const Text('Continue with Google'),
+    );
+    final apple = FilledButton.icon(
+      key: const Key('apple-sign-in'),
+      onPressed: _busy
+          ? null
+          : () => _withProvider(widget.auth.signInWithApple),
+      style: FilledButton.styleFrom(
+        backgroundColor: theme.colorScheme.onSurface,
+        foregroundColor: theme.colorScheme.surface,
+      ),
+      icon: const Icon(Icons.apple),
+      label: const Text('Continue with Apple'),
+    );
+    final passkey = OutlinedButton.icon(
+      key: const Key('passkey-sign-in'),
+      onPressed: _busy ? null : _passkeySignIn,
+      icon: const Icon(Icons.fingerprint),
+      label: const Text('Sign in with a passkey'),
+    );
+    final appleFirst =
+        defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS;
+    return [
+      if (appleFirst && _appleAvailable) apple,
+      google,
+      if (!appleFirst && _appleAvailable) apple,
+      if (_passkeysAvailable) passkey,
+    ];
+  }
+
   Future<void> _withProvider(Future<void> Function() signIn) async {
     setState(() {
       _busy = true;
@@ -537,37 +575,11 @@ class _SignInScreenState extends State<SignInScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                OutlinedButton.icon(
-                  key: const Key('google-sign-in'),
-                  onPressed: _busy
-                      ? null
-                      : () => _withProvider(widget.auth.signInWithGoogle),
-                  icon: const Icon(Icons.g_mobiledata, size: 28),
-                  label: const Text('Continue with Google'),
-                ),
-                if (_passkeysAvailable) ...[
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    key: const Key('passkey-sign-in'),
-                    onPressed: _busy ? null : _passkeySignIn,
-                    icon: const Icon(Icons.fingerprint),
-                    label: const Text('Sign in with a passkey'),
-                  ),
-                ],
-                if (_appleAvailable) ...[
-                  const SizedBox(height: 12),
-                  FilledButton.icon(
-                    key: const Key('apple-sign-in'),
-                    onPressed: _busy
-                        ? null
-                        : () => _withProvider(widget.auth.signInWithApple),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: theme.colorScheme.onSurface,
-                      foregroundColor: theme.colorScheme.surface,
-                    ),
-                    icon: const Icon(Icons.apple),
-                    label: const Text('Continue with Apple'),
-                  ),
+                // The platform's own provider first, the other second, and
+                // the passkey last.
+                for (final (i, button) in _providerButtons(theme).indexed) ...[
+                  if (i > 0) const SizedBox(height: 12),
+                  button,
                 ],
                 const SizedBox(height: 24),
                 const _Agreement(),
