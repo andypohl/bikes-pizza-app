@@ -190,6 +190,13 @@ OAuth token that has the cloud-platform scope.
   with the token and its nonce exactly as iOS does. For this the Services
   ID's Sign in with Apple configuration in the Apple Developer portal must
   list the API host under Domains and the callback URL under Return URLs.
+  The app hands Firebase the token as `OAuthProvider('apple.com')
+  .credential(idToken:, rawNonce:)`, not `AppleAuthProvider
+  .credentialWithIDToken`: the firebase_auth Android plugin only builds
+  native credentials for the generic "oauth" sign-in method and rejects
+  the Apple-specific one locally as `invalid-credential`, without a
+  server call (diagnosed on an emulator by logging the token's claims
+  and the time to failure, 6 ms).
   Firebase's own browser flow (`signInWithProvider`) was not used because
   its handler page calls Identity Toolkit with the Android API key from
   the browser, which the key's application restriction (above) blocks.
