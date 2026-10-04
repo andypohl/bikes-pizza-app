@@ -33,6 +33,35 @@ class ApiConfig {
             : 'https://submissions.bikes-pizza.dev');
 }
 
+/// Sign in with Apple on Android, where there is no native sheet: the app
+/// sends the member to Apple's web sign-in in a browser tab, identified by
+/// the Services ID (the same one the website signs in with), and Apple posts
+/// the result to the API, which bounces it back into the app
+/// (`functions/apple_callback.js`). The Services ID is a public identifier.
+/// Only production has one: the development project has no Apple provider,
+/// so debug builds hide the Android button. `--dart-define=APPLE_SERVICES_ID`
+/// overrides it. iOS signs in natively and needs none of this.
+class AppleSignInConfig {
+  AppleSignInConfig._();
+
+  static const String _definedServicesId = String.fromEnvironment(
+    'APPLE_SERVICES_ID',
+    defaultValue: kReleaseMode ? 'com.pizzapredator.web' : '',
+  );
+
+  static String get servicesId => debugServicesIdOverride ?? _definedServicesId;
+
+  /// Lets tests, which run in debug mode, stand in a Services ID.
+  @visibleForTesting
+  static String? debugServicesIdOverride;
+
+  /// Where Apple posts the outcome: must be among the Services ID's return
+  /// URLs in the Apple Developer portal.
+  static String get returnUrl => '${ApiConfig.baseUrl}/api/auth/apple/callback';
+
+  static bool get isConfigured => servicesId.isNotEmpty;
+}
+
 /// Shopify settings: the Store tab reads its products from the Storefront
 /// API and checks out through it (see `store/store_repository.dart`).
 ///

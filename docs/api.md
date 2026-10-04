@@ -822,6 +822,20 @@ gallery); `base` is the URL prefix to append a file name to, followed by
 rendition loads. Rendition paths never change (the version is a hash of the
 photo), so they are cached for a year.
 
+## Sign in with Apple on Android
+
+### `POST /api/auth/apple/callback`
+
+Not for clients to call: it is the return URL Apple posts to when a member
+signs in with Apple from the Android app, where there is no native sheet
+and the sign-in happens in a browser tab. The form Apple sends (`code`,
+`id_token`, `state`, `user`, or `error`) is forwarded unchanged into the
+app as a `303` to an `intent://callback?…` URL naming the app's package,
+which the sign-in plugin's callback activity receives; the app then signs
+into Firebase with the token, and Firebase verifies it. No token, no
+checks, nothing stored. The URL must be registered on the Services ID in
+the Apple Developer portal (`docs/firebase.md`).
+
 ## Site settings
 
 Settings the website reads when a page loads. Reading needs no token;

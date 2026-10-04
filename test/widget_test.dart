@@ -9,6 +9,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:bikes_pizza/account/data_export.dart';
 import 'package:bikes_pizza/account/member_service.dart';
 import 'package:bikes_pizza/admin/admin_service.dart';
+import 'package:bikes_pizza/config.dart';
 import 'package:bikes_pizza/admin/submissions_screen.dart';
 import 'package:bikes_pizza/admin/users_screen.dart';
 import 'package:bikes_pizza/api/api_client.dart';
@@ -2613,7 +2614,9 @@ void main() {
     expect(find.textContaining('cancel'), findsNothing);
   });
 
-  testWidgets('Apple button is hidden on Android', (tester) async {
+  testWidgets('Apple button is hidden on Android without a Services ID', (
+    tester,
+  ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     await openSignIn(tester);
 
@@ -2622,6 +2625,24 @@ void main() {
     // tearDown callbacks run.
     debugDefaultTargetPlatformOverride = null;
   });
+
+  testWidgets(
+    'Apple button is shown on Android with a Services ID and signs in',
+    (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      AppleSignInConfig.debugServicesIdOverride = 'com.example.web';
+      addTearDown(() => AppleSignInConfig.debugServicesIdOverride = null);
+      await openSignIn(tester);
+
+      await tester.ensureVisible(find.byKey(const Key('apple-sign-in')));
+      await tester.tap(find.byKey(const Key('apple-sign-in')));
+      await tester.pumpAndSettle();
+
+      expect(auth.appleCalls, 1);
+      expect(find.text('a@example.com'), findsOneWidget);
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
 
   testWidgets('Apple button is shown on iOS and signs in', (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;

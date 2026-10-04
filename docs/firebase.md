@@ -149,7 +149,7 @@ OAuth token that has the cloud-platform scope.
     provider needs. The App ID in Apple Developer must carry the Sign in
     with Apple capability (see below).
 - The app exposes email sign-in, account creation, password reset,
-  Google sign-in, Apple sign-in (iOS only), and sign-out from Settings,
+  Google sign-in, Apple sign-in, and sign-out from Settings,
   through the `AuthService` facade in `lib/auth/`.
 - Admin-only actions (reviewing submissions, managing users, and so on)
   need the `admin` custom claim on the Auth user plus a second factor. The
@@ -180,10 +180,21 @@ OAuth token that has the cloud-platform scope.
   Apple capability. With automatic signing and a team selected in Xcode,
   Xcode adds it on first archive; otherwise enable it in the developer
   portal by hand.
-- Android is not wired up. It would need Apple's web flow: a Services ID
-  and a private key registered with Apple, both entered into the Apple
-  provider in Firebase, plus a return URL. The button is hidden on Android
-  until then.
+- Android has no native sheet, so there the app runs Apple's web sign-in
+  in a browser tab (the `sign_in_with_apple` plugin's Android support),
+  identifying itself with the website's Services ID (`AppleSignInConfig`
+  in `lib/config.dart`; a public identifier). Apple posts the outcome to
+  `POST /api/auth/apple/callback` on the API host, which answers with an
+  `intent://` redirect that lands in the plugin's callback activity
+  (declared in `AndroidManifest.xml`); the app then signs into Firebase
+  with the token and its nonce exactly as iOS does. For this the Services
+  ID's Sign in with Apple configuration in the Apple Developer portal must
+  list the API host under Domains and the callback URL under Return URLs.
+  Firebase's own browser flow (`signInWithProvider`) was not used because
+  its handler page calls Identity Toolkit with the Android API key from
+  the browser, which the key's application restriction (above) blocks.
+  The development project has no Apple provider, so debug builds hide the
+  button on Android.
 - Apple requires offering Sign in with Apple wherever Google sign-in is
   offered on iOS; that is why both ship together.
 
@@ -513,8 +524,10 @@ lists the project's `firebaseapp.com` auth domain and the return URL
 `https://<auth domain>/__/auth/handler`, using the iOS app's App ID as the
 primary App ID. That Services ID (and optionally the Team ID, a Sign in with
 Apple key ID and its private key, for the OAuth code flow) goes into the Apple
-provider's settings under Authentication → Sign-in method. The app's native
-Apple sign-in does not need any of this.
+provider's settings under Authentication → Sign-in method. The iOS app's
+native Apple sign-in does not need any of this. The Android app's web
+sign-in uses the same Services ID, so the API host and its callback URL
+(see "Apple sign-in details" above) are listed on it as well.
 
 ### Passkeys in the apps (platform trust)
 
