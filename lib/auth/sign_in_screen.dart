@@ -233,11 +233,13 @@ class _SignInScreenState extends State<SignInScreen> {
     }
   }
 
-  /// Sign in with Apple is only wired up natively on Apple platforms.
-  /// Android would need Apple's web flow plus a Services ID; see docs.
+  /// Sign in with Apple: native on Apple platforms; on Android, Apple's web
+  /// sign-in in a browser tab, when the build has a Services ID for it.
   bool get _appleAvailable =>
       defaultTargetPlatform == TargetPlatform.iOS ||
-      defaultTargetPlatform == TargetPlatform.macOS;
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      (defaultTargetPlatform == TargetPlatform.android &&
+          AppleSignInConfig.isConfigured);
 
   Future<void> _withProvider(Future<void> Function() signIn) async {
     setState(() {

@@ -3,7 +3,11 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+
+import '../config.dart';
+
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 /// The signed-in user, reduced to what the UI needs.
@@ -130,7 +134,8 @@ abstract class AuthService {
   /// Opens the Google account picker and signs in with the chosen account.
   Future<void> signInWithGoogle();
 
-  /// Opens the native Sign in with Apple sheet (iOS/macOS only).
+  /// Signs in with Apple: the native sheet on iOS and macOS, Apple's web
+  /// sign-in in a browser tab on Android (see `AppleSignInConfig`).
   Future<void> signInWithApple();
 
   Future<void> signOut();
@@ -311,6 +316,13 @@ class FirebaseAuthService implements AuthService {
     // raw nonce against the SHA-256 that Apple signed.
     final rawNonce = _randomNonce();
     final hashedNonce = sha256.convert(utf8.encode(rawNonce)).toString();
+    // Android has no native sheet: the plugin opens Apple's web sign-in in
+    // a browser tab, Apple posts the outcome to the API, and the API hands
+    // it back to the app (functions/apple_callback.js). The state ties the
+    // answer to this request; Firebase's check of the token and nonce is
+    // what makes a forged answer harmless.
+    final android = defaultTargetPlatform == TargetPlatform.android;
+    final state = android ? _randomNonce() : null;
 
     final AuthorizationCredentialAppleID apple;
     try {
@@ -318,6 +330,13 @@ class FirebaseAuthService implements AuthService {
       apple = await SignInWithApple.getAppleIDCredential(
         scopes: const [AppleIDAuthorizationScopes.email],
         nonce: hashedNonce,
+        state: state,
+        webAuthenticationOptions: android
+            ? WebAuthenticationOptions(
+                clientId: AppleSignInConfig.servicesId,
+                redirectUri: Uri.parse(AppleSignInConfig.returnUrl),
+              )
+            : null,
       );
     } on SignInWithAppleAuthorizationException catch (e) {
       if (e.code == AuthorizationErrorCode.canceled) {
@@ -327,7 +346,7 @@ class FirebaseAuthService implements AuthService {
     }
 
     final idToken = apple.identityToken;
-    if (idToken == null) {
+    if (idToken == null || (state != null && apple.state != state)) {
       throw AuthException('Apple did not return a sign-in token.');
     }
     // Apple only fills in the email the first time an account authorizes

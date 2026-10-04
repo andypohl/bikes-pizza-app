@@ -14,6 +14,7 @@
 //   POST /api/queue/:feed/remove        admin; {id}
 //   POST /api/queue/:feed/post-now      admin; {id}; posts a queued submission at once
 //   GET  /api/site/settings             public (no token); {submitButton}
+//   POST /api/auth/apple/callback       public; Apple's form post for Android sign-in, bounced into the app
 //   GET  /api/members/:username         public (a token, if sent, says who is looking); the profile
 //   GET  /api/members/:username/posts   public; ?feed=pizza|bikes&page= — the member's posts in one feed
 //   GET  /api/search                    public; ?q=&limit= — members, then posts by title, details and story
@@ -71,6 +72,7 @@ import cors from "cors";
 import express from "express";
 
 import { ValidationError } from "./account.js";
+import { appleCallbackRedirect } from "./apple_callback.js";
 import { AppError, actorFromClaims, secondFactorAdminFromClaims, userFromClaims } from "./errors.js";
 
 export const STATUS_FOR_CODE = {
@@ -117,6 +119,14 @@ export function createApi({ verifyToken, service, log = () => {} }) {
       return service.site.settings();
     }),
   );
+
+  // Apple posts the outcome of an Android Sign in with Apple here (a form,
+  // not JSON) and the browser tab is sent on into the app; see
+  // apple_callback.js.
+  app.post("/api/auth/apple/callback", express.urlencoded({ extended: false }), (req, res) => {
+    res.set("Cache-Control", "no-store");
+    res.redirect(303, appleCallbackRedirect(req.body));
+  });
 
   // Profiles are public; a token, when one is sent, only tells the service
   // who is looking (for whether they may message the member).
