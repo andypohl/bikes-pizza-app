@@ -352,13 +352,14 @@ class FirebaseAuthService implements AuthService {
     // Apple only fills in the email the first time an account authorizes
     // the app; the token carries it every time, private relay included.
     _pendingEmail = apple.email ?? _emailFromIdToken(idToken);
+    // The generic OAuth credential rather than AppleAuthProvider's: on
+    // Android the firebase_auth plugin only builds native credentials for
+    // the "oauth" sign-in method, and silently rejects the Apple-specific
+    // one ("invalid-credential" without a server call). Same bytes on the
+    // wire; iOS accepts either.
     await _auth.signInWithCredential(
-      // The name parameter is required by the API; nothing is passed.
-      fb.AppleAuthProvider.credentialWithIDToken(
-        idToken,
-        rawNonce,
-        fb.AppleFullPersonName(),
-      ),
+      fb.OAuthProvider('apple.com')
+          .credential(idToken: idToken, rawNonce: rawNonce),
     );
   });
 
