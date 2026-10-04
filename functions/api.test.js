@@ -534,3 +534,28 @@ test("search is public, passes the query string through and is not cached", asyn
   assert.equal(empty.status, 400);
   assert.equal((await empty.json()).error.code, "invalid-argument");
 });
+
+test("Apple's Android callback bounces the form post into the app", async () => {
+  const form = new URLSearchParams({ code: "c0de", id_token: "a.b.c", state: "s", user: '{"email":"a@b.c"}', junk: "x" });
+  const res = await fetch(base + "/api/auth/apple/callback", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: form.toString(),
+    redirect: "manual",
+  });
+  assert.equal(res.status, 303);
+  assert.equal(res.headers.get("cache-control"), "no-store");
+  assert.equal(
+    res.headers.get("location"),
+    "intent://callback?code=c0de&id_token=a.b.c&state=s&user=%7B%22email%22%3A%22a%40b.c%22%7D#Intent;package=com.pizzapredator.bikes_pizza;scheme=signinwithapple;end",
+  );
+
+  const cancelled = await fetch(base + "/api/auth/apple/callback", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "error=user_cancelled_authorize&state=s",
+    redirect: "manual",
+  });
+  assert.equal(cancelled.status, 303);
+  assert.match(cancelled.headers.get("location"), /^intent:\/\/callback\?state=s&error=user_cancelled_authorize#/);
+});

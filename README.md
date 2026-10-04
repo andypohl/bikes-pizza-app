@@ -464,7 +464,8 @@ In the Firebase console, **Authentication → Sign-in method** must have
 *Email/Password*, *Google*, and *Apple* enabled. Google sign-in on Android
 also needs the signing key's SHA fingerprints registered on the Firebase
 Android app. The `AuthService` facade in `lib/auth/auth_service.dart`
-wraps all three providers. Sign in with Apple is offered on iOS only.
+wraps all three providers. Sign in with Apple is native on iOS and goes
+through Apple's web flow in a browser tab on Android.
 
 See `docs/firebase.md` for an outline of how the Firebase project is
 structured and the console steps needed to rebuild it.
