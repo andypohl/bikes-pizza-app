@@ -157,6 +157,16 @@ Each release:
    The same bundle can be released to internal testing again at any
    time from the library, without waiting for the production review.
 
+   Submitting a new production release while one is still in review
+   cancels that review and starts over ("Do you want to restart your
+   review?"), so a fix found during the first review costs the days
+   already waited. When the fix can wait, save the new release without
+   submitting it (it sits in the Publishing overview as "not yet
+   submitted") and send it once the first version is approved.
+
+   Testers get no email from Play when added to a track: send them the
+   opt-in link yourself.
+
 After the **first** upload of a new package name, Play shows the app
 signing key it generated under Setup, App signing. Its SHA-1 and SHA-256
 must be registered before Google sign-in and passkeys work in store
@@ -188,6 +198,20 @@ quotes up to 7 days for a review, with a first one often taking a few
 days; Apple's first review took a few days with questions in the
 Resolution Center, and updates are usually reviewed within a day. An
 urgent iOS fix can ask for an expedited review from App Store Connect.
+
+## Google sign-in's consent screen
+
+On iOS, Google sign-in goes through a web page from Google that names
+the app asking for access; on Android the native account sheet shows no
+name. The name, logo and policy links on that page come from Google
+Cloud console, Google Auth Platform, Branding, for the production
+project, and Firebase fills the name with the project's default
+("project-<number>") when it creates the Google provider. The branding
+was changed to the app's name, icon, home page and policy links and
+verified through the Verification Center (immediate here, since the app
+asks for no sensitive scopes). The user-support email there can only be
+the console account's own address or a Google Group it manages; the
+developer contact address is free text.
 
 ## Store listing (first release of the renamed app)
 
