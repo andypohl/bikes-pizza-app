@@ -18,6 +18,18 @@ function memoryStore(initial = {}, reservations = {}) {
     async set(uid, data) {
       docs.set(uid, { ...(docs.get(uid) ?? {}), ...data });
     },
+    async create(uid, data) {
+      if (docs.has(uid)) return false;
+      if (data.username) {
+        const key = usernameKey(data.username);
+        if (usernames.has(key) && usernames.get(key) !== uid) {
+          throw new AppError("already-exists", "That username is taken.");
+        }
+        usernames.set(key, uid);
+      }
+      docs.set(uid, { ...data });
+      return true;
+    },
     async remove(uid, fields) {
       const doc = { ...(docs.get(uid) ?? {}) };
       for (const field of fields) delete doc[field];
@@ -86,6 +98,25 @@ test("loadMember tells onCreated about a new record, and only then", async () =>
   assert.equal(member.usernameGenerated, true);
   await loadMember({ uid: "u1", email: "a@b.c" }, { store, now, onCreated });
   assert.equal(created.length, 1);
+});
+
+test("loadMember creates one record and announces once when a new member's first calls overlap", async () => {
+  // A store whose `get` answers "no record" to each of the three callers'
+  // first look, as Firestore does when they all read before anyone wrote.
+  const store = memoryStore();
+  let blind = 3;
+  const realGet = store.get.bind(store);
+  store.get = async (uid) => (blind-- > 0 ? null : realGet(uid));
+  const created = [];
+  const onCreated = async (record) => void created.push(record);
+  const user = { uid: "u1", email: "a@b.c" };
+  const members = await Promise.all(
+    [1, 2, 3].map(() => loadMember(user, { store, now, onCreated, random: () => 0 })),
+  );
+  assert.equal(created.length, 1);
+  assert.equal(store.docs.size, 1);
+  assert.deepEqual([...store.usernames], [["breezy_calzone_10", "u1"]]);
+  for (const member of members) assert.equal(member.username, "breezy_calzone_10");
 });
 
 test("loadMember takes the join date from the Firebase user, and fills it in for older records", async () => {

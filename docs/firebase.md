@@ -298,7 +298,11 @@ Current:
 
 All callables but `deleteAccount` require a signed-in user with a verified
 email. The member callables load the caller's profile from `members/{uid}`,
-creating it with defaults on first use.
+creating it with defaults on first use. The record and its generated
+username go in with one transactional create, so when a new member's
+first calls arrive together (the app loads the profile from several
+screens at once) exactly one of them creates the record and sends the
+new-member notice to the administrators; the rest read what it wrote.
 
 - `member`: the member's profile for the account page and the app (email,
   username, and the available newsletters with the member's subscription
