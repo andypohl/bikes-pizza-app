@@ -73,6 +73,10 @@ export function generateUsername(random = randomInt) {
  * @typedef {object} MemberStore
  * @property {(uid: string) => Promise<MemberRecord|null>} get
  * @property {(uid: string, data: object) => Promise<void>} set  Merges fields
+ * @property {(uid: string, data: object) => Promise<boolean>} create  Writes a
+ *   new record, reserving `data.username` when there is one, all at once;
+ *   false when the member already has a record (nothing is written), and
+ *   throws {@link AppError} `already-exists` if someone else holds the username
  * @property {(uid: string, fields: string[]) => Promise<void>} remove  Deletes fields
  * @property {(uid: string, username: string) => Promise<void>} setUsername
  *   Reserves the username for the member (releasing their previous one)
@@ -94,7 +98,10 @@ export function generateUsername(random = randomInt) {
  * clients know a choice made at sign-up should replace it; if every try
  * collides the username is left empty and the clients ask for one.
  * `onCreated(record)` is told about a record made here, which is how a
- * new member is announced; it must not throw.
+ * new member is announced; it must not throw. The record and its username
+ * are written in one `store.create`, so when a new member's first calls
+ * arrive together (the app loads the profile from several screens at
+ * once) only one of them creates and announces; the others see its record.
  *
  * @param {{uid: string, email: string}} user
  * @param {{store: MemberStore, now?: () => Date, joinedAt?: (uid: string) => Promise<string|null>,
@@ -123,18 +130,23 @@ export async function loadMember(user, { store, now = () => new Date(), joinedAt
     newsletters: [...DEFAULT_NEWSLETTERS],
     joinedAt: (joinedAt && (await joinedAt(user.uid).catch(() => null))) || now().toISOString(),
   };
-  await store.set(user.uid, { ...record, createdAt: now(), updatedAt: now() });
-  for (let i = 0; i < USERNAME_TRIES && !record.username; i++) {
+  const stamps = { createdAt: now(), updatedAt: now() };
+  for (let i = 0; i < USERNAME_TRIES; i++) {
     const candidate = generateUsername(random);
     try {
-      await store.setUsername(user.uid, candidate);
+      const created = await store.create(user.uid, { ...record, username: candidate, usernameGenerated: true, ...stamps });
+      if (!created) return loadMember(user, { store, now, joinedAt, onCreated, random });
       record.username = candidate;
       record.usernameGenerated = true;
-      await store.set(user.uid, { usernameGenerated: true });
+      if (onCreated) await onCreated(record);
+      return record;
     } catch (error) {
       if (!(error instanceof AppError && error.code === "already-exists")) throw error;
     }
   }
+  // Every candidate was taken: the record goes in without a username.
+  const created = await store.create(user.uid, { ...record, ...stamps });
+  if (!created) return loadMember(user, { store, now, joinedAt, onCreated, random });
   if (onCreated) await onCreated(record);
   return record;
 }
@@ -179,6 +191,22 @@ export function firestoreMemberStore(db) {
     },
     async set(uid, data) {
       await members.doc(uid).set(data, { merge: true });
+    },
+    async create(uid, data) {
+      const key = data.username ? usernameKey(data.username) : null;
+      return db.runTransaction(async (tx) => {
+        const [member, reservation] = await Promise.all([
+          tx.get(members.doc(uid)),
+          key ? tx.get(usernames.doc(key)) : null,
+        ]);
+        if (member.exists) return false;
+        if (reservation?.exists && reservation.data().uid !== uid) {
+          throw new AppError("already-exists", "That username is taken.");
+        }
+        if (key) tx.set(usernames.doc(key), { uid, username: data.username });
+        tx.set(members.doc(uid), data);
+        return true;
+      });
     },
     async remove(uid, fields) {
       const patch = Object.fromEntries(fields.map((f) => [f, FieldValue.delete()]));

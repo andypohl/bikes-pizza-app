@@ -119,6 +119,12 @@ export function memoryMemberStore(initial = {}) {
     async set(uid, data) {
       records.set(uid, { ...(records.get(uid) ?? {}), ...data });
     },
+    async create(uid, data) {
+      if (records.has(uid)) return false;
+      if (data.username) await this.setUsername(uid, data.username);
+      records.set(uid, { ...(records.get(uid) ?? {}), ...data });
+      return true;
+    },
     async remove(uid, fields) {
       const r = records.get(uid);
       if (r) for (const f of fields) delete r[f];
