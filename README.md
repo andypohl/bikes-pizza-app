@@ -31,7 +31,9 @@ conversation. The server side is `functions/push.js`.
 
 Signed-in members (verified email) see a "Submit Pizza" / "Submit Bike"
 button under the Pizza and Bikes lists, between the list and the tab bar.
-It is not shown on a post. See "Member submissions" below.
+It is not shown on a post. Someone who is not signed in sees a "Sign up to
+submit pizza" / "Sign up to submit bike" button in the same place, which
+opens the create-account form. See "Member submissions" below.
 
 ## Shared facts (the contract)
 
