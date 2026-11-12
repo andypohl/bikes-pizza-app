@@ -31,7 +31,15 @@ enum _Mode { signIn, createAccount }
 /// the device (see [PendingProfile]) until then, since the member
 /// functions need a verified email.
 class SignInScreen extends StatefulWidget {
-  const SignInScreen({super.key, required this.auth, this.passkeys});
+  const SignInScreen({
+    super.key,
+    required this.auth,
+    this.passkeys,
+    this.createAccount = false,
+  });
+
+  /// Opens on the create-account form rather than the sign-in one.
+  final bool createAccount;
 
   final AuthService auth;
   final PasskeyService? passkeys;
@@ -49,7 +57,7 @@ class _SignInScreenState extends State<SignInScreen> {
 
   final _code = TextEditingController();
 
-  _Mode _mode = _Mode.signIn;
+  late _Mode _mode = widget.createAccount ? _Mode.createAccount : _Mode.signIn;
   bool _busy = false;
   bool _obscure = true;
   bool _newsletter = true;

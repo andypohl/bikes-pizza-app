@@ -3384,6 +3384,7 @@ void main() {
     await tester.tap(find.text('Bikes'));
     await tester.pumpAndSettle();
     expect(find.text('Submit Bike'), findsNothing);
+    expect(find.text('Sign up to submit bike'), findsOneWidget);
 
     await signInWithGoogle(tester);
 
@@ -3391,6 +3392,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Submit Bike'), findsOneWidget);
     expect(find.text('Submit Pizza'), findsNothing);
+    expect(find.textContaining('Sign up to'), findsNothing);
 
     await tester.tap(find.text('Pizza'));
     await tester.pumpAndSettle();
@@ -3400,8 +3402,9 @@ void main() {
     await tester.tap(find.text('News'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Submit'), findsNothing);
+    expect(find.textContaining('Sign up to'), findsNothing);
 
-    // Signing out hides them again.
+    // Signing out swaps them for the sign-up buttons again.
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Sign out'));
@@ -3409,6 +3412,28 @@ void main() {
     await tester.tap(find.text('Pizza'));
     await tester.pumpAndSettle();
     expect(find.text('Submit Pizza'), findsNothing);
+    expect(find.text('Sign up to submit pizza'), findsOneWidget);
+  });
+
+  testWidgets('signed out, the submit bar leads to creating an account', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('sign-up-submit-pizza')));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(AppBar, 'Create account'), findsOneWidget);
+    expect(find.text('Already have an account? Sign in'), findsOneWidget);
+
+    // Signing in there returns to the list, now with the member button.
+    await tester.ensureVisible(find.byKey(const Key('google-sign-in')));
+    await tester.tap(find.byKey(const Key('google-sign-in')));
+    await tester.pumpAndSettle();
+    expect(find.text('Submit Pizza'), findsOneWidget);
+    expect(find.textContaining('Sign up to'), findsNothing);
   });
 
   testWidgets('submit button is hidden on a post and for unverified users', (
@@ -3425,6 +3450,7 @@ void main() {
     await tester.tap(find.text('Pizza'));
     await tester.pumpAndSettle();
     expect(find.text('Submit Pizza'), findsNothing);
+    expect(find.textContaining('Sign up to'), findsNothing);
 
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();

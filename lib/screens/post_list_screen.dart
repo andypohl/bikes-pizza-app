@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../auth/auth_service.dart';
+import '../auth/passkey_service.dart';
+import '../auth/sign_in_screen.dart';
 import '../data/post_repository.dart';
 import '../messages/message_tracker.dart';
 import '../messages/thread_service.dart';
@@ -31,7 +33,9 @@ import 'submit_screen.dart';
 /// where it opens in the right half beside the list with a close button.
 ///
 /// Feeds that take submissions show a "Submit …" bar under the list to
-/// signed-in members when [auth], [submissions] and [photos] are all given.
+/// signed-in members when [auth], [submissions] and [photos] are all given;
+/// someone not signed in gets a "Sign up to submit …" button there instead,
+/// which opens the create-account form.
 /// With [auth], [editor] and [photos], an open post offers an Edit button
 /// to the member who posted it and to administrators. With [unread],
 /// posts not opened since they changed carry a blue dot, and opening one
@@ -44,6 +48,7 @@ class PostListScreen extends StatefulWidget {
     this.auth,
     this.submissions,
     this.photos,
+    this.passkeys,
     this.editor,
     this.reactions,
     this.comments,
@@ -79,6 +84,9 @@ class PostListScreen extends StatefulWidget {
   final AuthService? auth;
   final SubmissionService? submissions;
   final PhotoPicker? photos;
+
+  /// Offered on the sign-up screen the submit bar opens; null omits them.
+  final PasskeyService? passkeys;
   final PostEditor? editor;
 
   /// When set, only this member's posts are listed (reached from the
@@ -263,6 +271,18 @@ class _PostListScreenState extends State<PostListScreen> {
     );
   }
 
+  void _openSignUp(AuthService auth) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SignInScreen(
+          auth: auth,
+          passkeys: widget.passkeys,
+          createAccount: true,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = widget.auth;
@@ -283,6 +303,8 @@ class _PostListScreenState extends State<PostListScreen> {
             label: submitLabel,
             buttonKey: Key('submit-${widget.feed.name}'),
             onPressed: () => _openSubmit(auth, submissions, photos),
+            signUpKey: Key('sign-up-submit-${widget.feed.name}'),
+            onSignUp: () => _openSignUp(auth),
           )
         : null;
     final split = isLandscapeTablet(context);
@@ -536,20 +558,26 @@ class _NothingSelected extends StatelessWidget {
   }
 }
 
-/// Full-width "Submit …" button, shown only to signed-in users whose email
-/// is verified (what makes them a member).
+/// Full-width "Submit …" button for signed-in users whose email is
+/// verified (what makes them a member). Signed out, it reads "Sign up to
+/// submit …" and leads to creating an account; signed in but unverified,
+/// there is no button (Settings has the verify step).
 class _SubmitBar extends StatelessWidget {
   const _SubmitBar({
     required this.auth,
     required this.label,
     required this.buttonKey,
     required this.onPressed,
+    required this.signUpKey,
+    required this.onSignUp,
   });
 
   final AuthService auth;
   final String label;
   final Key buttonKey;
   final VoidCallback onPressed;
+  final Key signUpKey;
+  final VoidCallback onSignUp;
 
   @override
   Widget build(BuildContext context) {
@@ -558,7 +586,7 @@ class _SubmitBar extends StatelessWidget {
       initialData: auth.currentUser,
       builder: (context, snapshot) {
         final user = snapshot.data;
-        if (user == null || !user.emailVerified) {
+        if (user != null && !user.emailVerified) {
           return const SizedBox.shrink();
         }
         return Material(
@@ -567,12 +595,19 @@ class _SubmitBar extends StatelessWidget {
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-              child: FilledButton.icon(
-                key: buttonKey,
-                onPressed: onPressed,
-                icon: const Icon(Icons.add_a_photo_outlined),
-                label: Text(label),
-              ),
+              child: user == null
+                  ? FilledButton.icon(
+                      key: signUpKey,
+                      onPressed: onSignUp,
+                      icon: const Icon(Icons.person_add_alt_1_outlined),
+                      label: Text('Sign up to ${label.toLowerCase()}'),
+                    )
+                  : FilledButton.icon(
+                      key: buttonKey,
+                      onPressed: onPressed,
+                      icon: const Icon(Icons.add_a_photo_outlined),
+                      label: Text(label),
+                    ),
             ),
           ),
         );
